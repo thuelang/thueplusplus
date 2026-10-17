@@ -163,20 +163,27 @@ async function checkVeil() {
         mask: computed.maskImage || computed.webkitMaskImage,
         composite: computed.maskComposite || computed.webkitMaskComposite,
         blur: computed.backdropFilter || computed.webkitBackdropFilter,
-        fadeX: copy.left - box.left,
-        fadeY: box.bottom - copy.bottom,
+        fadeL: copy.left - box.left,
+        fadeR: box.right - copy.right,
+        fadeT: copy.top - box.top,
+        fadeB: box.bottom - copy.bottom,
         box: box.toJSON(),
       }
     })
     if (!style.mask || style.mask === 'none' || style.mask.split('linear-gradient').length < 3) {
       fail(`veil mask is not a two-axis fade: ${style.mask}`)
     }
+    if (!style.mask.includes('to right') && !style.mask.includes('to left')) {
+      fail(`veil has no horizontal fade: ${style.mask}`)
+    }
     if (!String(style.composite).includes('intersect') && !String(style.composite).includes('source-in')) {
       fail(`veil mask composite is ${style.composite}`)
     }
     if (!String(style.blur).includes('blur')) fail(`veil has no backdrop blur: ${style.blur}`)
-    if (!(style.fadeX >= 80)) fail(`horizontal veil fade is ${style.fadeX}px`)
-    if (!(style.fadeY >= 48)) fail(`vertical veil fade is ${style.fadeY}px`)
+    if (!(style.fadeL >= 80)) fail(`left veil fade is ${style.fadeL}px`)
+    if (!(style.fadeR >= 48)) fail(`right veil fade is ${style.fadeR}px`)
+    if (!(style.fadeT >= 24)) fail(`top veil fade is ${style.fadeT}px`)
+    if (!(style.fadeB >= 48)) fail(`bottom veil fade is ${style.fadeB}px`)
     const belt = await page.locator('[data-test="belt-surface"]').boundingBox()
     if (!belt) fail('belt surface is missing')
     if (style.box.left < 8) fail(`veil fade is clipped by the viewport at x=${style.box.left}`)
@@ -184,24 +191,40 @@ async function checkVeil() {
     const shot = decodePng(await page.screenshot({ type: 'png' }))
     const y0 = belt.y + 3
     const y1 = belt.y + Math.min(10, belt.height - 2)
-    const samples = []
-    for (let x = Math.round(style.box.left); x <= Math.round(style.box.left + style.fadeX); x += 1) {
-      samples.push(averageLuminance(shot, x, y0, y1))
+    function fadeRelease(samples, outside, opaque, label) {
+      const range = Math.abs(outside - opaque)
+      if (range < 12) fail(`veil does not change the belt on the ${label} (opaque ${opaque.toFixed(1)}, outside ${outside.toFixed(1)})`)
+      let maxStep = 0
+      for (let i = 1; i < samples.length; i++) maxStep = Math.max(maxStep, Math.abs(samples[i] - samples[i - 1]))
+      const edge = label === 'left' ? samples[0] : samples[samples.length - 1]
+      const released = Math.abs(outside - edge) / range
+      if (maxStep > range * 0.35) {
+        fail(`veil fade has a hard step of ${maxStep.toFixed(1)} on a ${range.toFixed(1)} swing (${label})`)
+      }
+      if (released > 0.4) {
+        fail(`veil still dims the belt at its ${label} edge (released ${released.toFixed(2)}, edge ${edge.toFixed(1)}, outside ${outside.toFixed(1)})`)
+      }
     }
-    const outside = averageLuminance(shot, style.box.left - 14, y0, y1)
-    const opaque = averageLuminance(shot, style.box.left + style.fadeX + 24, y0, y1)
-    const edge = samples[0]
-    const range = Math.abs(outside - opaque)
-    if (range < 12) fail(`veil does not change the belt (opaque ${opaque.toFixed(1)}, outside ${outside.toFixed(1)})`)
-    let maxStep = 0
-    for (let i = 1; i < samples.length; i++) maxStep = Math.max(maxStep, Math.abs(samples[i] - samples[i - 1]))
-    const released = Math.abs(outside - edge) / range
-    if (maxStep > range * 0.35) {
-      fail(`veil fade has a hard step of ${maxStep.toFixed(1)} on a ${range.toFixed(1)} swing`)
+    const left = []
+    for (let x = Math.round(style.box.left); x <= Math.round(style.box.left + style.fadeL); x += 1) {
+      left.push(averageLuminance(shot, x, y0, y1))
     }
-    if (released > 0.4) {
-      fail(`veil still dims the belt at its left edge (released ${released.toFixed(2)}, edge ${edge.toFixed(1)}, outside ${outside.toFixed(1)})`)
+    fadeRelease(
+      left,
+      averageLuminance(shot, style.box.left - 14, y0, y1),
+      averageLuminance(shot, style.box.left + style.fadeL + 24, y0, y1),
+      'left',
+    )
+    const right = []
+    for (let x = Math.round(style.box.right - style.fadeR); x <= Math.round(style.box.right); x += 1) {
+      right.push(averageLuminance(shot, x, y0, y1))
     }
+    fadeRelease(
+      right,
+      averageLuminance(shot, style.box.right + 12, y0, y1),
+      averageLuminance(shot, style.box.right - style.fadeR - 24, y0, y1),
+      'right',
+    )
     console.log('veil fade ok')
   } finally {
     await browser.close()
@@ -238,15 +261,24 @@ async function checkGround() {
     const sorted = [...measured.dots].sort((a, b) => a.top - b.top)
     const feet = sorted.slice(2)
     for (const foot of feet) {
-      if (foot.top < measured.belt.bottom - 1) {
-        fail(`Rex foot starts at ${foot.top.toFixed(1)} behind the belt bottom ${measured.belt.bottom.toFixed(1)}`)
+      const gap = foot.top - measured.belt.bottom
+      const peek = foot.bottom - measured.belt.bottom
+      if (gap > 2) {
+        fail(`Rex foot starts ${gap.toFixed(1)}px below the belt, so it floats`)
+      }
+      if (peek < 6) {
+        fail(`Rex foot only peeks ${peek.toFixed(1)}px under the belt`)
+      }
+      if (peek > 22) {
+        fail(`Rex foot hangs ${peek.toFixed(1)}px under the belt`)
       }
       if (foot.bottom > measured.svgBottom - 1) {
         fail(`Rex foot is clipped at ${foot.bottom.toFixed(1)} past the scene ${measured.svgBottom.toFixed(1)}`)
       }
     }
-    if (measured.floor.top < measured.belt.bottom - 1) {
-      fail(`floor line at ${measured.floor.top.toFixed(1)} is not below the belt ${measured.belt.bottom.toFixed(1)}`)
+    const floorGap = measured.floor.top - measured.belt.bottom
+    if (floorGap < 4 || floorGap > 28) {
+      fail(`floor line is ${floorGap.toFixed(1)}px under the belt`)
     }
     console.log('rex grounded ok')
   } finally {
@@ -510,10 +542,70 @@ async function checkConsole() {
   console.log('console ok')
 }
 
+async function checkScorePlace() {
+  const { browser, page } = await open()
+  try {
+    await page.goto(`${DEV}/`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+    await page.locator('[data-test="score-label"]').waitFor()
+    const placed = await page.evaluate(() => {
+      const label = document.querySelector('[data-test="score-label"]')
+      const score = document.querySelector('[data-test="score"]')
+      const copy = document.querySelector('.hero-copy').getBoundingClientRect()
+      const bubble = document.querySelector('[data-test="speech"]')?.getBoundingClientRect()
+      const labelBox = label.getBoundingClientRect()
+      const scoreBox = score.getBoundingClientRect()
+      const opacity = Number(getComputedStyle(label).opacity)
+      const overlaps = (a, b) => a && b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
+      return {
+        opacity,
+        labelRight: labelBox.right,
+        scoreRight: scoreBox.right,
+        copyLeft: copy.left,
+        hitsBubble: overlaps(scoreBox, bubble) || overlaps(labelBox, bubble),
+      }
+    })
+    if (placed.opacity < 0.95) fail(`score label opacity is ${placed.opacity}`)
+    if (placed.scoreRight > placed.copyLeft - 16) {
+      fail(`score reaches x=${placed.scoreRight.toFixed(0)} into the copy at ${placed.copyLeft.toFixed(0)}`)
+    }
+    if (placed.hitsBubble) fail('score overlaps the speech bubble')
+    console.log('score place ok')
+  } finally {
+    await browser.close()
+  }
+}
+
+async function checkStray() {
+  const { browser, page } = await open()
+  try {
+    await page.goto(`${DEV}/`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+    await page.locator('[data-test="belt"]').waitFor()
+    const stray = await page.evaluate(() => {
+      const scene = document.querySelector('[data-test="sandbox-scene"]')
+      const belt = scene.querySelector('[data-test="belt"]').getBoundingClientRect()
+      const found = []
+      for (const rect of scene.querySelectorAll('rect')) {
+        const box = rect.getBoundingClientRect()
+        if (box.width < 8 || box.height < 4) continue
+        if (box.top > belt.bottom + 2) {
+          found.push(`${Math.round(box.x)},${Math.round(box.y)} ${Math.round(box.width)}x${Math.round(box.height)}`)
+        }
+      }
+      return found
+    })
+    if (stray.length) fail(`stray rects under the belt: ${stray.join('; ')}`)
+    console.log('no stray rects')
+  } finally {
+    await browser.close()
+  }
+}
+
 const modes = {
   veil: checkVeil,
   ground: checkGround,
   score: checkScore,
+  scoreplace: checkScorePlace,
+  stray: checkStray,
   pillar: checkPillar,
   raf: checkRaf,
   overflow: checkOverflow,
@@ -521,5 +613,5 @@ const modes = {
 }
 
 const mode = process.argv[2]
-if (!modes[mode]) fail('usage: check-polish.mjs veil|ground|score|pillar|raf|overflow|console')
+if (!modes[mode]) fail('usage: check-polish.mjs veil|ground|score|scoreplace|stray|pillar|raf|overflow|console')
 await modes[mode]()

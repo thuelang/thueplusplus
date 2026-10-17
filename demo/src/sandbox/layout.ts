@@ -7,16 +7,19 @@ export const BELT_TOP = 292
 export const BELT_H = 72
 export const BELT_Y = BELT_TOP + BELT_H / 2
 /**
- * Rex stands on a floor line behind the belt, a little lower than the belt.
- * His feet clear the belt's bottom edge, so they stay visible. The belt is
- * painted after him and covers the middle of the figure.
+ * Rex stands behind the belt. His feet tuck under the belt and a short
+ * length peeks out at the bottom edge, so they read as attached.
  */
 export const BELT_BOTTOM = BELT_TOP + BELT_H
-export const GROUND = BELT_BOTTOM + 40
+/** Top of the belt's raised face. Machine strokes stop here, outside the tunnel. */
+export const BELT_FACE = BELT_TOP - 14
+/** How far the foot circles extend below the belt. */
+export const FOOT_PEEK = 12
 export const SCALE = 2.5
+export const GROUND = BELT_BOTTOM + FOOT_PEEK
 
-/** Score block in the hero viewBox, left of the copy column. The label does not scale with the number. */
-export const SCORE_X = 700
+/** Score sits in the open sky left of the veil. The label does not scale with the number. */
+export const SCORE_X = 56
 export const SCORE_LABEL_Y = 22
 export const SCORE_LABEL_SIZE = 14
 export const SCORE_NUMBER_Y = 108
@@ -53,6 +56,15 @@ export const REX_HOME = 430
 export const REX_LEVER = 510
 
 export const LEVER_PIVOT = { x: 590, y: BELT_TOP }
+/**
+ * Hint baseline, to the right of Rex's hat and level with the lever knob.
+ * The longer "pull the lever" string stays left of the title column.
+ */
+export const HINT_X = REX_LEVER + 24 * SCALE + 18
+export const HINT_Y = LEVER_PIVOT.y - 44
+/** Speech sits in the open sky above Rex, right of the machine and left of the title. */
+export const SPEECH_X = 470
+export const SPEECH_Y = 18
 export const LEVER_LEN = 74
 /** Degrees from straight up. Negative leans back toward Rex. */
 export const LEVER_OFF = -52
@@ -95,6 +107,10 @@ export const WINDOW_X = MACHINE_X + 189 * MACHINE_S
 export const WINDOW_W = (297 - 189) * MACHINE_S
 export const WINDOW_Y = MACHINE_Y + 300 * MACHINE_S
 export const WINDOW_H = (385 - 300) * MACHINE_S
+/** Solid curtain panels in the tunnel mouth. Gaps are almost as wide as the panels. */
+export const CURTAIN_COUNT = 3
+export const CURTAIN_W = 22
+export const CURTAIN_GAP = 20
 const FLAP_COUNT = 5
 const FLAP_PITCH = 9
 
@@ -155,6 +171,17 @@ export function scannerAperture(span: number): Aperture {
   const exit = beltPoint(1).x
   return { entrance, exit, top: SCAN_TOP, width: Math.abs(exit - entrance) }
 }
+
+/** Centers of the curtains across the tunnel mouth. */
+export function curtainXs(): number[] {
+  const span = CURTAIN_COUNT * CURTAIN_W + (CURTAIN_COUNT - 1) * CURTAIN_GAP
+  const mouth = TUNNEL_LIP - TUNNEL_DEEP
+  const start = TUNNEL_DEEP + (mouth - span) / 2
+  return Array.from({ length: CURTAIN_COUNT }, (_, index) => start + index * (CURTAIN_W + CURTAIN_GAP) + CURTAIN_W / 2)
+}
+
+/** Top of a curtain. They hang into the mouth and stop at the belt face. */
+export const CURTAIN_TOP = BELT_FACE - 64
 
 /** X positions of the strips hanging at one edge of the tunnel. */
 export function flapXs(edge: number): number[] {

@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Rex from './Rex.vue'
 import {
+  BELT_BOTTOM,
+  BELT_FACE,
   BELT_H,
   BELT_TOP,
   BELT_X0,
@@ -9,7 +11,13 @@ import {
   CAGE_H,
   CAGE_W,
   CAGE_X,
+  CURTAIN_TOP,
+  CURTAIN_W,
   GROUND,
+  HINT_X,
+  HINT_Y,
+  SPEECH_X,
+  SPEECH_Y,
   LEVER_LEN,
   LEVER_PIVOT,
   MACHINE_S,
@@ -32,8 +40,8 @@ import {
   WINDOW_X,
   WINDOW_Y,
   beltPoint,
+  curtainXs,
   flapBend,
-  flapXs,
   scanLineX,
   scannerAperture,
   scoreFlashRadius,
@@ -194,8 +202,7 @@ const floatPos = computed(() => {
   }
 })
 const aperture = computed(() => scannerAperture(diff.value.span))
-const entranceFlaps = computed(() => flapXs(TUNNEL_LIP))
-const exitFlaps = computed(() => flapXs(TUNNEL_DEEP))
+const curtains = computed(() => curtainXs())
 const zoneLeft = computed(() => Math.min(aperture.value.entrance, aperture.value.exit))
 const scanned = computed(() => game.value.boxes
   .filter(box => inZone(box.progress, game.value.score, game.value.reduced))
@@ -427,7 +434,7 @@ defineExpose({ game, advance, act })
         :transform="scoreTransform"
         fill="currentColor"
         font-family="JetBrains Mono, ui-monospace, monospace"
-        text-anchor="end"
+        text-anchor="start"
       >
         <text
           data-test="score"
@@ -437,15 +444,15 @@ defineExpose({ game, advance, act })
           :fill="jump.flash > 0.2 ? 'var(--signal)' : 'currentColor'"
         >{{ game.score }}</text>
       </g>
-      <g fill="currentColor" font-family="JetBrains Mono, ui-monospace, monospace" text-anchor="end">
-        <text data-test="score-label" :x="SCORE_X" :y="SCORE_LABEL_Y" :font-size="SCORE_LABEL_SIZE" opacity="0.7">score</text>
-        <text v-if="game.best > 0" data-test="best" :x="SCORE_X" :y="SCORE_NUMBER_Y + 28" font-size="16" opacity="0.75">best {{ game.best }}</text>
+      <g fill="currentColor" font-family="JetBrains Mono, ui-monospace, monospace" text-anchor="start">
+        <text data-test="score-label" :x="SCORE_X" :y="SCORE_LABEL_Y" :font-size="SCORE_LABEL_SIZE">score</text>
+        <text v-if="game.best > 0" data-test="best" :x="SCORE_X" :y="SCORE_NUMBER_Y + 28" font-size="16">best {{ game.best }}</text>
       </g>
 
       <g
         v-if="game.control === 'auto' && game.rex !== 'cheer'"
         data-test="speech"
-        :transform="`translate(${pose.rootX - 180} ${pose.rootY - 372})`"
+        :transform="`translate(${SPEECH_X} ${SPEECH_Y})`"
       >
         <path
           data-test="speech-bubble"
@@ -479,7 +486,6 @@ defineExpose({ game, advance, act })
       </g>
 
       <g data-test="lever" :data-on="game.lever >= 0.5 ? 'yes' : 'no'">
-        <rect :x="LEVER_PIVOT.x - 18" :y="GROUND - 16" width="36" height="16" rx="2" fill="var(--surface)" stroke="currentColor" stroke-width="2" />
         <g :transform="`rotate(${leverAngle} ${LEVER_PIVOT.x} ${LEVER_PIVOT.y})`">
           <line :x1="LEVER_PIVOT.x" :y1="LEVER_PIVOT.y" :x2="LEVER_PIVOT.x" :y2="LEVER_PIVOT.y - LEVER_LEN" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
           <circle :cx="LEVER_PIVOT.x" :cy="LEVER_PIVOT.y - LEVER_LEN" r="9" fill="var(--signal)" stroke="currentColor" stroke-width="2" />
@@ -488,12 +494,12 @@ defineExpose({ game, advance, act })
 
       <text
         data-test="start-hint"
-        :x="LEVER_PIVOT.x"
-        :y="BELT_TOP - 72"
-        text-anchor="middle"
+        :x="HINT_X"
+        :y="HINT_Y"
+        text-anchor="start"
         fill="currentColor"
         font-family="JetBrains Mono, ui-monospace, monospace"
-        font-size="16"
+        font-size="14"
       >{{ leverHint }}</text>
       <text
         v-if="game.miss > 0"
@@ -550,8 +556,13 @@ defineExpose({ game, advance, act })
       </g>
 
       <g data-test="scanner" data-test-machine="sketch" :data-scanning="scanned ? 'yes' : 'no'" :transform="scannerTransform">
+        <clipPath id="rex-machine-clip">
+          <rect x="-40" y="-80" :width="VIEW_W + 80" :height="BELT_FACE + 80" />
+          <rect :x="TUNNEL_DEEP" :y="BELT_FACE" :width="TUNNEL_LIP - TUNNEL_DEEP" :height="BELT_BOTTOM - BELT_FACE" />
+        </clipPath>
         <g
           data-test="machine"
+          clip-path="url(#rex-machine-clip)"
           :transform="`translate(${MACHINE_X} ${MACHINE_Y}) scale(${MACHINE_S})`"
           fill="currentColor"
         >
@@ -601,17 +612,22 @@ defineExpose({ game, advance, act })
         stroke-linecap="round"
         opacity="0.9"
       />
-      <g data-test="scanner-flaps" fill="var(--surface)" stroke="currentColor" stroke-width="1.6">
-        <g v-for="(x, index) in entranceFlaps" :key="`in-${index}`" data-test="scanner-flap" data-edge="entrance" :transform="flapTransform(x)">
-          <rect :x="x - 4" :y="SCAN_TOP" width="8" :height="TUNNEL_BOTTOM - SCAN_TOP" rx="1.5" opacity="0.92" />
-        </g>
-        <g v-for="(x, index) in exitFlaps" :key="`out-${index}`" data-test="scanner-flap" data-edge="exit" :transform="flapTransform(x)">
-          <rect :x="x - 4" :y="SCAN_TOP" width="8" :height="TUNNEL_BOTTOM - SCAN_TOP" rx="1.5" opacity="0.92" />
+      <g data-test="scanner-flaps" fill="currentColor">
+        <line
+          :x1="curtains[0] - CURTAIN_W / 2"
+          :x2="curtains[curtains.length - 1] + CURTAIN_W / 2"
+          :y1="CURTAIN_TOP"
+          :y2="CURTAIN_TOP"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+        />
+        <g v-for="(x, index) in curtains" :key="`curtain-${index}`" data-test="scanner-flap" data-edge="entrance" :transform="flapTransform(x)">
+          <rect :x="x - CURTAIN_W / 2" :y="CURTAIN_TOP" :width="CURTAIN_W" :height="BELT_FACE - CURTAIN_TOP - 8" rx="4" />
         </g>
       </g>
 
       <g data-test="jail">
-        <rect :x="CAGE_X - 8" :y="GROUND - 10" width="60" height="10" rx="1" fill="var(--surface)" stroke="currentColor" stroke-width="2" />
         <g v-if="game.cages.length === 0" :transform="`translate(${CAGE_X} ${CAGE_BASE})`">
           <rect :width="CAGE_W" :height="CAGE_H" fill="var(--surface)" stroke="currentColor" stroke-width="2" />
           <g stroke="currentColor" stroke-width="1.6">
