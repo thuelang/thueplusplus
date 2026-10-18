@@ -2,36 +2,32 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Rex from './Rex.vue'
 import {
-  BELT_TOP,
   GROUND,
   HINT_X,
   HINT_Y,
-  SPEECH_X,
-  SPEECH_Y,
+  HIT_FRONT,
   LEVER_LEN,
   LEVER_PIVOT,
   MACHINE_S,
   MACHINE_X,
   MACHINE_Y,
+  MISS_X,
+  MISS_Y,
+  OPENING_X,
+  OPENING_Y,
   SCALE,
   SCAN_TOP,
-  SCORE_LABEL_SIZE,
-  SCORE_LABEL_Y,
-  SCORE_NUMBER_SIZE,
-  SCORE_NUMBER_Y,
-  SCORE_X,
+  SPEECH_X,
+  SPEECH_Y,
   TUNNEL_BOTTOM,
   VIEW_H,
   VIEW_W,
-  beltPoint,
   boxInFrame,
   boxPlace,
-  machineScale,
-  scannerAperture,
-  scoreFlashRadius,
-  scoreNumberCenterY,
   leverDegrees,
   leverKnob,
+  machineScale,
+  speechTail,
 } from '@/sandbox/layout'
 import { MACHINE_D } from '@/sandbox/machine'
 import { framePose, settledSpring, type Pose, type Spring } from '@/sandbox/motion'
@@ -39,18 +35,15 @@ import {
   beginAutoplay,
   createGame,
   demoRuns,
-  difficulty,
   inZone,
+  nearestBox,
   playerAct,
-  scoreJump,
   setPresence,
   step,
   type Box,
   type Game,
   type Presence,
 } from '@/sandbox/game'
-
-const BEST_KEY = 'rex-sandbox-best'
 
 const emit = defineEmits<{ break: [reduced: boolean], rebuilt: [] }>()
 
@@ -67,12 +60,10 @@ const sceneEl = ref<HTMLElement | null>(null)
 const game = ref<Game>(beginAutoplay(createGame({
   seed: import.meta.env.MODE === 'test' ? 1 : freshSeed(),
   reduced: reduced.value,
-  best: typeof localStorage === 'undefined' ? 0 : readBest(),
 })))
 const clock = ref(0)
 const spring = ref<Spring>(settledSpring())
 const pose = ref<Pose>(restPose(false))
-const floatFrom = ref<{ x: number, y: number } | null>(null)
 const status = ref('Rex is running the machine.')
 let raf = 0
 let last = 0
@@ -90,24 +81,19 @@ function freshSeed(): number {
   return buf[0] === 0 ? 1 : buf[0]
 }
 
-function readBest(): number {
-  const raw = localStorage.getItem(BEST_KEY)
-  if (raw === null) return 0
-  if (!/^\d+$/.test(raw)) {
-    localStorage.removeItem(BEST_KEY)
-    return 0
-  }
-  const n = Number(raw)
-  if (!Number.isSafeInteger(n) || n < 0) return 0
-  return n
-}
-
 function note(): void {
   const current = game.value
   if (current.phase === 'broken') status.value = 'A box got through.'
   else if (current.control === 'auto') status.value = 'Rex is running the machine.'
-  else if (current.miss > 0) status.value = `Miss. Score ${current.score}.`
-  else status.value = `Score ${current.score}.`
+  else if (current.miss > 0) status.value = 'Miss.'
+  else status.value = 'Your turn.'
+}
+
+function aimPoint(): { x: number, y: number } | null {
+  const box = nearestBox(game.value.boxes)
+  if (!box) return null
+  const place = boxPlace(box.progress, box.lane, box.spin)
+  return { x: place.x, y: place.y }
 }
 
 note()
@@ -122,6 +108,7 @@ function syncPose(dt: number): void {
     reduced: reduced.value,
     spring: spring.value,
     dt,
+    aim: aimPoint(),
   })
   spring.value = next.spring
   pose.value = next
@@ -129,20 +116,15 @@ function syncPose(dt: number): void {
 
 function commit(next: Game, dt: number): void {
   const before = game.value
-  if (next.score > before.score) floatFrom.value = beltPoint(0.92)
   game.value = next
   syncPose(dt)
   if (next.phase === 'broken' && before.phase !== 'broken') {
-    if (before.control === 'player') {
-      const stored = readBest()
-      if (next.best > stored) localStorage.setItem(BEST_KEY, String(next.best))
-    }
     emit('break', next.reduced)
     note()
   } else if (before.phase === 'broken' && next.phase !== 'broken') {
     emit('rebuilt')
     note()
-  } else if (next.score !== before.score || next.control !== before.control || next.miss !== before.miss) note()
+  } else if (next.control !== before.control || next.miss !== before.miss) note()
 }
 
 function applyReduced(isReduced: boolean): void {
@@ -151,7 +133,6 @@ function applyReduced(isReduced: boolean): void {
   syncPose(0)
 }
 
-const diff = computed(() => difficulty(game.value.score, game.value.reduced))
 const rexLabel = computed(() => (
   game.value.control === 'player' && game.value.phase === 'playing' ? 'Pull the lever.' : 'Rex.'
 ))
@@ -163,30 +144,8 @@ const leverHint = computed(() => (
   game.value.control === 'player' && game.value.phase === 'playing' ? 'pull the lever' : 'your turn'
 ))
 const leverAngle = computed(() => leverDegrees(game.value.lever))
-const jump = computed(() => scoreJump(
-  game.value.pop,
-  game.value.streak,
-  Math.max(diff.value.beltRate, 0.01),
-  reduced.value,
-))
-const numberCenterY = computed(() => scoreNumberCenterY())
-const flashRadius = computed(() => scoreFlashRadius(jump.value.scale, reduced.value ? 0 : jump.value.flash))
-const scoreTransform = computed(() => {
-  const scale = jump.value.scale
-  const y = numberCenterY.value
-  return `translate(${SCORE_X} ${y}) scale(${scale}) translate(${-SCORE_X} ${-y})`
-})
-const floatPos = computed(() => {
-  const from = floatFrom.value ?? beltPoint(1)
-  const travel = jump.value.travel
-  return {
-    x: from.x + (SCORE_X - 80 - from.x) * travel,
-    y: from.y - 36 + (numberCenterY.value - (from.y - 36)) * travel,
-  }
-})
-const aperture = computed(() => scannerAperture(diff.value.span))
-const zoneLeft = computed(() => Math.min(aperture.value.entrance, aperture.value.exit))
-const inRange = computed(() => game.value.boxes.some(box => inZone(box.progress, game.value.score, game.value.reduced)))
+const tail = computed(() => speechTail(pose.value.rootX, pose.value.rootY))
+const inRange = computed(() => game.value.boxes.some(box => inZone(box.progress, box.lane, box.spin)))
 const grown = ref(0)
 const scannerTransform = computed(() => {
   if (reduced.value || game.value.jolt === 0) return 'translate(0 0)'
@@ -194,9 +153,7 @@ const scannerTransform = computed(() => {
   const shakeX = Math.sin(clock.value * 48) * jolt * 8
   const shakeY = Math.cos(clock.value * 39) * jolt * 5
   const rot = Math.sin(clock.value * 54) * jolt * 2.5
-  const pivotX = (aperture.value.entrance + aperture.value.exit) / 2
-  const pivotY = (SCAN_TOP + BELT_TOP) / 2
-  return `translate(${shakeX} ${shakeY}) rotate(${rot} ${pivotX} ${pivotY})`
+  return `translate(${shakeX} ${shakeY}) rotate(${rot} ${OPENING_X} ${OPENING_Y})`
 })
 
 const rexBox = computed(() => pct(pose.value.rootX - 78, pose.value.rootY - 268, 160, 286))
@@ -253,14 +210,7 @@ function notePresence(presence: Presence): void {
 
 function act(): void {
   if (game.value.presence === 'away') notePresence('pointer')
-  const before = game.value
-  const hot = before.control === 'player'
-    ? before.boxes
-      .filter(box => inZone(box.progress, before.score, before.reduced))
-      .sort((a, b) => b.progress - a.progress || a.id - b.id)[0]
-    : undefined
-  commit(playerAct(before), 0)
-  if (hot && game.value.score === before.score + 1) floatFrom.value = beltPoint(hot.progress)
+  commit(playerAct(game.value), 0)
 }
 
 function onSceneClick(event: MouseEvent): void {
@@ -415,7 +365,6 @@ defineExpose({ game, advance, act })
     :data-phase="game.phase"
     :data-control="game.control"
     :data-paused="pageHidden || !inView ? 'yes' : 'no'"
-    :data-score="game.score"
     :data-miss="game.miss > 0 ? 'yes' : 'no'"
   >
     <svg
@@ -424,50 +373,35 @@ defineExpose({ game, advance, act })
       preserveAspectRatio="none"
       aria-hidden="true"
     >
-      <circle
-        v-if="flashRadius > 0"
-        data-test="score-flash"
-        :cx="SCORE_X - 20"
-        :cy="numberCenterY"
-        :r="flashRadius"
-        fill="var(--signal)"
-        :opacity="jump.flash * 0.28"
-      />
-      <g
-        opacity="0.78"
-        data-test="score-jump"
-        :data-scale="jump.scale.toFixed(2)"
-        :data-flash="jump.flash.toFixed(2)"
-        :transform="scoreTransform"
-        fill="currentColor"
-        font-family="JetBrains Mono, ui-monospace, monospace"
-        text-anchor="start"
-      >
-        <text
-          data-test="score"
-          :x="SCORE_X"
-          :y="SCORE_NUMBER_Y"
-          :font-size="SCORE_NUMBER_SIZE"
-          :fill="jump.flash > 0.2 ? 'var(--signal)' : 'currentColor'"
-        >{{ game.score }}</text>
-      </g>
-      <g fill="currentColor" font-family="JetBrains Mono, ui-monospace, monospace" text-anchor="start" opacity="0.78">
-        <text data-test="score-label" :x="SCORE_X" :y="SCORE_LABEL_Y" :font-size="SCORE_LABEL_SIZE">score</text>
-        <text v-if="game.best > 0" data-test="best" :x="SCORE_X" :y="SCORE_NUMBER_Y + 16" font-size="11">best {{ game.best }}</text>
-      </g>
-
       <g
         v-if="game.control === 'auto' && game.rex !== 'cheer'"
         data-test="speech"
         :transform="`translate(${SPEECH_X} ${SPEECH_Y})`"
       >
         <path
-          data-test="speech-bubble"
-          d="M0 18 C0 6 10 0 24 0 H188 C204 0 214 8 214 22 V58 C214 72 204 80 188 80 H46 L22 102 L28 80 H24 C10 80 0 74 0 62 Z"
+          data-test="speech-tail"
+          :d="tail.d"
+          :data-tip-x="tail.tipX.toFixed(1)"
+          :data-tip-y="tail.tipY.toFixed(1)"
           fill="var(--surface)"
           stroke="currentColor"
           stroke-width="2.4"
           stroke-linejoin="round"
+        />
+        <path
+          data-test="speech-bubble"
+          :d="`M0 18 C0 6 10 0 24 0 H188 C204 0 214 8 214 22 V58 C214 72 204 80 188 80 H24 C10 80 0 74 0 62 Z`"
+          fill="var(--surface)"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linejoin="round"
+        />
+        <circle
+          data-test="speech-tail-tip"
+          :cx="tail.tipX - SPEECH_X"
+          :cy="tail.tipY - SPEECH_Y"
+          r="1.6"
+          fill="var(--surface)"
         />
         <text
           data-test="speech-text"
@@ -523,8 +457,8 @@ defineExpose({ game, advance, act })
       <text
         v-if="game.miss > 0"
         data-test="miss"
-        :x="SCORE_X"
-        :y="SCORE_NUMBER_Y + 52"
+        :x="MISS_X"
+        :y="MISS_Y"
         fill="var(--signal)"
         font-family="JetBrains Mono, ui-monospace, monospace"
         font-size="18"
@@ -547,7 +481,7 @@ defineExpose({ game, advance, act })
         :key="box.id"
         data-test="box"
         :data-progress="box.progress.toFixed(3)"
-        :data-zone="inZone(box.progress, game.score, game.reduced) ? 'yes' : 'no'"
+        :data-zone="inZone(box.progress, box.lane, box.spin) ? 'yes' : 'no'"
         :transform="boxTransform(box)"
       >
         <rect x="-18" y="-18" width="36" height="36" fill="var(--surface)" stroke="currentColor" stroke-width="2.4" />
@@ -566,25 +500,13 @@ defineExpose({ game, advance, act })
         </g>
         <rect
           data-test="capture-zone"
-          :x="zoneLeft"
+          :x="MACHINE_X"
           :y="SCAN_TOP"
-          :width="aperture.width"
+          :width="HIT_FRONT - MACHINE_X"
           :height="TUNNEL_BOTTOM - SCAN_TOP"
           fill="none"
         />
       </g>
-
-      <text
-        v-if="game.pop > 0 && !reduced && floatFrom"
-        data-test="score-float"
-        :x="floatPos.x"
-        :y="floatPos.y"
-        fill="var(--signal)"
-        font-family="JetBrains Mono, ui-monospace, monospace"
-        font-size="22"
-        text-anchor="middle"
-        :opacity="Math.min(1, game.pop + 0.2)"
-      >+1</text>
 
       <g v-if="game.phase === 'broken'" data-test="scene-cracks" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
         <path d="M70 18 L128 96 L104 168 L176 250 L150 340" />

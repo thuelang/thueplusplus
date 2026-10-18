@@ -1,24 +1,34 @@
 /**
  * Lever-timing game for the home sandbox.
  *
- * Rex autoplays on load and catches every box, so the demo loops and the
- * page does not break. A click on the game, or Space or Enter while it is
- * focused, hands him the lever and starts a fresh score. The visitor keeps
- * that turn only while the pointer stays over the game, the last touch is
- * still recent, or the game stays focused. Leaving, a short touch idle, or
- * blur hands the same pose back to autoplay and drops every box in flight,
- * so the handoff cannot break the page. Only a miss while the visitor still has the turn
- * breaks the run. Caught boxes are removed. They are not kept, so they
- * cannot pile up.
+ * Rex autoplays on load and clears every box in range, so the demo loops
+ * and the page does not break. A click on the game, or Space or Enter while
+ * it is focused, hands him the lever. The visitor keeps that turn only while
+ * the pointer stays over the game, the last touch is still recent, or the
+ * game stays focused. Leaving, a short touch idle, or blur hands the same
+ * run back. Boxes in flight and the belt speed stay. Only a break starts a
+ * fresh run. A box breaks the page only once it has gone past the machine,
+ * and only while the visitor still has the turn. One pull clears every box
+ * in range. Caught boxes are removed. They are not kept, so they cannot pile up.
  * Nothing here reads the clock, the DOM, or storage.
  */
 
-import { BELT_ENTRANCE, BELT_MOUTH, BREAK_BEAT, CHEER, YANK } from './layout'
+import {
+  BELT_ENTRANCE,
+  BELT_MOUTH,
+  BREAK_BEAT,
+  CHEER,
+  OPENING_X,
+  OPENING_Y,
+  YANK,
+  boxPlace,
+  inHit,
+  pastMachine,
+} from './layout'
 
 export const GRACE = 0.8
 /** A miss locks the lever for one pull. The return animation is this long too. */
 export const MISS_COOLDOWN = YANK
-export const MILESTONE = 5
 export const DANGER = 0.84
 /**
  * Seconds after the last touch before Rex resumes the demo.
@@ -30,27 +40,23 @@ export const TOUCH_IDLE = 8
 export const RETURN = BREAK_BEAT + 1.6
 /**
  * The page-wide belt is longer than the old machine-side belt.
- * Progress speed and the capture fraction both divide by this, so a box
- * takes longer to arrive and the time inside the capture zone stays put.
+ * Progress speed divides by this, so a box takes longer to arrive.
  * Gaps multiply by the same factor, so the boxes keep their spacing.
  */
 export const TRACK = 2
-const POP_LIFE = 0.85
 const CROWD = 0.18
 const REDUCED = 0.55
+/** Rex pulls once a box has reached the opening, and clears the whole range. */
+const RIPE = 0.9
 
 export interface Box {
   id: number
-  /** 0 just past the right edge, 1 at the machine. */
+  /** 0 just past the right edge, 1 at the opening. Values past 1 continue through the machine. */
   progress: number
-  /** 0 to 1. Picks the drift height. */
+  /** 0 to 1. Picks the spawn height. */
   lane: number
   /** 0 to 1. Picks the gentle turn. */
   spin: number
-}
-
-export interface Cage {
-  id: number
 }
 
 export type Phase = 'waiting' | 'playing' | 'broken'
@@ -63,10 +69,7 @@ export interface Game {
   phase: Phase
   seed: number
   rng: number
-  score: number
-  best: number
   boxes: Box[]
-  cages: Cage[]
   nextId: number
   /** Seconds until the next box. */
   spawnIn: number
@@ -78,13 +81,8 @@ export interface Game {
   leverT: number
   rex: RexMode
   rexT: number
-  flash: number
   jolt: number
   miss: number
-  /** Consecutive scores since the last miss. */
-  streak: number
-  /** 1 at the instant of a score, then falls to 0. */
-  pop: number
   brokenT: number
   showRebuild: boolean
   reduced: boolean
@@ -98,66 +96,31 @@ export interface Game {
 }
 
 export interface Difficulty {
-  /** Progress per second. */
+  /** Progress per second. The base rate. A handoff keeps it. A break starts a fresh run at this rate. */
   beltRate: number
   /** Shortest and longest seconds between boxes. */
   gapLo: number
   gapHi: number
-  /** Capture zone is [1 - span, 1). */
+  /** Legacy capture fraction at the base rate. The hit zone itself is geometric. */
   span: number
 }
 
 export interface GameOptions {
   seed: number
   reduced: boolean
-  best: number
 }
 
-export function difficulty(score: number, reduced: boolean): Difficulty {
-  if (!Number.isFinite(score) || score < 0) throw new Error(`score must be >= 0, got ${score}`)
+export function difficulty(reduced: boolean): Difficulty {
   if (typeof reduced !== 'boolean') throw new Error('reduced must be a boolean')
-  const u = 1 - Math.exp(-score / 6)
-  const legacyRate = 0.17 + u * 0.45
-  const legacySpan = 0.32 - u * 0.14
+  const legacyRate = 0.17
+  const legacySpan = 0.32
   const stretch = reduced ? 1 / REDUCED : 1
   return {
     beltRate: (legacyRate / TRACK) * (reduced ? REDUCED : 1),
-    gapLo: (1.7 - u * 1.05) * stretch * TRACK,
-    gapHi: (3.1 - u * 1.15) * stretch * TRACK,
+    gapLo: 1.7 * stretch * TRACK,
+    gapHi: 3.1 * stretch * TRACK,
     span: legacySpan / TRACK,
   }
-}
-
-export interface ScoreJump {
-  /** 1 at rest. Peaks above 1, dips below 1, then settles. */
-  scale: number
-  /** 1 at the score, 0 once the pop is over. */
-  flash: number
-  /** 0 at the caged box, 1 at the score. Reduced motion stays at 0. */
-  travel: number
-}
-
-/** How hard the score number jumps. Bigger streak and a faster belt hit harder. */
-export function scoreJump(pop: number, streak: number, beltRate: number, reduced: boolean): ScoreJump {
-  if (!Number.isFinite(pop) || pop < 0 || pop > 1) throw new Error(`pop must be from 0 to 1, got ${pop}`)
-  if (!Number.isInteger(streak) || streak < 0) throw new Error(`streak must be an integer >= 0, got ${streak}`)
-  if (!Number.isFinite(beltRate) || beltRate <= 0) throw new Error(`beltRate must be > 0, got ${beltRate}`)
-  if (typeof reduced !== 'boolean') throw new Error('reduced must be a boolean')
-  if (pop === 0) return { scale: 1, flash: 0, travel: reduced ? 0 : 1 }
-  const t = 1 - pop
-  const punch = 0.62 + Math.min(streak, 12) * 0.07 + Math.max(0, beltRate - 0.05) * 1.1
-  let rise = 0
-  if (t < 0.16) rise = t / 0.16
-  else if (t < 0.34) rise = 1 - ((t - 0.16) / 0.18) * 1.12
-  else if (t < 0.55) rise = -0.12 + ((t - 0.34) / 0.21) * 0.28
-  else rise = 0.16 * (1 - (t - 0.55) / 0.45)
-  if (reduced) return { scale: 1, flash: pop, travel: 0 }
-  return { scale: 1 + punch * rise, flash: pop, travel: t }
-}
-
-export function inZone(progress: number, score: number, reduced: boolean): boolean {
-  const { span } = difficulty(score, reduced)
-  return progress >= 1 - span && progress < 1
 }
 
 /** A traveling box is 36 view units wide. Centers closer than that are a stack. */
@@ -207,17 +170,11 @@ export function createGame(options: GameOptions): Game {
     throw new Error(`seed must be an integer from 1 to 4294967295, got ${options.seed}`)
   }
   if (typeof options.reduced !== 'boolean') throw new Error('reduced must be a boolean')
-  if (!Number.isInteger(options.best) || options.best < 0) {
-    throw new Error(`best must be an integer >= 0, got ${options.best}`)
-  }
   return {
     phase: 'waiting',
     seed: options.seed,
     rng: options.seed,
-    score: 0,
-    best: options.best,
     boxes: [],
-    cages: [],
     nextId: 1,
     spawnIn: 0,
     cooldown: 0,
@@ -226,11 +183,8 @@ export function createGame(options: GameOptions): Game {
     leverT: 0,
     rex: 'idle',
     rexT: 0,
-    flash: 0,
     jolt: 0,
     miss: 0,
-    streak: 0,
-    pop: 0,
     brokenT: 0,
     showRebuild: false,
     reduced: options.reduced,
@@ -248,7 +202,7 @@ function nextSeed(seed: number): number {
 function arm(game: Game, control: Control): Game {
   const reduced = game.reduced
   return {
-    ...createGame({ seed: nextSeed(game.seed), reduced, best: game.best }),
+    ...createGame({ seed: nextSeed(game.seed), reduced }),
     control,
     presence: game.presence,
     phase: 'playing',
@@ -262,16 +216,16 @@ function arm(game: Game, control: Control): Game {
   }
 }
 
-/** Rex starts the demo. The score climbs and a missed box does not break the page. */
+/** Rex starts the demo. A box that gets past him does not break the page. */
 export function beginAutoplay(game: Game): Game {
   return arm(game, 'auto')
 }
 
 /**
  * The player takes the lever. Only the trigger source changes. Boxes in
- * flight, the score, the best score, and the belt speed stay. Pose, lever,
- * and the pull already in motion stay. A game that has not started arms a
- * fresh run. A break is the only reset.
+ * flight and the belt speed stay. Pose, lever, and the pull already in
+ * motion stay. A game that has not started arms a fresh run. A break is
+ * the only reset.
  */
 export function beginPlayer(game: Game): Game {
   if (game.phase !== 'playing' || game.rex === 'idle') return arm(game, 'player')
@@ -284,9 +238,9 @@ export function beginPlayer(game: Game): Game {
 
 /**
  * The pointer left, the touch went idle, or focus left the game.
- * A playing turn hands the same run back to autoplay. Boxes in flight, the
- * score, the best score, and the belt speed stay. A break, or a game that
- * has not started, begins a fresh run at the lever.
+ * A playing turn hands the same run back to autoplay. Boxes in flight and
+ * the belt speed stay. A break, or a game that has not started, begins a
+ * fresh run at the lever.
  */
 export function handBack(game: Game): Game {
   if (game.control === 'auto' && game.phase !== 'broken') {
@@ -313,29 +267,44 @@ export function setPresence(game: Game, presence: Presence): Game {
   return { ...game, presence, idle: 0 }
 }
 
-function hottest(game: Game): Box | undefined {
-  return game.boxes
-    .filter(box => inZone(box.progress, game.score, game.reduced))
-    .sort((a, b) => b.progress - a.progress || a.id - b.id)[0]
+export function inZone(progress: number, lane: number, spin: number): boolean {
+  return inHit(boxPlace(progress, lane, spin))
 }
 
-function scoreHit(game: Game, hit: Box): Game {
-  const score = game.score + 1
-  const milestone = score % MILESTONE === 0
+function zoned(box: Box): boolean {
+  return inZone(box.progress, box.lane, box.spin)
+}
+
+function gone(box: Box): boolean {
+  return pastMachine(boxPlace(box.progress, box.lane, box.spin))
+}
+
+/** Closest box to the tunnel opening, among boxes still in flight. */
+export function nearestBox(boxes: readonly Box[]): Box | undefined {
+  let closest: Box | undefined
+  let closestD = Infinity
+  for (const box of boxes) {
+    const place = boxPlace(box.progress, box.lane, box.spin)
+    const d = Math.hypot(place.x - OPENING_X, place.y - OPENING_Y)
+    if (!closest || d < closestD - 1e-9 || (Math.abs(d - closestD) <= 1e-9 && box.id < closest.id)) {
+      closest = box
+      closestD = d
+    }
+  }
+  return closest
+}
+
+function clearHits(game: Game, hits: readonly Box[]): Game {
+  const ids = new Set(hits.map(box => box.id))
   return {
     ...game,
-    score,
-    boxes: game.boxes.filter(box => box.id !== hit.id),
-    cages: [],
-    flash: 1,
+    boxes: game.boxes.filter(box => !ids.has(box.id)),
     jolt: 1,
-    pop: 1,
-    streak: game.streak + 1,
     miss: 0,
     cooldown: 0,
     deny: 0,
     idle: 0,
-    rex: milestone ? 'cheer' : 'yank',
+    rex: 'yank',
     rexT: 0,
     lever: game.reduced ? 1 : 0,
     leverT: game.reduced ? 0.12 : 0,
@@ -343,19 +312,15 @@ function scoreHit(game: Game, hit: Box): Game {
 }
 
 /**
- * Rex catches once the box is in the middle of the scan.
- * The opening of the tunnel stays visible as an X-ray before he pulls.
- * A box already past the exit is not caught here. It passes in advanceBoxes.
+ * Rex pulls once a box has reached the opening, and that pull clears every
+ * box already in range. A box still short of the opening waits.
  */
 function autoCatch(game: Game): Game {
   if (game.control !== 'auto' || game.phase !== 'playing') return game
-  const { span } = difficulty(game.score, game.reduced)
-  const mark = 1 - span * 0.45
-  const hit = game.boxes
-    .filter(box => box.progress >= mark && box.progress < 1)
-    .sort((a, b) => b.progress - a.progress || a.id - b.id)[0]
-  if (!hit) return game
-  return scoreHit(game, hit)
+  if (game.rex === 'yank' || game.rex === 'cheer' || game.cooldown > 0) return game
+  const hits = game.boxes.filter(zoned)
+  if (!hits.some(box => box.progress >= RIPE)) return game
+  return clearHits(game, hits)
 }
 
 function leverLocked(game: Game): boolean {
@@ -370,22 +335,21 @@ function notYet(game: Game): Game {
 export function pull(game: Game): Game {
   if (game.phase !== 'playing' || game.control !== 'player') return game
   if (leverLocked(game)) return notYet(game)
-  const hit = hottest(game)
-  if (!hit) {
+  const hits = game.boxes.filter(zoned)
+  if (hits.length === 0) {
     return {
       ...game,
       idle: 0,
       cooldown: MISS_COOLDOWN,
       deny: 0,
       miss: 1,
-      streak: 0,
       rex: 'yank',
       rexT: 0,
       lever: game.reduced ? 1 : 0,
       leverT: 0,
     }
   }
-  return scoreHit(game, hit)
+  return clearHits(game, hits)
 }
 
 /** The demo steps only while the tab is visible and the hero is on screen. */
@@ -438,18 +402,17 @@ function advanceRex(game: Game, dt: number): Game {
 
 function advanceBoxes(game: Game, dt: number): Game {
   if (game.phase !== 'playing' || !game.beltOn) return game
-  const { beltRate } = difficulty(game.score, game.reduced)
+  const { beltRate } = difficulty(game.reduced)
   const boxes = game.boxes.map(box => ({ ...box, progress: box.progress + beltRate * dt }))
-  const escaped = boxes.find(box => box.progress >= 1)
+  const escaped = boxes.some(gone)
   if (!escaped) return { ...game, boxes }
-  // Too late to score. That box leaves. The rest of the run stays, and the page does not break.
-  if (game.control === 'auto') return { ...game, boxes: boxes.filter(box => box.progress < 1) }
+  // Past the machine. Autoplay lets it go. The visitor's turn breaks.
+  if (game.control === 'auto') return { ...game, boxes: boxes.filter(box => !gone(box)) }
   return {
     ...game,
     phase: 'broken',
     beltOn: false,
     boxes,
-    best: Math.max(game.best, game.score),
     brokenT: 0,
     showRebuild: false,
     rex: 'startled',
@@ -466,7 +429,7 @@ function advanceSpawn(game: Game, dt: number): Game {
   const spawnIn = game.spawnIn - dt
   if (spawnIn > 0) return { ...game, spawnIn }
   if (game.boxes.some(box => box.progress < CROWD)) return { ...game, spawnIn: 0.05 }
-  const diff = difficulty(game.score, game.reduced)
+  const diff = difficulty(game.reduced)
   const rolled = roll(game.rng)
   const gap = diff.gapLo + rolled.value * (diff.gapHi - diff.gapLo)
   const drift = driftOf(game.nextId)
@@ -493,8 +456,6 @@ function decay(game: Game, dt: number): Game {
   const next = {
     ...game,
     jolt: Math.max(0, game.jolt - dt / 0.4),
-    flash: Math.max(0, game.flash - dt / 0.28),
-    pop: Math.max(0, game.pop - dt / POP_LIFE),
     miss: Math.max(0, game.miss - dt / 0.5),
     cooldown: Math.max(0, game.cooldown - dt),
   }

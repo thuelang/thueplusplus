@@ -110,7 +110,7 @@ describe('Go-WASM demo UI', () => {
     await wrapper.get('[data-test="lever-hit"]').trigger('click')
     expect(wrapper.find('[data-test="speech-text"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="sandbox-scene"]').attributes('data-control')).toBe('player')
-    expect(wrapper.get('[data-test="sandbox-scene"]').attributes('data-score')).toBe('0')
+    expect(wrapper.get('[data-test="sandbox-scene"]').attributes('data-score')).toBeUndefined()
     const scene = wrapper.get('[data-test="sandbox-scene"]')
     expect(scene.findAll('[data-test="rex-eye"]')).toHaveLength(2)
     expect(scene.findAll('[data-test="rex-dot"]')).toHaveLength(4)
