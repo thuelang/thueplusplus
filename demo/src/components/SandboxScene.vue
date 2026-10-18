@@ -6,8 +6,6 @@ import {
   LEVER_LEN,
   LEVER_PIVOT,
   MACHINE_X,
-  OPENING_X,
-  OPENING_Y,
   SCALE,
   SCAN_TOP,
   TUNNEL_BOTTOM,
@@ -16,8 +14,11 @@ import {
   TADA_S,
   boxInFrame,
   boxPlace,
+  clearFlourish,
+  flourishPose,
   leverDegrees,
   leverKnob,
+  leverSwitchPath,
   machineHeadShake,
   machineTada,
   machineTransform as placeMachine,
@@ -37,6 +38,7 @@ import {
   type Game,
   type Presence,
 } from '@/sandbox/game'
+import type { ClearFlourish } from '@/sandbox/layout'
 
 const emit = defineEmits<{ break: [reduced: boolean], rebuilt: [] }>()
 
@@ -107,10 +109,59 @@ function syncPose(dt: number): void {
   pose.value = next
 }
 
+interface Departure {
+  id: number
+  x: number
+  y: number
+  rot: number
+  flourish: ClearFlourish
+  age: number
+}
+
+const departures = ref<Departure[]>([])
+let clearSalt = 1
+
+function rememberClears(before: Game, next: Game): void {
+  if (next.clears <= before.clears) return
+  const kept = new Set(next.boxes.map(box => box.id))
+  for (const box of before.boxes) {
+    if (kept.has(box.id)) continue
+    const place = boxPlace(box.progress, box.lane, box.spin)
+    departures.value.push({
+      id: box.id,
+      x: place.x,
+      y: place.y,
+      rot: place.rot,
+      flourish: clearFlourish(clearSalt),
+      age: 0,
+    })
+    clearSalt += 1
+  }
+}
+
+function ageDepartures(dt: number): void {
+  if (departures.value.length === 0) return
+  departures.value = departures.value.flatMap(item => {
+    const age = item.age + dt
+    if (age >= item.flourish.duration) return []
+    return [{ ...item, age }]
+  })
+}
+
+function clearTransform(item: Departure): string {
+  const pose = flourishPose(item.rot, item.flourish, item.age, reduced.value)
+  return `translate(${item.x} ${item.y}) rotate(${pose.rot}) scale(${pose.sx} ${pose.sy})`
+}
+
+function clearOpacity(item: Departure): number {
+  return flourishPose(item.rot, item.flourish, item.age, reduced.value).opacity
+}
+
 function commit(next: Game, dt: number): void {
   const before = game.value
   game.value = next
   syncPose(dt)
+  rememberClears(before, next)
   tadaFresh = false
   if (!reduced.value && next.clears > before.clears) {
     tadaT.value = 0
@@ -142,14 +193,7 @@ const leverLabel = computed(() => (
 const leverAngle = computed(() => leverDegrees(game.value.lever))
 const inRange = computed(() => game.value.boxes.some(box => inZone(box.progress, box.lane, box.spin)))
 const grown = ref(0)
-const scannerTransform = computed(() => {
-  if (reduced.value || game.value.jolt === 0) return 'translate(0 0)'
-  const jolt = game.value.jolt
-  const shakeX = Math.sin(clock.value * 48) * jolt * 8
-  const shakeY = Math.cos(clock.value * 39) * jolt * 5
-  const rot = Math.sin(clock.value * 54) * jolt * 2.5
-  return `translate(${shakeX} ${shakeY}) rotate(${rot} ${OPENING_X} ${OPENING_Y})`
-})
+const switchPath = leverSwitchPath()
 
 const rexBox = computed(() => pct(pose.value.rootX - 78, pose.value.rootY - 268, 160, 286))
 const leverBox = computed(() => {
@@ -279,6 +323,7 @@ function tick(now: number): void {
     commit(step(game.value, dt), dt)
     easeGrown(dt)
     followReactions(dt)
+    ageDepartures(dt)
     if (miss > 0 && game.value.miss === 0) note()
   }
   raf = requestAnimationFrame(tick)
@@ -313,6 +358,7 @@ function advance(dt: number): void {
   commit(step(game.value, dt), dt)
   easeGrown(dt)
   followReactions(dt)
+  ageDepartures(dt)
   if (miss > 0 && game.value.miss === 0) note()
 }
 
@@ -382,9 +428,10 @@ defineExpose({ game, advance, act })
 
       <g data-test="lever" :data-on="game.lever >= 0.5 ? 'yes' : 'no'">
         <g :transform="`rotate(${leverAngle} ${LEVER_PIVOT.x} ${LEVER_PIVOT.y})`">
-          <line :x1="LEVER_PIVOT.x" :y1="LEVER_PIVOT.y" :x2="LEVER_PIVOT.x" :y2="LEVER_PIVOT.y - LEVER_LEN" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
-          <circle :cx="LEVER_PIVOT.x" :cy="LEVER_PIVOT.y - LEVER_LEN" r="9" fill="var(--signal)" stroke="currentColor" stroke-width="2" />
+          <line data-test="lever-stick" :x1="LEVER_PIVOT.x" :y1="LEVER_PIVOT.y" :x2="LEVER_PIVOT.x" :y2="LEVER_PIVOT.y - LEVER_LEN" stroke="var(--ash)" stroke-width="4" stroke-linecap="round" />
+          <circle data-test="lever-knob" :cx="LEVER_PIVOT.x" :cy="LEVER_PIVOT.y - LEVER_LEN" r="9" fill="var(--ash)" stroke="var(--ash)" stroke-width="2" />
         </g>
+        <path data-test="lever-base" :d="switchPath" fill="var(--ash)" />
       </g>
       <g
         v-for="box in drawnBoxes"
@@ -396,8 +443,18 @@ defineExpose({ game, advance, act })
       >
         <rect x="-18" y="-18" width="36" height="36" fill="var(--surface)" stroke="currentColor" stroke-width="2.4" />
       </g>
+      <g
+        v-for="item in departures"
+        :key="`clear-${item.id}`"
+        data-test="clearing"
+        :data-id="item.id"
+        :opacity="clearOpacity(item)"
+        :transform="clearTransform(item)"
+      >
+        <rect x="-18" y="-18" width="36" height="36" fill="var(--surface)" stroke="currentColor" stroke-width="2.4" />
+      </g>
 
-      <g data-test="scanner" data-test-machine="sketch" :transform="scannerTransform">
+      <g data-test="scanner" data-test-machine="sketch">
         <g
           data-test="machine"
           :data-grown="grown.toFixed(2)"

@@ -2,7 +2,8 @@ import { nextTick } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SandboxScene from '@/components/SandboxScene.vue'
-import { HIT_FRONT, MACHINE_X, SCALE, YANK, boxPlace, leverKnob, walkDistance } from './layout'
+import { readFileSync } from 'node:fs'
+import { HIT_FRONT, MACHINE_X, SCALE, YANK, boxPlace, leverKnob, machineTransform, walkDistance } from './layout'
 import { blinkCurve, framePose, settledSpring, stepSpring } from './motion'
 import { inZone, type Box, type Game } from './game'
 
@@ -123,7 +124,7 @@ describe('rex sandbox scene', () => {
     expect(click.get('[data-test="lever"]').attributes('data-on')).toBe('no')
     expect(click.find('[data-test="start-hint"]').exists()).toBe(false)
     expect(click.get('[data-test="sandbox-scene"]').attributes('aria-label')).toBe('Rex at the machine. Your turn.')
-    expect(click.get('[data-test="scanner"]').attributes('transform')).toBe('translate(0 0)')
+    expect(click.get('[data-test="scanner"]').attributes('transform')).toBeUndefined()
     click.unmount()
 
     const keyed = mountScene()
@@ -166,7 +167,7 @@ describe('rex sandbox scene', () => {
     expect(api.game.control).toBe('player')
     await missUntilZone(scene, api)
     await nextTick()
-    expect(scene.get('[data-test="scanner"]').attributes('transform')).toBe('translate(0 0)')
+    expect(scene.get('[data-test="scanner"]').attributes('transform')).toBeUndefined()
     expect(scene.find('[data-test="x-ray"]').exists()).toBe(false)
     expect(scene.find('[data-test="scan-line"]').exists()).toBe(false)
     expect(Number(scene.get('[data-test="machine"]').attributes('data-grown'))).toBeGreaterThan(0.9)
@@ -179,7 +180,8 @@ describe('rex sandbox scene', () => {
     await clearZoned(scene, api)
     expect(api.game.boxes.length).toBeLessThan(before)
     expect(api.game.control).toBe('player')
-    expect(api.game.jolt).toBeGreaterThan(0)
+    expect(api.game).not.toHaveProperty('jolt')
+    expect(scene.get('[data-test="scanner"]').attributes('transform')).toBeUndefined()
     await nextTick()
     expect(scene.find('[data-test="cage"]').exists()).toBe(false)
     expect(scene.find('[data-test="score"]').exists()).toBe(false)
@@ -405,5 +407,100 @@ describe('rex sandbox scene', () => {
     expect(scene.attributes('data-control')).toBe('auto')
     expect(scene.attributes('data-presence')).toBe('away')
     wrapper.unmount()
+  })
+
+  it('a clear plays only the tada on top of the grow', async () => {
+    const prior = window.matchMedia
+    window.matchMedia = (query: string): MediaQueryList => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener() {},
+      removeListener() {},
+      addEventListener() {},
+      removeEventListener() {},
+      dispatchEvent() { return false },
+    })
+    const wrapper = mountScene()
+    try {
+      const api = exposed(wrapper)
+      expect(wrapper.get('[data-test="sandbox-scene"]').attributes('data-reduced')).toBe('no')
+      await wrapper.get('[data-test="lever-hit"]').trigger('click')
+      expect(api.game.control).toBe('player')
+      const kept = { id: 90, progress: 0.2, lane: 0.5, spin: 0.2 }
+      const first = { id: 91, progress: 0.9, lane: 0.5, spin: 0.15 }
+      const second = { id: 92, progress: 0.86, lane: 0.3, spin: 0.8 }
+      expect(inZone(first.progress, first.lane, first.spin)).toBe(true)
+      expect(inZone(second.progress, second.lane, second.spin)).toBe(true)
+      expect(inZone(kept.progress, kept.lane, kept.spin)).toBe(false)
+      api.game.boxes = [kept, first, second]
+      api.game.spawnIn = 30
+      await nextTick()
+
+      const ease = (grown: number, target: number, dt: number) => {
+        const step = 1 - Math.exp(-8 * dt)
+        return grown + (target - grown) * step
+      }
+      api.advance(0.05)
+      await nextTick()
+      let grown = ease(0, 1, 0.05)
+      const machine = () => wrapper.get('[data-test="machine"]')
+      expect(machine().attributes('transform')).toBe(machineTransform(grown, api.game.miss, 1, false))
+      expect(Number(machine().attributes('data-grown'))).toBeGreaterThan(0.2)
+
+      await wrapper.get('[data-test="lever-hit"]').trigger('click')
+      await nextTick()
+      expect(api.game.phase).toBe('playing')
+      expect(api.game.miss).toBe(0)
+      expect(api.game.boxes.map(box => box.id)).toEqual([kept.id])
+      expect(machine().attributes('transform')).toBe(machineTransform(grown, 0, 0, false))
+      expect(machine().attributes('data-tada-scale')).toBe('1.000')
+      expect(machine().attributes('data-tada-rot')).toBe('0.000')
+      expect(machine().attributes('data-shake-x')).toBe('0.000')
+      expect(wrapper.get('[data-test="scanner"]').attributes('transform')).toBeUndefined()
+      expect(wrapper.findAll('[data-test="clearing"]')).toHaveLength(2)
+      expect(wrapper.find('[data-test="box"]').attributes('data-progress')).toBe('0.204')
+
+      api.advance(0.12)
+      await nextTick()
+      grown = ease(grown, 0, 0.12)
+      expect(machine().attributes('transform')).toBe(machineTransform(grown, api.game.miss, 0.12, false))
+      expect(machine().attributes('data-tada-scale')).not.toBe('1.000')
+      const clearing = wrapper.findAll('[data-test="clearing"]')
+      expect(clearing).toHaveLength(2)
+      expect(clearing.map(node => node.attributes('data-id'))).toEqual(['91', '92'])
+      const motion = (transform: string | undefined) => {
+        const found = transform?.match(/rotate\([^)]+\) scale\([^)]+\)/)
+        if (!found) throw new Error(`missing pose in ${transform}`)
+        return found[0]
+      }
+      const poses = clearing.map(node => motion(node.attributes('transform')))
+      expect(poses[0]).not.toBe(poses[1])
+      for (const node of clearing) {
+        expect(Number(node.attributes('opacity'))).toBeLessThan(1)
+        expect(Number(node.attributes('opacity'))).toBeGreaterThan(0.5)
+        expect(motion(node.attributes('transform'))).not.toContain('scale(1 1)')
+      }
+
+      api.advance(0.4)
+      await nextTick()
+      expect(wrapper.find('[data-test="clearing"]').exists()).toBe(false)
+      expect(api.game.phase).toBe('playing')
+      expect(api.game.boxes.some(box => box.id === kept.id)).toBe(true)
+      expect(api.game.boxes.some(box => box.id === first.id || box.id === second.id)).toBe(false)
+      await wrapper.get('[data-test="sandbox-scene"]').trigger('pointerleave', { pointerType: 'mouse' })
+      expect(api.game.control).toBe('auto')
+      expect(api.game.phase).toBe('playing')
+      expect(api.game.boxes.some(box => box.id === kept.id)).toBe(true)
+
+      const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
+      const rules = readFileSync('src/sandbox/game.ts', 'utf8')
+      expect(scene).not.toContain('jolt')
+      expect(scene).not.toContain('scannerTransform')
+      expect(rules).not.toContain('jolt')
+    } finally {
+      window.matchMedia = prior
+      wrapper.unmount()
+    }
   })
 })

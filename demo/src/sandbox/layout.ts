@@ -27,6 +27,18 @@ export const LEVER_LEN = 58
 /** Degrees from straight up. Negative leans back toward Rex. */
 export const LEVER_OFF = -52
 export const LEVER_ON = 16
+/** Radius of the switch plate. It covers the lower handle and not the knob. */
+export const LEVER_BASE = 22
+
+/**
+ * Filled semicircle centered on the pivot. The flat side is the bottom.
+ * SVG sweep 1 from the left end to the right end travels through the top.
+ */
+export function leverSwitchPath(): string {
+  const { x, y } = LEVER_PIVOT
+  const r = LEVER_BASE
+  return `M ${x - r} ${y} A ${r} ${r} 0 0 1 ${x + r} ${y} Z`
+}
 
 /** Boxes enter at the right edge and travel left into the tunnel. */
 export const BELT_X0 = 0
@@ -226,6 +238,72 @@ export function easeOut(t: number): number {
 export function easeIn(t: number): number {
   const u = clamp(t, 0, 1)
   return u * u * u
+}
+
+export type ClearFlip = 'none' | 'x' | 'y'
+
+export interface ClearFlourish {
+  /** Extra degrees, signed. */
+  spin: number
+  flip: ClearFlip
+  /** Final scale, from 1.5 to 2. */
+  grow: number
+  /** Seconds, from 0.3 to 0.45. */
+  duration: number
+}
+
+export interface FlourishPose {
+  rot: number
+  sx: number
+  sy: number
+  opacity: number
+}
+
+function mixUnit(seed: number, channel: number): number {
+  let n = Math.imul(seed + 1, 374761393) + Math.imul(channel, 668265263)
+  n = Math.imul(n ^ (n >>> 13), 1274126177)
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296
+}
+
+/** One cleared box's spin, flip, grow, and timing. `seed` picks them. */
+export function clearFlourish(seed: number): ClearFlourish {
+  if (!Number.isInteger(seed) || seed < 0) throw new Error(`seed must be an integer >= 0, got ${seed}`)
+  const spinUnit = mixUnit(seed, 1)
+  const amount = mixUnit(seed, 2)
+  const flipUnit = mixUnit(seed, 3)
+  const growUnit = mixUnit(seed, 4)
+  const timeUnit = mixUnit(seed, 5)
+  const flip: ClearFlip = flipUnit < 0.5 ? 'none' : flipUnit < 0.75 ? 'x' : 'y'
+  return {
+    spin: (spinUnit < 0.5 ? -1 : 1) * (50 + amount * 130),
+    flip,
+    grow: 1.5 + growUnit * 0.5,
+    duration: 0.3 + timeUnit * 0.15,
+  }
+}
+
+/**
+ * A cleared box grows, spins, and fades in place. Reduced motion is the fade.
+ * `age` is seconds from the clear.
+ */
+export function flourishPose(baseRot: number, flourish: ClearFlourish, age: number, reduced: boolean): FlourishPose {
+  if (!Number.isFinite(baseRot)) throw new Error(`baseRot must be finite, got ${baseRot}`)
+  if (!Number.isFinite(age) || age < 0 || age > flourish.duration) {
+    throw new Error(`age must be from 0 to ${flourish.duration}, got ${age}`)
+  }
+  if (typeof reduced !== 'boolean') throw new Error('reduced must be a boolean')
+  const u = age / flourish.duration
+  const opacity = 1 - easeIn(u)
+  if (reduced) return { rot: baseRot, sx: 1, sy: 1, opacity }
+  const move = easeOut(u)
+  const scale = 1 + (flourish.grow - 1) * move
+  const flipped = 1 + (-flourish.grow - 1) * move
+  return {
+    rot: baseRot + flourish.spin * move,
+    sx: flourish.flip === 'x' ? flipped : scale,
+    sy: flourish.flip === 'y' ? flipped : scale,
+    opacity,
+  }
 }
 
 function easeInOut(t: number): number {

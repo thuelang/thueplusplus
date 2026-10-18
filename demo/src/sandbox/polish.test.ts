@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { DOT_R } from '@/rex/motion'
 import { beginAutoplay, beginPlayer, createGame, step } from './game'
-import { framePose, settledSpring } from './motion'
+import { framePose, handOnLever, settledSpring } from './motion'
+import { contrastRatio } from './contrast'
 import {
   BOX_REACH,
   GROUND,
@@ -29,12 +30,29 @@ import {
   boxInFrame,
   boxPlace,
   inHit,
+  LEVER_BASE,
+  LEVER_PIVOT,
   leverKnob,
+  leverSwitchPath,
   machineHeadShake,
   machineScale,
   machineTada,
   machineTransform,
 } from './layout'
+
+function block(css: string, marker: string): string {
+  const at = css.indexOf(marker)
+  if (at < 0) throw new Error(`missing ${marker}`)
+  const open = css.indexOf('{', at)
+  const close = css.indexOf('}', open)
+  return css.slice(open + 1, close)
+}
+
+function color(blockText: string, name: string): string {
+  const match = blockText.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`))
+  if (!match) throw new Error(`missing --${name}`)
+  return match[1]
+}
 
 describe('hero polish', () => {
   it('stands on no drawn ground line and shows the whole foot', () => {
@@ -271,6 +289,43 @@ describe('hero polish', () => {
         expect(entered).toBe(true)
         expect(spun).toBe(true)
       }
+    }
+  })
+
+  it('the lever reads as a gray switch in both themes', () => {
+    const plate = leverSwitchPath()
+    const { x, y } = LEVER_PIVOT
+    const r = LEVER_BASE
+    expect(plate).toBe(`M ${x - r} ${y} A ${r} ${r} 0 0 1 ${x + r} ${y} Z`)
+    expect(r).toBeLessThan(58)
+    const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
+    const stick = scene.indexOf('data-test="lever-stick"')
+    const knob = scene.indexOf('data-test="lever-knob"')
+    const base = scene.indexOf('data-test="lever-base"')
+    expect(stick).toBeGreaterThan(-1)
+    expect(knob).toBeGreaterThan(stick)
+    expect(base).toBeGreaterThan(knob)
+    expect(scene.slice(knob, base)).toContain('</g>')
+    expect(scene.slice(stick, knob)).toContain('stroke="var(--ash)"')
+    expect(scene.slice(knob, base)).toContain('fill="var(--ash)"')
+    expect(scene.slice(stick, base)).not.toContain('var(--signal)')
+    expect(scene.slice(stick, base)).not.toContain('currentColor')
+    const figure = readFileSync('src/components/RexFigure.vue', 'utf8')
+    expect(figure).toContain(':fill="markPaint"')
+    expect(figure).not.toContain('var(--ash)')
+    for (const lever of [0, 0.35, 1]) {
+      const at = leverKnob(lever)
+      const pose = framePose({ mode: 'ready', t: 0, clock: 0, lever, reduced: true, spring: settledSpring(), dt: 0 })
+      const hand = handOnLever(pose.rootX, pose.rootY, lever)
+      expect(pose.rootX + hand.x * SCALE).toBeCloseTo(at.x, 5)
+      expect(pose.rootY + hand.y * SCALE).toBeCloseTo(at.y, 5)
+      expect(pose.handLX).toBeCloseTo(hand.x, 5)
+      expect(pose.handLY).toBeCloseTo(hand.y, 5)
+    }
+    const css = readFileSync('src/style.css', 'utf8')
+    const themes = [block(css, ':root,'), block(css, 'html:not(.dark)')]
+    for (const theme of themes) {
+      expect(contrastRatio(color(theme, 'ash'), color(theme, 'void'))).toBeGreaterThanOrEqual(4.5)
     }
   })
 
