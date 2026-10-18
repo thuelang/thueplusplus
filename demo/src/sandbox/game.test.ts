@@ -506,8 +506,8 @@ describe('lever game', () => {
     expect(difficulty(switchedPlayer.score, switchedPlayer.reduced).beltRate)
       .toBe(difficulty(alreadyPlayer.score, alreadyPlayer.reduced).beltRate)
 
-    let stayedPlayer = alreadyPlayer
-    let becamePlayer = switchedPlayer
+    let stayedPlayer: Game = alreadyPlayer
+    let becamePlayer: Game = switchedPlayer
     for (let i = 0; i < 90; i += 1) {
       stayedPlayer = step(stayedPlayer, frame)
       becamePlayer = step(becamePlayer, frame)
@@ -528,8 +528,8 @@ describe('lever game', () => {
     expect(switchedAuto.spawnIn).toBe(alreadyAuto.spawnIn)
     expect(switchedAuto.rng).toBe(alreadyAuto.rng)
 
-    let stayedAuto = alreadyAuto
-    let becameAuto = switchedAuto
+    let stayedAuto: Game = alreadyAuto
+    let becameAuto: Game = switchedAuto
     for (let i = 0; i < 90; i += 1) {
       stayedAuto = step(stayedAuto, frame)
       becameAuto = step(becameAuto, frame)
