@@ -51,7 +51,7 @@ export interface CatalogVersion {
 
 export interface SolvedPoint extends CatalogCommit {
   count: number
-  added: string[]
+  added: string[] | null
 }
 
 export interface AggregatePoint extends CatalogCommit {
@@ -159,7 +159,7 @@ function assertCatalog(value: unknown): Catalog {
   const catalog = value as Catalog
   if (catalog.schemaVersion !== 3) throw new Error(`catalog schemaVersion must be 3, got ${String(catalog.schemaVersion)}`)
   if (!Array.isArray(catalog.problems) || catalog.problems.length === 0) throw new Error('catalog has no problems')
-  if (!Array.isArray(catalog.commits) || catalog.commits.length === 0) throw new Error('catalog has no commits')
+  if (!Array.isArray(catalog.commits)) throw new Error('catalog commits is missing')
   if (!Array.isArray(catalog.rulesets) || catalog.rulesets.length === 0) throw new Error('catalog has no rulesets')
   for (const problem of catalog.problems) {
     if (!Array.isArray(problem.cases) || problem.cases.length === 0) throw new Error(`${problem.id} has no cases`)

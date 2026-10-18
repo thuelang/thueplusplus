@@ -95,8 +95,14 @@ export function readGeneratedCatalog() {
   return catalog
 }
 
-function git(args) {
-  return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' }).trim()
+function git(args, { missing = false } = {}) {
+  try {
+    return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  } catch (error) {
+    const stderr = `${error.stderr ?? ''}`
+    if (missing && /fatal: (bad object|ambiguous argument|invalid object name|needed a single revision|bad revision)/i.test(stderr)) return null
+    throw new CatalogError(stderr.trim() || `${error.message ?? error}`)
+  }
 }
 
 function gitShow(sha, path) {
@@ -138,16 +144,70 @@ function rulesetOrder(present) {
   return ordered
 }
 
-function metricHistory(path) {
+function shallowRoots() {
+  const rel = git(['rev-parse', '--git-path', 'shallow'], { missing: true })
+  if (!rel) return new Set()
+  const path = rel.startsWith('/') ? rel : join(repoRoot, rel)
+  if (!existsSync(path)) return new Set()
+  return new Set(readFileSync(path, 'utf8').split('\n').map(line => line.trim()).filter(line => /^[0-9a-f]{40}$/.test(line)))
+}
+
+export function historyRows(log, boundary) {
+  if (!log) return { rows: [], truncated: false, omitted: [] }
+  const rows = []
+  const omitted = []
+  for (const line of log.split('\n')) {
+    const [commit, timestamp, author] = line.split('\t')
+    if (!/^[0-9a-f]{40}$/.test(commit)) throw new CatalogError(`bad commit ${commit}`)
+    if (boundary.has(commit)) {
+      omitted.push(commit)
+      continue
+    }
+    rows.push({ commit, timestamp: utcTimestamp(timestamp), author })
+  }
+  return { rows: rows.reverse(), truncated: omitted.length > 0, omitted }
+}
+
+function storedStamp(document) {
+  if (typeof document.author !== 'string' || !/^.+ <.+>$/.test(document.author)) return null
+  if (typeof document.timestamp !== 'string') return null
+  try {
+    return { author: document.author, timestamp: utcTimestamp(document.timestamp) }
+  } catch (error) {
+    if (error instanceof CatalogError) return null
+    throw error
+  }
+}
+
+function gitStamp(commit) {
+  if (!/^[0-9a-f]{40}$/.test(commit)) return null
+  try {
+    execFileSync('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: repoRoot, stdio: 'ignore' })
+  } catch {
+    return null
+  }
+  return {
+    author: git(['log', '-1', '--format=%an <%ae>', commit]),
+    timestamp: utcTimestamp(git(['log', '-1', '--format=%aI', commit])),
+  }
+}
+
+export function stampForRunsDocument(document, lookup) {
+  const stored = storedStamp(document)
+  if (stored) return stored
+  if (typeof document.commit !== 'string') return null
+  return lookup(document.commit)
+}
+
+function metricHistory(path, boundary) {
   const dirty = git(['status', '--porcelain', '--', path])
   if (dirty) throw new CatalogError(`${path} is dirty; commit it before building the site`)
-  const log = git(['log', '--follow', '--format=%H%x09%aI%x09%an <%ae>', '--', path])
-  if (!log) throw new CatalogError(`${path} has no git history`)
-  return log.split('\n').map(line => {
-    const [commit, timestamp, author] = line.split('\t')
-    if (!/^[0-9a-f]{40}$/.test(commit)) throw new CatalogError(`${path}: bad commit ${commit}`)
-    return { commit, timestamp: utcTimestamp(timestamp), author }
-  }).reverse()
+  const log = git(['log', '--follow', '--format=%H%x09%aI%x09%an <%ae>', '--', path], { missing: true })
+  if (log == null) {
+    console.log(`site: omit history of ${path} (git log failed in this clone)`)
+    return { rows: [], truncated: true, omitted: [] }
+  }
+  return historyRows(log, boundary)
 }
 
 function utcTimestamp(value) {
@@ -246,10 +306,16 @@ function hostEntries() {
   for (const document of documents) {
     if (!Array.isArray(document.runs)) continue
     const commit = document.commit
+    const stamp = stampForRunsDocument(document, gitStamp)
+    if (!stamp) {
+      const label = typeof commit === 'string' ? commit : 'unknown commit'
+      console.log(`site: omit host entry ${label} (no author in the document and the commit is not in this clone)`)
+      continue
+    }
     entries.push({
       commit,
-      author: git(['log', '-1', '--format=%an <%ae>', commit]),
-      timestamp: utcTimestamp(git(['log', '-1', '--format=%aI', commit])),
+      author: stamp.author,
+      timestamp: stamp.timestamp,
       machine: document.machine,
       hosts: hostsFromRuns(document.runs, commit),
     })
@@ -283,6 +349,9 @@ function build() {
   }
   const present = new Set()
   const solutions = []
+  const boundary = shallowRoots()
+  let historyTruncated = false
+  const omittedBoundary = new Set()
   for (const problem of problems) {
     const readmePath = `problems/${problem}/README.md`
     const readme = parseFrontmatter(readFileSync(join(repoRoot, readmePath), 'utf8'), readmePath)
@@ -294,7 +363,10 @@ function build() {
       const folder = `problems/${problem}/solutions/${entry.name}`
       const meta = parseFrontmatter(readFileSync(join(repoRoot, folder, 'README.md'), 'utf8'), `${folder}/README.md`)
       const metricPath = `${folder}/metric.json`
-      const history = metricHistory(metricPath)
+      const historyResult = metricHistory(metricPath, boundary)
+      if (historyResult.truncated) historyTruncated = true
+      for (const commit of historyResult.omitted) omittedBoundary.add(commit)
+      const history = historyResult.rows
       const latest = readMetric(readFileSync(join(repoRoot, metricPath), 'utf8'), metricPath)
       solutions.push({
         problem,
@@ -335,7 +407,7 @@ function build() {
   const common = commonProblems(passingNow)
   const totals = aggregateSum(costsNow, common)
   const rulesets = ordered.map(id => {
-    const solved = solvedSeries(id, problems, commits)
+    const solved = solvedSeries(id, problems, commits, historyTruncated)
     const aggregateSeries = commits.map(commit => {
       const costs = costsAt(commit.commit, ordered, problems)
       const then = commonProblems(Object.fromEntries(ordered.map(ruleset => [ruleset, Object.keys(costs[ruleset] ?? {})])))
@@ -392,9 +464,15 @@ function build() {
             solution: solution.source,
             solutionPath: solution.path,
           }],
-          series: solution.history.map(commit => {
-            const data = readMetric(gitShow(commit.commit, `problems/${id}/solutions/${ruleset}/metric.json`), commit.commit)
-            return {
+          series: solution.history.flatMap(commit => {
+            const metricRel = `problems/${id}/solutions/${ruleset}/metric.json`
+            const text = gitShow(commit.commit, metricRel)
+            if (text == null) {
+              console.log(`site: omit ${metricRel} at ${commit.commit} (blob is not in this clone)`)
+              return []
+            }
+            const data = readMetric(text, `${commit.commit}:${metricRel}`)
+            return [{
               commit: commit.commit,
               solution: solution.entry,
               cost: data.cost,
@@ -405,7 +483,7 @@ function build() {
               statePeak: data.state_peak,
               ruleCount: data.rule_count,
               ruleChars: data.rule_chars,
-            }
+            }]
           }),
         }
       }),
@@ -425,6 +503,10 @@ function build() {
   const summary = { schema_version: 2, entries: hostEntries() }
   writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`)
   writeSitemap(catalog)
+  if (omittedBoundary.size > 0) {
+    const listed = [...omittedBoundary].map(commit => commit.slice(0, 12)).join(', ')
+    console.log(`site: omit metric history on the shallow clone boundary (${listed})`)
+  }
   console.log(`site: ${catalog.problems.length} problems, ${rulesets.length} rulesets, ${summary.entries.length} host commits`)
 }
 
@@ -435,8 +517,8 @@ function langName(id) {
   return meta.fields.name
 }
 
-function solvedSeries(ruleset, problems, commits) {
-  let previous = new Set()
+function solvedSeries(ruleset, problems, commits, truncated) {
+  let previous = null
   const series = []
   for (const commit of commits) {
     const passing = []
@@ -446,7 +528,7 @@ function solvedSeries(ruleset, problems, commits) {
       const data = JSON.parse(text)
       if (data.pass === true) passing.push(problem)
     }
-    const added = passing.filter(problem => !previous.has(problem))
+    const added = previous == null ? (truncated ? null : [...passing]) : passing.filter(problem => !previous.has(problem))
     previous = new Set(passing)
     series.push({ ...commit, count: passing.length, added })
   }

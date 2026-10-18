@@ -126,12 +126,14 @@ def measure(*, publish_commit: bool = False) -> int:
     if publish_commit and git_text(["status", "--porcelain"]):
         raise RecordError("metrics publish refuses a dirty work tree")
     head = git_text(["rev-parse", "HEAD"])
+    author = git_text(["log", "-1", "--format=%an <%ae>", head])
+    timestamp = commit_timestamp(git_text(["log", "-1", "--format=%aI", head]))
     runs = measure_runs(write_metrics=False, commit=head)
     for row in runs:
         if row["pass"] is True:
             require_memory(f"{row['problem']}/{row['case']}", row["host"], row["memory_bytes"])
     machine = machine_info()
-    paths = publish.apply_files(ROOT, discover(), runs, head, machine)
+    paths = publish.apply_files(ROOT, discover(), runs, head, machine, author=author, timestamp=timestamp)
     costs: dict[str, int] = {}
     printed: set[str] = set()
     for row in runs:
