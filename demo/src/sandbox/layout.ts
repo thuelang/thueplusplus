@@ -1,7 +1,5 @@
 /** Shared scene geometry. Units are the hero SVG viewBox. */
 
-import { EYE_DY, EYE_H } from '@/rex/motion'
-
 export const VIEW_W = 1440
 export const VIEW_H = 420
 /** Lever height. Boxes travel lower, through the tunnel opening. */
@@ -25,18 +23,9 @@ export const REX_HOME = 454
 export const REX_LEVER = 534
 
 export const LEVER_PIVOT = { x: REX_LEVER - 52, y: GROUND - 46 }
-/**
- * Hint baseline, to the right of Rex's hat and level with the lever knob.
- * The longer "pull the lever" string stays left of the title column.
- */
-export const HINT_X = REX_LEVER + 24 * SCALE + 18
-export const HINT_Y = LEVER_PIVOT.y - 44
-/** A miss sits beside the lever, clear of the hint. */
+/** A miss sits beside the lever. */
 export const MISS_X = LEVER_PIVOT.x + 36
 export const MISS_Y = LEVER_PIVOT.y - 96
-/** Speech sits in the open sky above Rex, right of the machine and left of the title. */
-export const SPEECH_X = 470
-export const SPEECH_Y = -6
 export const LEVER_LEN = 58
 /** Degrees from straight up. Negative leans back toward Rex. */
 export const LEVER_OFF = -52
@@ -174,77 +163,6 @@ export function inHit(place: BoxPlace): boolean {
   if (pastMachine(place)) return false
   if (place.x > HIT_FRONT) return false
   return place.y >= SCAN_TOP - HIT_PAD && place.y <= TUNNEL_BOTTOM + HIT_PAD
-}
-
-export interface HeadBox {
-  x: number
-  y: number
-  w: number
-  h: number
-}
-
-/** Hat crown through the eyes, in view units. Matches the hard hat on the eye midpoint. */
-export function rexHead(rootX: number, rootY: number): HeadBox {
-  const eyeY = rootY + EYE_DY * SCALE
-  const top = eyeY - 34 * SCALE - 6
-  const bottom = eyeY + EYE_H * 0.45 * SCALE
-  const left = rootX - 22 * SCALE
-  return { x: left, y: top, w: 44 * SCALE, h: bottom - top }
-}
-
-export const BUBBLE_W = 214
-export const BUBBLE_H = 80
-
-export interface SpeechTail {
-  tipX: number
-  tipY: number
-  attachX: number
-  attachY: number
-  /** Path in the speech group's local space. */
-  d: string
-}
-
-/**
- * The pointy tail. Its tip sits just above the head, or just beside it when
- * the head is not below the bubble, and the tip aims at the head center.
- */
-export function speechTail(rootX: number, rootY: number): SpeechTail {
-  const head = rexHead(rootX, rootY)
-  const headCx = head.x + head.w / 2
-  const headCy = head.y + head.h / 2
-  const bubbleLeft = SPEECH_X
-  const bubbleRight = SPEECH_X + BUBBLE_W
-  const bubbleTop = SPEECH_Y
-  const bubbleBottom = SPEECH_Y + BUBBLE_H
-  let attachX = clamp(headCx, bubbleLeft + 28, bubbleRight - 28)
-  let attachY = bubbleBottom
-  if (headCy < bubbleBottom) {
-    attachX = headCx <= bubbleLeft ? bubbleLeft : bubbleRight
-    attachY = clamp(headCy, bubbleTop + 18, bubbleBottom - 12)
-  }
-  const dx = headCx - attachX
-  const dy = headCy - attachY
-  const len = Math.hypot(dx, dy) || 1
-  const ux = dx / len
-  const uy = dy / len
-  const halfW = head.w / 2
-  const halfH = head.h / 2
-  const alongX = Math.abs(ux) < 1e-6 ? Infinity : halfW / Math.abs(ux)
-  const alongY = Math.abs(uy) < 1e-6 ? Infinity : halfH / Math.abs(uy)
-  const edge = Math.min(alongX, alongY)
-  const outside = len - edge - 10
-  const travel = outside > 8 ? outside : Math.max(8, len * 0.5)
-  const tipX = attachX + ux * travel
-  const tipY = attachY + uy * travel
-  const spread = 16
-  const sideways = Math.hypot(-uy, ux) || 1
-  const wingA = { x: attachX - uy / sideways * spread, y: attachY + ux / sideways * spread }
-  const wingB = { x: attachX + uy / sideways * spread, y: attachY - ux / sideways * spread }
-  const n = (v: number) => (Math.round(v * 10) / 10).toFixed(1)
-  const lx = (x: number) => n(x - SPEECH_X)
-  const ly = (y: number) => n(y - SPEECH_Y)
-  const d = `M${lx(wingA.x)} ${ly(wingA.y)} L${lx(tipX)} ${ly(tipY)} L${lx(wingB.x)} ${ly(wingB.y)} Z`
-  return { tipX, tipY, attachX, attachY, d }
 }
 
 /** False while any part of the turned square would sit outside the view. */

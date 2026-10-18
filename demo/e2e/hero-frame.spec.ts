@@ -15,7 +15,9 @@ async function paint(page: Page, theme: 'dark' | 'light', width: number, height:
   if (theme === 'dark') await expect(page.locator('html')).toHaveClass(/dark/)
   else await expect(page.locator('html')).not.toHaveClass(/dark/)
   await expect(page.getByTestId('machine')).toBeVisible()
-  await expect(page.getByTestId('speech-tail-tip')).toBeVisible()
+  await expect(page.getByTestId('speech')).toHaveCount(0)
+  await expect(page.getByTestId('start-hint')).toHaveCount(0)
+  await expect(page.getByTestId('sandbox-scene')).toHaveAttribute('aria-label', /Rex at the machine\./)
 }
 
 async function readBox(page: Page, testId: string): Promise<Box> {
@@ -147,58 +149,20 @@ test('outline shows for Tab and stays off after a click', async ({ page }) => {
   expect(stray).toBe(0)
 })
 
-test('tail aims at the head', async ({ page }) => {
-  test.setTimeout(60_000)
-  for (const theme of themes) {
-    for (const width of [390, 768, 1440]) {
-      const height = width === 390 ? 844 : width === 768 ? 1024 : 900
-      await paint(page, theme, width, height)
-      const aim = async () => page.evaluate(() => {
-        const scene = document.querySelector('[data-test="sandbox-scene"]')
-        const tip = scene?.querySelector('[data-test="speech-tail-tip"]')
-        const hat = scene?.querySelector('[data-test="hard-hat"]')
-        if (!tip || !hat) throw new Error('missing tail or hat')
-        const t = tip.getBoundingClientRect()
-        const h = hat.getBoundingClientRect()
-        const tipX = (t.left + t.right) / 2
-        const tipY = (t.top + t.bottom) / 2
-        const hatX = (h.left + h.right) / 2
-        const hatY = (h.top + h.bottom) / 2
-        const bubble = scene.querySelector('[data-test="speech-bubble"]')
-        if (!bubble) throw new Error('missing bubble')
-        const b = bubble.getBoundingClientRect()
-        const above = tipY <= h.top + 6 && tipX >= h.left - 24 && tipX <= h.right + 24
-        const beside = (tipX <= h.left + 4 || tipX >= h.right - 4) && tipY >= h.top - 8 && tipY <= h.bottom + 8
-        const vx = tipX - (b.left + b.right) / 2
-        const vy = tipY - (b.top + b.bottom) / 2
-        const hx = hatX - (b.left + b.right) / 2
-        const hy = hatY - (b.top + b.bottom) / 2
-        const cos = (vx * hx + vy * hy) / (Math.hypot(vx, vy) * Math.hypot(hx, hy))
-        return { above, beside, cos }
-      })
-      const first = await aim()
-      expect(first.above || first.beside).toBe(true)
-      expect(first.cos).toBeGreaterThan(0.85)
-      await page.waitForTimeout(400)
-      const second = await aim()
-      expect(second.above || second.beside).toBe(true)
-      expect(second.cos).toBeGreaterThan(0.85)
-    }
-  }
-})
-
 test('leaves breathing room above the game on a phone', async ({ page }) => {
-  for (const width of [390, 768]) {
-    const height = width === 390 ? 844 : 1024
-    await paint(page, 'dark', width, height)
-    const gap = await page.evaluate(() => {
-      const buttons = [...document.querySelectorAll('[data-test="page-hero"] a')]
-      const bubble = document.querySelector('[data-test="speech-bubble"]')
-      if (buttons.length === 0 || !bubble) throw new Error('missing buttons or bubble')
-      const buttonBottom = Math.max(...buttons.map(el => el.getBoundingClientRect().bottom))
-      return bubble.getBoundingClientRect().top - buttonBottom
-    })
-    expect(gap).toBeGreaterThanOrEqual(32)
+  for (const theme of themes) {
+    for (const width of [390, 768]) {
+      const height = width === 390 ? 844 : 1024
+      await paint(page, theme, width, height)
+      const gap = await page.evaluate(() => {
+        const buttons = [...document.querySelectorAll('[data-test="page-hero"] a')]
+        const game = document.querySelector('[data-test="belt-bleed"]')
+        if (buttons.length === 0 || !game) throw new Error('missing buttons or game')
+        const buttonBottom = Math.max(...buttons.map(el => el.getBoundingClientRect().bottom))
+        return game.getBoundingClientRect().top - buttonBottom
+      })
+      expect(gap).toBeGreaterThanOrEqual(32)
+    }
   }
 })
 
