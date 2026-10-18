@@ -1,8 +1,8 @@
 /**
  * Lever-timing game for the home sandbox.
  *
- * Rex autoplays on load and clears every box in range, so the demo loops
- * and the page does not break. A click on the game, or Space or Enter while
+ * Rex autoplays on load and clears a box when its center reaches the
+ * middle of the machine, so the demo loops and the page does not break. A click on the game, or Space or Enter while
  * it is focused, hands him the lever. The visitor keeps that turn only while
  * the pointer stays over the game, the last touch is still recent, or the
  * game stays focused. Leaving, a short touch idle, or blur hands the same
@@ -25,10 +25,13 @@ import {
   OPENING_Y,
   YANK,
   boxPlace,
+  centerProgress,
   easeIn,
   easeOut,
   inHit,
   pastMachine,
+  safeCatchProgress,
+  zoneEntryProgress,
 } from './layout'
 
 export const GRACE = 0.8
@@ -51,8 +54,28 @@ export const RETURN = BREAK_BEAT + 1.6
 export const TRACK = 2
 const CROWD = 0.18
 const REDUCED = 0.55
-/** Rex pulls once a box has reached the opening, and clears the whole range. */
-const RIPE = 0.9
+/** Fraction of a yank at which the lever is fully pulled. The return follows. */
+export const PULL_AT = 0.3
+
+/**
+ * Where an autoplay clear should land, and how early the yank starts.
+ * The lever reaches its pull at `PULL_AT` of the yank, so the windup
+ * begins that long before the box arrives. If the belt is so fast that
+ * the center would fall past the machine, the clear uses the latest
+ * progress that is still inside the catch.
+ */
+export function planCatch(rate: number, reduced: boolean): { clearAt: number, lead: number, centered: boolean } {
+  if (!Number.isFinite(rate) || rate <= 0) throw new Error(`rate must be > 0, got ${rate}`)
+  if (typeof reduced !== 'boolean') throw new Error('reduced must be a boolean')
+  const center = centerProgress()
+  const safe = safeCatchProgress()
+  const entry = zoneEntryProgress()
+  const lead = reduced ? 0 : YANK * PULL_AT
+  const latest = safe - rate / 30
+  if (center <= latest) return { clearAt: center, lead, centered: true }
+  const clearAt = Math.min(safe, Math.max(latest, entry))
+  return { clearAt, lead, centered: false }
+}
 
 export interface Box {
   id: number
@@ -99,6 +122,11 @@ export interface Game {
   presence: Presence
   /** Seconds since the player's last touch. Pointer and keys do not use it. */
   idle: number
+  /**
+   * Seconds of yank at which a started autoplay pull removes the boxes.
+   * 0 means the yank is not waiting on a clear.
+   */
+  windup: number
 }
 
 export interface Difficulty {
@@ -200,6 +228,7 @@ export function createGame(options: GameOptions): Game {
     control: 'auto',
     presence: 'away',
     idle: 0,
+    windup: 0,
   }
 }
 
@@ -316,19 +345,70 @@ function clearHits(game: Game, hits: readonly Box[]): Game {
     rexT: 0,
     lever: game.reduced ? 1 : 0,
     leverT: game.reduced ? 0.12 : 0,
+    windup: 0,
   }
 }
 
 /**
- * Rex pulls once a box has reached the opening, and that pull clears every
- * box already in range. A box still short of the opening waits.
+ * The lever is already on its way. When it reaches the pull, every box
+ * in range leaves together. The yank itself keeps going.
+ */
+function releaseCatch(game: Game): Game {
+  const hits = game.boxes.filter(zoned)
+  if (hits.length === 0) return { ...game, windup: 0 }
+  const ids = new Set(hits.map(box => box.id))
+  return {
+    ...game,
+    boxes: game.boxes.filter(box => !ids.has(box.id)),
+    clears: game.clears + hits.length,
+    windup: 0,
+    miss: 0,
+    cooldown: 0,
+    deny: 0,
+    idle: 0,
+  }
+}
+
+function finishWindup(game: Game): Game {
+  if (game.phase !== 'playing' || game.windup <= 0 || game.rex !== 'yank') return game
+  if (game.rexT + 1e-9 < game.windup) return game
+  return releaseCatch(game)
+}
+
+/**
+ * Rex starts the yank early by the pull's lead, so the lever arrives as the
+ * foremost box reaches the machine's center. Every box already in range
+ * leaves on that one pull. A box that would leave the machine first is
+ * caught at the latest progress that is still inside.
  */
 function autoCatch(game: Game): Game {
   if (game.control !== 'auto' || game.phase !== 'playing') return game
-  if (game.rex === 'yank' || game.rex === 'cheer' || game.cooldown > 0) return game
-  const hits = game.boxes.filter(zoned)
-  if (!hits.some(box => box.progress >= RIPE)) return game
-  return clearHits(game, hits)
+  if (game.rex === 'yank' || game.rex === 'cheer' || game.cooldown > 0 || game.windup > 0) return game
+  const { beltRate } = difficulty(game.clears, game.reduced)
+  const plan = planCatch(beltRate, game.reduced)
+  let leadBox: Box | undefined
+  for (const box of game.boxes) {
+    if (pastMachine(boxPlace(box.progress, box.lane, box.spin))) continue
+    if (!leadBox || box.progress > leadBox.progress) leadBox = box
+  }
+  if (!leadBox) return game
+  const timeTo = (plan.clearAt - leadBox.progress) / beltRate
+  if (timeTo > plan.lead) return game
+  if (plan.lead <= 0 || timeTo <= 0) {
+    const hits = game.boxes.filter(zoned)
+    if (!hits.some(box => box.id === leadBox.id)) return game
+    return clearHits(game, hits)
+  }
+  const rexT = plan.lead - timeTo
+  return {
+    ...game,
+    rex: 'yank',
+    rexT,
+    lever: leverCurve(rexT),
+    leverT: 0,
+    windup: plan.lead,
+    idle: 0,
+  }
 }
 
 function leverLocked(game: Game): boolean {
@@ -483,13 +563,12 @@ function stepOnce(game: Game, dt: number): Game {
     if (idle >= TOUCH_IDLE) return handBack(next)
     next = { ...next, idle }
   }
+  next = finishWindup(next)
   if (next.control === 'auto') next = autoCatch(next)
   next = advanceRex(next, dt)
-  if (next.control === 'auto') next = autoCatch(next)
   next = advanceBoxes(next, dt)
   if (next.phase === 'broken') return decay(next, dt)
   next = advanceSpawn(next, dt)
-  if (next.control === 'auto') next = autoCatch(next)
   return decay(settle(next), dt)
 }
 
