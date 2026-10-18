@@ -1,6 +1,7 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { beginAutoplay, beginPlayer, createGame, handBack, pull, step, type Game } from './game'
-import { pastMachine, boxPlace, clearFlourish, flourishPose, type ClearFlourish } from './layout'
+import { MACHINE_CENTER, MACHINE_S, MACHINE_SKETCH_H, MACHINE_Y, pastMachine, boxPlace, clearFlourish, flourishPlace, flourishPose, type ClearFlourish } from './layout'
 
 function playing() {
   return beginPlayer(beginAutoplay(createGame({ seed: 4, reduced: false })))
@@ -85,6 +86,58 @@ describe('clear flourish', () => {
         expect(end.sx).toBeCloseTo(flourish.grow, 6)
       }
     }
+  })
+
+  it('a cleared box travels to the machine center without stopping', () => {
+    expect(MACHINE_CENTER.x).toBe(258)
+    expect(MACHINE_CENTER.y).toBe(MACHINE_Y + (MACHINE_SKETCH_H * MACHINE_S) / 2)
+    const flourish = clearFlourish(4)
+    const from = { x: 420, y: 330 }
+    const other = { x: 560, y: 290 }
+    const startDist = Math.hypot(MACHINE_CENTER.x - from.x, MACHINE_CENTER.y - from.y)
+    expect(flourishPlace(from, flourish, 0, false)).toEqual(from)
+    const soon = flourishPlace(from, flourish, flourish.duration * 0.05, false)
+    expect(Math.hypot(soon.x - from.x, soon.y - from.y)).toBeGreaterThan(1)
+
+    let previous = from
+    let previousDist = startDist
+    const steps = 12
+    for (let i = 1; i <= steps; i += 1) {
+      const age = (flourish.duration * i) / steps
+      const at = flourishPlace(from, flourish, age, false)
+      const reducedAt = flourishPlace(from, flourish, age, true)
+      expect(reducedAt).toEqual(at)
+      const dist = Math.hypot(MACHINE_CENTER.x - at.x, MACHINE_CENTER.y - at.y)
+      expect(dist).toBeLessThan(previousDist)
+      expect(Math.hypot(at.x - previous.x, at.y - previous.y)).toBeGreaterThan(0)
+      previous = at
+      previousDist = dist
+    }
+    expect(previous).toEqual(MACHINE_CENTER)
+
+    const quarter = flourishPlace(from, flourish, flourish.duration * 0.25, false)
+    const quarterLeft = Math.hypot(MACHINE_CENTER.x - quarter.x, MACHINE_CENTER.y - quarter.y)
+    expect(quarterLeft).toBeLessThan(startDist * 0.75)
+
+    const second = clearFlourish(11)
+    expect(flourishPlace(other, second, second.duration, false)).toEqual(MACHINE_CENTER)
+    expect(flourishPlace(other, second, second.duration, true)).toEqual(MACHINE_CENTER)
+
+    const mid = flourish.duration * 0.5
+    const spinning = flourishPose(3, flourish, mid, false)
+    expect(spinning.rot).not.toBeCloseTo(3, 3)
+    expect(Math.abs(spinning.sx)).toBeGreaterThan(1)
+    expect(spinning.opacity).toBeLessThan(1)
+    const faded = flourishPose(3, flourish, mid, true)
+    expect(faded.rot).toBe(3)
+    expect(faded.sx).toBe(1)
+    expect(faded.sy).toBe(1)
+    expect(faded.opacity).toBeLessThan(1)
+    expect(flourishPlace(from, flourish, mid, true).x).not.toBeCloseTo(from.x, 0)
+
+    const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
+    expect(scene).toContain('flourishPlace')
+    expect(scene.indexOf('data-test="clearing"')).toBeGreaterThan(scene.indexOf('data-test="machine"'))
   })
 
   it('leaves a cleared box out of the game so it cannot break the page or the handoff', () => {

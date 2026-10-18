@@ -68,6 +68,8 @@ export const BREAK_BEAT = 0.85
 export const MACHINE_X = SCENE_INSET
 export const MACHINE_Y = -20
 export const MACHINE_S = 0.8
+/** Height of the traced sketch before MACHINE_S. The scene flips the path around this. */
+export const MACHINE_SKETCH_H = 500
 /** Right lip of the tunnel, where boxes enter. */
 export const TUNNEL_LIP = MACHINE_X + 345 * MACHINE_S
 /** Left wall inside the tunnel. */
@@ -264,6 +266,14 @@ export const MACHINE_GROW = 0.055
  * The traced sketch is 345 units wide before MACHINE_S.
  */
 export const MACHINE_BASE = { x: MACHINE_X + (345 * MACHINE_S) / 2, y: GROUND }
+/**
+ * Center of the 345×500 sketch. A cleared box eases here. `x` is the same
+ * horizontal center the catch aims for. `y` is halfway up the sketch.
+ */
+export const MACHINE_CENTER = {
+  x: MACHINE_BASE.x,
+  y: MACHINE_Y + (MACHINE_SKETCH_H * MACHINE_S) / 2,
+}
 
 /**
  * Animate.css tada, one second, sampled in our own loop.
@@ -356,17 +366,21 @@ export function clearFlourish(seed: number): ClearFlourish {
   }
 }
 
-/**
- * A cleared box grows, spins, and fades in place. Reduced motion is the fade.
- * `age` is seconds from the clear.
- */
-export function flourishPose(baseRot: number, flourish: ClearFlourish, age: number, reduced: boolean): FlourishPose {
-  if (!Number.isFinite(baseRot)) throw new Error(`baseRot must be finite, got ${baseRot}`)
+function flourishUnit(flourish: ClearFlourish, age: number): number {
   if (!Number.isFinite(age) || age < 0 || age > flourish.duration) {
     throw new Error(`age must be from 0 to ${flourish.duration}, got ${age}`)
   }
+  return age / flourish.duration
+}
+
+/**
+ * A cleared box grows, spins, and fades while it travels. Reduced motion is
+ * the fade. `age` is seconds from the clear.
+ */
+export function flourishPose(baseRot: number, flourish: ClearFlourish, age: number, reduced: boolean): FlourishPose {
+  if (!Number.isFinite(baseRot)) throw new Error(`baseRot must be finite, got ${baseRot}`)
   if (typeof reduced !== 'boolean') throw new Error('reduced must be a boolean')
-  const u = age / flourish.duration
+  const u = flourishUnit(flourish, age)
   const opacity = 1 - easeIn(u)
   if (reduced) return { rot: baseRot, sx: 1, sy: 1, opacity }
   const move = easeOut(u)
@@ -377,6 +391,22 @@ export function flourishPose(baseRot: number, flourish: ClearFlourish, age: numb
     sx: flourish.flip === 'x' ? flipped : scale,
     sy: flourish.flip === 'y' ? flipped : scale,
     opacity,
+  }
+}
+
+/**
+ * Where a cleared box is drawn. It eases from where it was caught to the
+ * machine center and arrives as the flourish ends. Reduced motion travels too.
+ */
+export function flourishPlace(from: Pt, flourish: ClearFlourish, age: number, reduced: boolean): Pt {
+  if (!Number.isFinite(from.x) || !Number.isFinite(from.y)) {
+    throw new Error(`from must be finite, got ${from.x}, ${from.y}`)
+  }
+  if (typeof reduced !== 'boolean') throw new Error('reduced must be a boolean')
+  const move = easeOut(flourishUnit(flourish, age))
+  return {
+    x: from.x + (MACHINE_CENTER.x - from.x) * move,
+    y: from.y + (MACHINE_CENTER.y - from.y) * move,
   }
 }
 
