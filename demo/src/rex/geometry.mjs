@@ -70,7 +70,7 @@ export const HAT_STORAGE_KEY = 'rex-hat'
 
 /**
  * Hollow center of the rest pose, halfway from the eyes to the ground.
- * Hat swaps scale to 0 here.
+ * Hat swaps used to scale to 0 here. They now scale in place on the head.
  */
 export const BODY_CENTER = { x: 0, y: MARK.eyeDy / 2 }
 
