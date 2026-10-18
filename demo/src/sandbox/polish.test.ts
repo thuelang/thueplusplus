@@ -165,6 +165,15 @@ describe('hero polish', () => {
     for (const place of spawns) expect(place.x).toBeGreaterThan(VIEW_W)
     expect(Math.abs(boxPlace(0, 0, 0).y - OPENING_Y)).toBeGreaterThan(120)
     expect(Math.abs(boxPlace(0, 1, 0).y - OPENING_Y)).toBeGreaterThan(40)
+    // Still spread out on the right, before the curve into the opening.
+    const crossing = lanes.map(lane => boxPlace(0.3, lane, 0.2))
+    expect(Math.max(...crossing.map(place => place.y)) - Math.min(...crossing.map(place => place.y))).toBeGreaterThan(VIEW_H * 0.55)
+    expect(crossing.every(place => place.x > VIEW_W * 0.6)).toBe(true)
+    const high = boxPlace(0.3, 0, 0)
+    const settled = boxPlace(0.95, 0, 0)
+    expect(Math.abs(high.y - OPENING_Y)).toBeGreaterThan(140)
+    expect(Math.abs(settled.y - OPENING_Y)).toBeLessThan(20)
+    expect(settled.y).toBeGreaterThan(high.y + 80)
 
     for (const lane of lanes) {
       for (const spin of spins) {

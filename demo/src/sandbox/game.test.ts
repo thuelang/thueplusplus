@@ -47,6 +47,10 @@ function started(seed: number, reduced: boolean): Game {
   return beginPlayer(createGame({ seed, reduced }))
 }
 
+function belt(game: Game): number {
+  return difficulty(game.clears, game.reduced).beltRate
+}
+
 function canPull(game: Game): boolean {
   return game.phase === 'playing' && game.rex !== 'yank' && game.rex !== 'cheer' && game.cooldown === 0
 }
@@ -131,7 +135,9 @@ describe('lever game', () => {
     expect(() => step(reduced, Number.NaN)).toThrow(/dt/)
     expect(() => createGame({ seed: 0, reduced: false })).toThrow(/seed/)
     expect(() => createGame({ seed: 1.5, reduced: false })).toThrow(/seed/)
-    expect(() => difficulty('no' as unknown as boolean)).toThrow(/reduced/)
+    expect(() => difficulty(0, 'no' as unknown as boolean)).toThrow(/reduced/)
+    expect(() => difficulty(-1, false)).toThrow(/clears/)
+    expect(() => difficulty(1.5, false)).toThrow(/clears/)
   })
 
   it('gate gaps', () => {
@@ -154,11 +160,13 @@ describe('lever game', () => {
     game = pull(game)
     expect(game.phase).toBe('playing')
     expect(game.boxes.some(box => box.id === hit.id)).toBe(false)
+    expect(game.clears).toBe(1)
     expect(game.jolt).toBe(1)
 
     let miss = started(3, true)
     miss = pull(miss)
     expect(miss.phase).toBe('playing')
+    expect(miss.clears).toBe(0)
     expect(miss.miss).toBe(1)
     expect(miss.cooldown).toBe(MISS_COOLDOWN)
     const refused = pull(miss)
@@ -175,11 +183,11 @@ describe('lever game', () => {
     expect(early.miss).toBe(1)
 
     expect(inZone(0.86, 0.2, 0.4)).toBe(true)
-    expect(inZone(0.7, 0.2, 0.4)).toBe(false)
+    expect(inZone(0.45, 0.2, 0.4)).toBe(false)
     let ahead = started(9, true)
     ahead = {
       ...ahead,
-      boxes: [{ id: 3, progress: 0.7, lane: 0.4, spin: 0.2 }],
+      boxes: [{ id: 3, progress: 0.45, lane: 0.4, spin: 0.2 }],
       spawnIn: 30,
       rex: 'ready',
       cooldown: 0,
@@ -191,20 +199,37 @@ describe('lever game', () => {
   })
 
   it('gate ramp', () => {
-    const calm = difficulty(false)
-    const slow = difficulty(true)
-    expect(slow.beltRate).toBeLessThan(calm.beltRate)
-    expect(slow.gapLo).toBeGreaterThan(calm.gapLo)
-    expect(calm.gapHi - calm.gapLo).toBeGreaterThan(0.4)
-    expect(calm.gapLo).toBeGreaterThan(0.4)
-    expect(calm.span).toBeGreaterThan(0.08)
+    const low = difficulty(0, false)
+    const mid = difficulty(6, false)
+    const high = difficulty(18, false)
+    const top = difficulty(48, false)
+    expect(low.beltRate).toBeLessThan(mid.beltRate)
+    expect(mid.beltRate).toBeLessThan(high.beltRate)
+    expect(high.beltRate).toBeLessThan(top.beltRate)
+    expect(low.gapLo).toBeGreaterThan(mid.gapLo)
+    expect(mid.gapLo).toBeGreaterThan(high.gapLo)
+    expect(low.span).toBeGreaterThan(mid.span)
+    expect(mid.span).toBeGreaterThan(high.span)
+    expect(high.gapHi - high.gapLo).toBeGreaterThan(0.4)
+    expect(difficulty(4, true).beltRate).toBeLessThan(difficulty(4, false).beltRate)
+    expect(difficulty(4, true).gapLo).toBeGreaterThan(difficulty(4, false).gapLo)
+    expect(high.span).toBeGreaterThan(0.08)
+    expect(high.gapLo).toBeGreaterThan(0.4)
 
-    let firstGame = started(4, false)
-    firstGame = until(firstGame, current => current.boxes.some(box => box.progress < 0.2))
-    const first = crossHalf(firstGame)
-    const laterGame = until(first.game, current => current.boxes.some(box => box.progress < 0.15) && current.phase === 'playing')
-    const later = crossHalf(laterGame)
-    expect(Math.abs(later.dt - first.dt)).toBeLessThan(0.08)
+    let slowGame = started(4, false)
+    slowGame = until(slowGame, current => current.boxes.some(box => box.progress < 0.2))
+    const slow = crossHalf(slowGame)
+    let fastGame = beginAutoplay(createGame({ seed: 4, reduced: false }))
+    let guard = 0
+    while (fastGame.clears < 8) {
+      fastGame = step(fastGame, 1 / 60)
+      guard += 1
+      if (fastGame.phase !== 'playing') throw new Error(`ramp broke at clear ${fastGame.clears}`)
+      if (guard > 8000) throw new Error(`ramp stalled at ${fastGame.clears} clears`)
+    }
+    fastGame = until(fastGame, current => current.boxes.some(box => box.progress < 0.15) && current.phase === 'playing', 30)
+    const fast = crossHalf(fastGame)
+    expect(fast.dt).toBeLessThan(slow.dt * 0.75)
   })
 
   it('gate scale', () => {
@@ -214,14 +239,38 @@ describe('lever game', () => {
     expect(beltPoint(0).x).toBe(BELT_ENTRANCE)
     expect(beltPoint(1).x).toBe(BELT_MOUTH)
     expect(beltPoint(0).x).toBeGreaterThan(beltPoint(1).x)
-    const now = difficulty(false)
-    const legacyRate = 0.17
-    const legacySpan = 0.32
-    expect(now.beltRate).toBeCloseTo(legacyRate / TRACK, 6)
-    expect(now.span).toBeCloseTo(legacySpan / TRACK, 6)
-    expect(now.span / now.beltRate).toBeCloseTo(legacySpan / legacyRate, 5)
-    expect(1 / now.beltRate).toBeCloseTo(TRACK / legacyRate, 5)
-    expect(difficulty(true).beltRate).toBeCloseTo((legacyRate / TRACK) * 0.55, 6)
+    for (const clears of [0, 6, 18]) {
+      const now = difficulty(clears, false)
+      const u = 1 - Math.exp(-clears / 6)
+      const legacyRate = 0.17 + u * 0.45
+      const legacySpan = 0.32 - u * 0.14
+      expect(now.beltRate).toBeCloseTo(legacyRate / TRACK, 6)
+      expect(now.span).toBeCloseTo(legacySpan / TRACK, 6)
+      expect(now.span / now.beltRate).toBeCloseTo(legacySpan / legacyRate, 5)
+      expect(1 / now.beltRate).toBeCloseTo(TRACK / legacyRate, 5)
+    }
+    expect(difficulty(0, true).beltRate).toBeCloseTo((0.17 / TRACK) * 0.55, 6)
+  })
+
+  it('autoplay soaks a fast belt without a break', () => {
+    const frame = 1 / 60
+    for (const reduced of [false, true]) {
+      let game = beginAutoplay(createGame({ seed: 4, reduced }))
+      const ceiling = difficulty(10_000, reduced).beltRate
+      const target = difficulty(0, reduced).beltRate + (ceiling - difficulty(0, reduced).beltRate) * 0.9
+      let elapsed = 0
+      while (belt(game) < target) {
+        game = step(game, frame)
+        elapsed += frame
+        if (game.phase !== 'playing') throw new Error(`autoplay broke at ${elapsed.toFixed(2)}s clears ${game.clears}`)
+        if (game.control !== 'auto') throw new Error(`autoplay lost the lever at ${elapsed.toFixed(2)}s`)
+        if (boxesOverlap(game.boxes)) throw new Error(`boxes stacked at ${elapsed.toFixed(2)}s`)
+        if (elapsed > 240) throw new Error(`belt never got fast, clears ${game.clears} rate ${belt(game)}`)
+      }
+      expect(game.phase).toBe('playing')
+      expect(game.clears).toBeGreaterThan(12)
+      expect(belt(game)).toBeGreaterThan(difficulty(0, reduced).beltRate * 2.5)
+    }
   })
 
   it('gate break', () => {
@@ -240,7 +289,8 @@ describe('lever game', () => {
     expect(next.boxes).toHaveLength(0)
     expect(next.beltOn).toBe(true)
     expect(next.seed).toBe(game.seed + 1)
-    expect(difficulty(next.reduced).beltRate).toBe(difficulty(true).beltRate)
+    expect(next.clears).toBe(0)
+    expect(belt(next)).toBe(difficulty(0, true).beltRate)
     expect(rebuild(next)).toBe(next)
     const resumed = until(game, current => current.control === 'auto' && current.phase === 'playing', RETURN + 1)
     expect(resumed.boxes).toHaveLength(0)
@@ -320,7 +370,8 @@ describe('lever game', () => {
     expect(taken.boxes).toEqual(playing.boxes)
     expect(taken.spawnIn).toBe(playing.spawnIn)
     expect(taken.rng).toBe(playing.rng)
-    expect(difficulty(taken.reduced).beltRate).toBe(difficulty(playing.reduced).beltRate)
+    expect(taken.clears).toBe(playing.clears)
+    expect(belt(taken)).toBe(belt(playing))
 
     const quiet = {
       ...taken,
@@ -352,7 +403,8 @@ describe('lever game', () => {
     expect(touched.control).toBe('auto')
     expect(touched.phase).toBe('playing')
     expect(touched.presence).toBe('away')
-    expect(difficulty(touched.reduced).beltRate).toBe(difficulty(previous.reduced).beltRate)
+    expect(touched.clears).toBe(previous.clears)
+    expect(belt(touched)).toBe(belt(previous))
     expect(touched.boxes).toEqual(previous.boxes)
   })
 
@@ -372,18 +424,20 @@ describe('lever game', () => {
   it('handoff keeps a box in range and Rex clears it', () => {
     let game = setPresence(beginPlayer(createGame({ seed: 15, reduced: true })), 'pointer')
     game = until(game, current => current.boxes.some(zoned), 30)
-    const rate = difficulty(game.reduced).beltRate
+    const rate = belt(game)
     const ids = game.boxes.filter(zoned).map(box => box.id)
     const boxes = game.boxes.map(box => ({ ...box }))
     const handed = setPresence(game, 'away')
     expect(handed.control).toBe('auto')
     expect(handed.phase).toBe('playing')
     expect(handed.boxes).toEqual(boxes)
-    expect(difficulty(handed.reduced).beltRate).toBe(rate)
-    const later = step(handed, 2)
+    expect(handed.clears).toBe(game.clears)
+    expect(belt(handed)).toBe(rate)
+    const later = step(handed, 8)
     expect(later.phase).not.toBe('broken')
     expect(later.control).toBe('auto')
-    expect(difficulty(later.reduced).beltRate).toBe(rate)
+    expect(later.clears).toBeGreaterThan(handed.clears)
+    expect(belt(later)).toBeGreaterThan(rate)
     for (const id of ids) expect(later.boxes.some(box => box.id === id)).toBe(false)
   })
 
@@ -403,7 +457,8 @@ describe('lever game', () => {
     expect(handed.control).toBe('auto')
     expect(handed.boxes).toEqual([gone, riding])
     expect(handed.spawnIn).toBe(1.2)
-    expect(difficulty(handed.reduced).beltRate).toBe(difficulty(false).beltRate)
+    expect(handed.clears).toBe(0)
+    expect(belt(handed)).toBe(difficulty(0, false).beltRate)
     const later = step(handed, 1 / 60)
     expect(later.phase).toBe('playing')
     expect(later.boxes.some(box => box.id === 1)).toBe(false)
@@ -424,8 +479,8 @@ describe('lever game', () => {
     expect(switchedPlayer.boxes).toEqual(alreadyPlayer.boxes)
     expect(switchedPlayer.spawnIn).toBe(alreadyPlayer.spawnIn)
     expect(switchedPlayer.rng).toBe(alreadyPlayer.rng)
-    expect(difficulty(switchedPlayer.reduced).beltRate)
-      .toBe(difficulty(alreadyPlayer.reduced).beltRate)
+    expect(switchedPlayer.clears).toBe(alreadyPlayer.clears)
+    expect(belt(switchedPlayer)).toBe(belt(alreadyPlayer))
 
     let stayedPlayer: Game = alreadyPlayer
     let becamePlayer: Game = switchedPlayer
@@ -455,7 +510,8 @@ describe('lever game', () => {
       expect(becameAuto.spawnIn).toBe(stayedAuto.spawnIn)
       expect(becameAuto.rng).toBe(stayedAuto.rng)
       expect(becameAuto.phase).toBe(stayedAuto.phase)
-      expect(difficulty(becameAuto.reduced).beltRate).toBe(difficulty(stayedAuto.reduced).beltRate)
+      expect(becameAuto.clears).toBe(stayedAuto.clears)
+      expect(belt(becameAuto)).toBe(belt(stayedAuto))
     }
   })
 
@@ -667,7 +723,8 @@ describe('lever game', () => {
     expect(away.rexT).toBe(playing.rexT)
     expect(away.lever).toBe(playing.lever)
     expect(away.boxes).toEqual(playing.boxes)
-    expect(difficulty(away.reduced).beltRate).toBe(difficulty(playing.reduced).beltRate)
+    expect(away.clears).toBe(playing.clears)
+    expect(belt(away)).toBe(belt(playing))
     expect(away.seed).toBe(playing.seed)
     const atLeave = grip(away, 0.8)
     const atPlay = grip(playing, 0.8)
@@ -703,6 +760,8 @@ describe('lever game', () => {
     expect(cleared.phase).toBe('playing')
     expect(cleared.boxes.some(box => box.id === first.id)).toBe(false)
     expect(cleared.boxes.some(box => box.id === second.id)).toBe(false)
+    expect(cleared.clears).toBe(2)
+    expect(belt(cleared)).toBeGreaterThan(belt(game))
 
     let auto = beginAutoplay(createGame({ seed: 2, reduced: false }))
     auto = {
@@ -719,6 +778,7 @@ describe('lever game', () => {
     expect(auto.boxes.some(box => box.id === 1)).toBe(false)
     expect(auto.boxes.some(box => box.id === 2)).toBe(false)
     expect(auto.boxes.some(box => box.id === 3)).toBe(true)
+    expect(auto.clears).toBe(2)
   })
 
   it('a box breaks the page only once it is past the machine', () => {

@@ -117,8 +117,18 @@ const DRIFT_TURN = 12
 /** Center of the tunnel opening, where every path finishes. */
 export const OPENING_X = (TUNNEL_DEEP + TUNNEL_LIP) / 2
 export const OPENING_Y = (SCAN_TOP + TUNNEL_BOTTOM) / 2
-/** Right edge of the catch, a little in front of the tunnel lip. */
-export const HIT_FRONT = TUNNEL_LIP + 100
+/**
+ * Right edge of the catch, a little in front of the tunnel lip.
+ * The title covers the right half of the hero, so the catch stays in the
+ * open gap where a box has already curved down to the opening.
+ */
+export const HIT_FRONT = TUNNEL_LIP + 200
+/**
+ * Boxes hold their spawn height across the right side, then curve into the
+ * opening in the open gap left of the title. They are level with the opening
+ * once they reach the catch, which still fits two boxes at once.
+ */
+const CURVE_FROM = 780
 const HIT_PAD = 8
 
 export interface BoxPlace {
@@ -147,7 +157,7 @@ export function boxPlace(progress: number, lane: number, spin: number): BoxPlace
   const x = enter + (BELT_MOUTH - enter) * p
   const phase = spin * Math.PI * 2
   const spawnY = SPAWN_TOP + (SPAWN_BOTTOM - SPAWN_TOP) * lane
-  const blend = smoothstep((enter - x) / (enter - HIT_FRONT))
+  const blend = smoothstep((CURVE_FROM - x) / (CURVE_FROM - HIT_FRONT))
   const bob = Math.sin(p * 6 + phase) * DRIFT_BOB * (1 - blend * 0.55)
   const y = spawnY + (OPENING_Y - spawnY) * blend + bob
   const rot = Math.sin(p * 4 + phase) * DRIFT_TURN

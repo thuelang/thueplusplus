@@ -9,8 +9,11 @@
  * run back. Boxes in flight and the belt speed stay. Only a break starts a
  * fresh run. A box breaks the page only once it has gone past the machine,
  * and only while the visitor still has the turn. One pull clears every box
- * in range. Caught boxes are removed. They are not kept, so they cannot pile up.
- * Nothing here reads the clock, the DOM, or storage.
+ * in range. Each cleared box speeds the belt. The run is unwinnable: the
+ * belt keeps speeding up until the visitor misses. Nothing displays a score
+ * or stores a best. Autoplay clears the same way and never breaks the page,
+ * at any speed. Caught boxes are removed. They are not kept, so they cannot
+ * pile up. Nothing here reads the clock, the DOM, or storage.
  */
 
 import {
@@ -86,6 +89,8 @@ export interface Game {
   brokenT: number
   showRebuild: boolean
   reduced: boolean
+  /** Boxes cleared this run. This is the belt's pace, not a score. */
+  clears: number
   beltOn: boolean
   /** Rex runs the demo, or the player has the lever. */
   control: Control
@@ -96,12 +101,12 @@ export interface Game {
 }
 
 export interface Difficulty {
-  /** Progress per second. The base rate. A handoff keeps it. A break starts a fresh run at this rate. */
+  /** Progress per second. Climbs with clears and eases toward a top rate. A handoff keeps the count. A break starts over at zero. */
   beltRate: number
   /** Shortest and longest seconds between boxes. */
   gapLo: number
   gapHi: number
-  /** Legacy capture fraction at the base rate. The hit zone itself is geometric. */
+  /** Legacy capture fraction at this pace. The hit zone itself is geometric. */
   span: number
 }
 
@@ -110,15 +115,17 @@ export interface GameOptions {
   reduced: boolean
 }
 
-export function difficulty(reduced: boolean): Difficulty {
+export function difficulty(clears: number, reduced: boolean): Difficulty {
+  if (!Number.isInteger(clears) || clears < 0) throw new Error(`clears must be an integer >= 0, got ${clears}`)
   if (typeof reduced !== 'boolean') throw new Error('reduced must be a boolean')
-  const legacyRate = 0.17
-  const legacySpan = 0.32
+  const u = 1 - Math.exp(-clears / 6)
+  const legacyRate = 0.17 + u * 0.45
+  const legacySpan = 0.32 - u * 0.14
   const stretch = reduced ? 1 / REDUCED : 1
   return {
     beltRate: (legacyRate / TRACK) * (reduced ? REDUCED : 1),
-    gapLo: 1.7 * stretch * TRACK,
-    gapHi: 3.1 * stretch * TRACK,
+    gapLo: (1.7 - u * 1.05) * stretch * TRACK,
+    gapHi: (3.1 - u * 1.15) * stretch * TRACK,
     span: legacySpan / TRACK,
   }
 }
@@ -188,6 +195,7 @@ export function createGame(options: GameOptions): Game {
     brokenT: 0,
     showRebuild: false,
     reduced: options.reduced,
+    clears: 0,
     beltOn: false,
     control: 'auto',
     presence: 'away',
@@ -299,6 +307,7 @@ function clearHits(game: Game, hits: readonly Box[]): Game {
   return {
     ...game,
     boxes: game.boxes.filter(box => !ids.has(box.id)),
+    clears: game.clears + hits.length,
     jolt: 1,
     miss: 0,
     cooldown: 0,
@@ -402,7 +411,7 @@ function advanceRex(game: Game, dt: number): Game {
 
 function advanceBoxes(game: Game, dt: number): Game {
   if (game.phase !== 'playing' || !game.beltOn) return game
-  const { beltRate } = difficulty(game.reduced)
+  const { beltRate } = difficulty(game.clears, game.reduced)
   const boxes = game.boxes.map(box => ({ ...box, progress: box.progress + beltRate * dt }))
   const escaped = boxes.some(gone)
   if (!escaped) return { ...game, boxes }
@@ -429,7 +438,7 @@ function advanceSpawn(game: Game, dt: number): Game {
   const spawnIn = game.spawnIn - dt
   if (spawnIn > 0) return { ...game, spawnIn }
   if (game.boxes.some(box => box.progress < CROWD)) return { ...game, spawnIn: 0.05 }
-  const diff = difficulty(game.reduced)
+  const diff = difficulty(game.clears, game.reduced)
   const rolled = roll(game.rng)
   const gap = diff.gapLo + rolled.value * (diff.gapHi - diff.gapLo)
   const drift = driftOf(game.nextId)

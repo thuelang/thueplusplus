@@ -9,7 +9,7 @@ Versions are the Thue++ spec versions in `SPEC_VERSION`.
 
 ### Changed
 
-- Home hero play. Rex points at the closest box, and the lever hand stays on the knob. A miss is a box that has gone past the machine, and one pull clears every box in range. The score, the best score, and the score pop are gone. Boxes spawn past the right edge across most of the hero and curve into the tunnel opening. A handoff still changes only who pulls: boxes in flight and the belt speed stay, and only a break starts over.
+- Home hero play. Rex points at the closest box, and the lever hand stays on the knob. A miss is a box that has gone past the machine, and one pull clears every box in range. The score, the best score, and the score pop are gone. The belt still speeds up with every cleared box, so a visitor's run keeps getting faster until a miss. Rex's autoplay uses that same ramp and does not break the page. Boxes spawn past the right edge across most of the hero and curve into the tunnel opening. A handoff still changes only who pulls: boxes in flight and the belt speed stay, and only a break starts over.
 - A handoff between Rex and the visitor changes only who pulls the lever. Boxes in flight keep their position, rotation, and speed. The belt speed stays one run. Only a break starts over. If the pointer leaves while a box is in range, Rex clears it when he still can. A box he cannot clear in time passes with no break, and the other boxes stay. The machine clears the hero column by at least 48px, including at 1440 where it used to touch the left edge. On a phone the speech bubble clears the buttons by at least 32px at 390 and 768. There is no drawn ground line: Rex's feet and the machine base carry the floor, and the home hero has no bottom rule.
 
 ### Added

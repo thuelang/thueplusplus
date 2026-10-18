@@ -154,8 +154,9 @@ test('tail aims at the head', async ({ page }) => {
       const height = width === 390 ? 844 : width === 768 ? 1024 : 900
       await paint(page, theme, width, height)
       const aim = async () => page.evaluate(() => {
-        const tip = document.querySelector('[data-test="speech-tail-tip"]')
-        const hat = document.querySelector('[data-test="hard-hat"]')
+        const scene = document.querySelector('[data-test="sandbox-scene"]')
+        const tip = scene?.querySelector('[data-test="speech-tail-tip"]')
+        const hat = scene?.querySelector('[data-test="hard-hat"]')
         if (!tip || !hat) throw new Error('missing tail or hat')
         const t = tip.getBoundingClientRect()
         const h = hat.getBoundingClientRect()
@@ -163,17 +164,25 @@ test('tail aims at the head', async ({ page }) => {
         const tipY = (t.top + t.bottom) / 2
         const hatX = (h.left + h.right) / 2
         const hatY = (h.top + h.bottom) / 2
+        const bubble = scene.querySelector('[data-test="speech-bubble"]')
+        if (!bubble) throw new Error('missing bubble')
+        const b = bubble.getBoundingClientRect()
         const above = tipY <= h.top + 6 && tipX >= h.left - 24 && tipX <= h.right + 24
         const beside = (tipX <= h.left + 4 || tipX >= h.right - 4) && tipY >= h.top - 8 && tipY <= h.bottom + 8
-        const vx = tipX - hatX
-        const vy = tipY - hatY
-        return { above, beside, toward: vy < 8 || Math.abs(vx) < Math.abs(h.width), tipY, hatTop: h.top }
+        const vx = tipX - (b.left + b.right) / 2
+        const vy = tipY - (b.top + b.bottom) / 2
+        const hx = hatX - (b.left + b.right) / 2
+        const hy = hatY - (b.top + b.bottom) / 2
+        const cos = (vx * hx + vy * hy) / (Math.hypot(vx, vy) * Math.hypot(hx, hy))
+        return { above, beside, cos }
       })
       const first = await aim()
       expect(first.above || first.beside).toBe(true)
+      expect(first.cos).toBeGreaterThan(0.85)
       await page.waitForTimeout(400)
       const second = await aim()
       expect(second.above || second.beside).toBe(true)
+      expect(second.cos).toBeGreaterThan(0.85)
     }
   }
 })
