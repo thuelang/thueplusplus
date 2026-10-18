@@ -2,10 +2,9 @@ import { nextTick } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SandboxScene from '@/components/SandboxScene.vue'
-import { SCALE, YANK, beltPoint, leverKnob, scannerAperture, walkDistance } from './layout'
-import { difficulty } from './game'
+import { HIT_FRONT, MACHINE_X, SCALE, YANK, boxPlace, leverKnob, walkDistance } from './layout'
 import { blinkCurve, framePose, settledSpring, stepSpring } from './motion'
-import { inZone, type Game } from './game'
+import { inZone, type Box, type Game } from './game'
 
 interface Exposed {
   game: Game
@@ -24,14 +23,18 @@ function canAct(game: Game): boolean {
   return game.cooldown === 0 && game.rex !== 'yank' && game.rex !== 'cheer'
 }
 
-async function scoreZoned(wrapper: VueWrapper, api: Exposed): Promise<void> {
+function zoned(box: Box): boolean {
+  return inZone(box.progress, box.lane, box.spin)
+}
+
+async function clearZoned(wrapper: VueWrapper, api: Exposed): Promise<void> {
   await missUntilZone(wrapper, api)
   let guard = 0
   while (!canAct(api.game) && guard < 90) {
     api.advance(1 / 30)
     guard += 1
   }
-  if (!canAct(api.game) || !api.game.boxes.some(box => inZone(box.progress, api.game.score, true))) {
+  if (!canAct(api.game) || !api.game.boxes.some(zoned)) {
     throw new Error('scanner window closed before the pull')
   }
   await wrapper.get('[data-test="lever-hit"]').trigger('click')
@@ -39,7 +42,7 @@ async function scoreZoned(wrapper: VueWrapper, api: Exposed): Promise<void> {
 
 async function missUntilZone(wrapper: VueWrapper, api: Exposed): Promise<void> {
   let guard = 0
-  while (!api.game.boxes.some(box => inZone(box.progress, api.game.score, true)) && guard < 4000) {
+  while (!api.game.boxes.some(zoned) && guard < 4000) {
     if (api.game.phase !== 'playing' || api.game.control !== 'player') {
       throw new Error(`left the player's run at ${api.game.phase} ${api.game.control}`)
     }
@@ -47,7 +50,7 @@ async function missUntilZone(wrapper: VueWrapper, api: Exposed): Promise<void> {
     api.advance(1 / 30)
     guard += 1
   }
-  if (!api.game.boxes.some(box => inZone(box.progress, api.game.score, true))) {
+  if (!api.game.boxes.some(zoned)) {
     throw new Error('box never reached the scanner')
   }
 }
@@ -55,8 +58,8 @@ async function missUntilZone(wrapper: VueWrapper, api: Exposed): Promise<void> {
 async function fumbleUntilBroken(wrapper: VueWrapper, api: Exposed): Promise<void> {
   let guard = 0
   while (api.game.phase !== 'broken' && guard < 4000) {
-    const zoned = api.game.boxes.some(box => inZone(box.progress, api.game.score, true))
-    if (!zoned && canAct(api.game)) await wrapper.get('[data-test="lever-hit"]').trigger('click')
+    const ready = api.game.boxes.some(zoned)
+    if (!ready && canAct(api.game)) await wrapper.get('[data-test="lever-hit"]').trigger('click')
     api.advance(1 / 30)
     guard += 1
   }
@@ -65,7 +68,6 @@ async function fumbleUntilBroken(wrapper: VueWrapper, api: Exposed): Promise<voi
 describe('rex sandbox scene', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
-    localStorage.removeItem('rex-sandbox-best')
   })
 
   afterEach(() => {
@@ -88,7 +90,9 @@ describe('rex sandbox scene', () => {
     expect(wrapper.find('[data-test="floor"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="machine"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="start-hint"]').exists()).toBe(false)
-    expect(wrapper.get('[data-test="score"]').text()).toBe('0')
+    expect(wrapper.find('[data-test="score"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="best"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="speech-tail"]').exists()).toBe(true)
     expect(wrapper.find('video').exists()).toBe(false)
     expect(wrapper.find('[data-kind]').exists()).toBe(false)
     expect(wrapper.find('[data-test="belt-item"]').exists()).toBe(false)
@@ -104,7 +108,7 @@ describe('rex sandbox scene', () => {
     expect(scene.attributes('data-phase')).toBe('playing')
     expect(scene.attributes('data-control')).toBe('auto')
     expect(scene.attributes('data-paused')).toBe('no')
-    expect(scene.attributes('data-score')).toBe('0')
+    expect(scene.attributes('data-score')).toBeUndefined()
     wrapper.unmount()
   })
 
@@ -155,31 +159,27 @@ describe('rex sandbox scene', () => {
     }
     expect(api.game.control).toBe('auto')
     expect(api.game.phase).toBe('playing')
-    expect(api.game.score).toBe(0)
     await scene.get('[data-test="rex"]').trigger('click')
     expect(api.game.control).toBe('player')
-    expect(api.game.score).toBe(0)
     await missUntilZone(scene, api)
     await nextTick()
     expect(scene.get('[data-test="scanner"]').attributes('transform')).toBe('translate(0 0)')
     expect(scene.find('[data-test="x-ray"]').exists()).toBe(false)
     expect(scene.find('[data-test="scan-line"]').exists()).toBe(false)
     expect(Number(scene.get('[data-test="machine"]').attributes('data-grown'))).toBeGreaterThan(0.9)
-    const tunnel = scannerAperture(difficulty(api.game.score, true).span)
-    const progress = Number(scene.get('[data-test="box"][data-zone="yes"]').attributes('data-progress'))
-    const x = beltPoint(progress).x
-    const left = Math.min(tunnel.entrance, tunnel.exit)
-    const right = Math.max(tunnel.entrance, tunnel.exit)
-    expect(x).toBeGreaterThanOrEqual(left)
-    expect(x).toBeLessThan(right)
-    expect(tunnel.entrance).toBeGreaterThan(tunnel.exit)
-    await scoreZoned(scene, api)
-    expect(api.game.score).toBe(1)
+    const zonedBox = api.game.boxes.find(zoned)
+    if (!zonedBox) throw new Error('missing zoned box')
+    const place = boxPlace(zonedBox.progress, zonedBox.lane, zonedBox.spin)
+    expect(place.x).toBeGreaterThanOrEqual(MACHINE_X)
+    expect(place.x).toBeLessThanOrEqual(HIT_FRONT)
+    const before = api.game.boxes.length
+    await clearZoned(scene, api)
+    expect(api.game.boxes.length).toBeLessThan(before)
     expect(api.game.control).toBe('player')
     expect(api.game.jolt).toBeGreaterThan(0)
     await nextTick()
     expect(scene.find('[data-test="cage"]').exists()).toBe(false)
-    expect(scene.get('[data-test="score"]').text()).toBe('1')
+    expect(scene.find('[data-test="score"]').exists()).toBe(false)
     scene.unmount()
   })
 
@@ -194,8 +194,7 @@ describe('rex sandbox scene', () => {
       expect(demo.game.control).toBe('auto')
       expect(demo.game.miss).toBe(0)
     }
-    expect(demo.game.score).toBeGreaterThan(0)
-    const climbed = demo.game.score
+    expect(demo.game.nextId - 1).toBeGreaterThan(demo.game.boxes.length)
     quiet.unmount()
 
     const wrapper = mountScene()
@@ -203,46 +202,23 @@ describe('rex sandbox scene', () => {
     await wrapper.get('[data-test="rex"]').trigger('click')
     const api = exposed(wrapper)
     expect(api.game.control).toBe('player')
-    expect(api.game.score).toBe(0)
     await fumbleUntilBroken(wrapper, api)
     expect(api.game.phase).toBe('broken')
     expect(api.game.control).toBe('player')
-    expect(api.game.score).toBe(0)
     expect(wrapper.emitted('break')).toEqual([[true]])
     expect(setItem).not.toHaveBeenCalled()
     setItem.mockRestore()
-    expect(wrapper.get('[data-test="score"]').text()).toBe('0')
+    expect(wrapper.find('[data-test="score"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="best"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="start-hint"]').text()).toBe('your turn')
     api.advance(3)
     await nextTick()
     expect(api.game.control).toBe('auto')
     expect(api.game.phase).toBe('playing')
-    expect(api.game.score).toBe(0)
+    expect(api.game.boxes).toHaveLength(0)
     expect(api.game.beltOn).toBe(true)
     expect(wrapper.emitted('rebuilt')).toHaveLength(1)
     wrapper.unmount()
-
-    const scored = mountScene()
-    await scored.get('[data-test="lever-hit"]').trigger('click')
-    const play = exposed(scored)
-    await scoreZoned(scored, play)
-    expect(play.game.score).toBe(1)
-    expect(play.game.control).toBe('player')
-    await fumbleUntilBroken(scored, play)
-    expect(play.game.phase).toBe('broken')
-    expect(play.game.control).toBe('player')
-    expect(play.game.score).toBe(1)
-    expect(localStorage.getItem('rex-sandbox-best')).toBe('1')
-    expect(scored.get('[data-test="score"]').text()).toBe('1')
-    play.advance(3)
-    await nextTick()
-    expect(play.game.control).toBe('auto')
-    expect(play.game.phase).toBe('playing')
-    expect(play.game.best).toBe(1)
-    expect(play.game.score).toBe(0)
-    expect(scored.get('[data-test="best"]').text()).toBe('best 1')
-    expect(climbed).toBeGreaterThan(0)
-    scored.unmount()
   })
 
   it('gate pause', async () => {
@@ -397,16 +373,13 @@ describe('rex sandbox scene', () => {
       guard += 1
     }
     expect(api.game.boxes.some(box => box.progress > 0.9)).toBe(true)
-    const score = api.game.score
     const boxes = api.game.boxes.map(box => ({ ...box }))
     await scene.trigger('pointerleave', { pointerType: 'mouse' })
     expect(api.game.control).toBe('auto')
     expect(api.game.phase).toBe('playing')
-    expect(api.game.score).toBe(score)
     expect(api.game.boxes).toEqual(boxes)
     api.advance(1)
     expect(api.game.phase).not.toBe('broken')
-    expect(api.game.score).toBeGreaterThanOrEqual(score)
     wrapper.unmount()
   })
 

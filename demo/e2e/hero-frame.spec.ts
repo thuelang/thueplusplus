@@ -15,7 +15,7 @@ async function paint(page: Page, theme: 'dark' | 'light', width: number, height:
   if (theme === 'dark') await expect(page.locator('html')).toHaveClass(/dark/)
   else await expect(page.locator('html')).not.toHaveClass(/dark/)
   await expect(page.getByTestId('machine')).toBeVisible()
-  await expect.poll(async () => (await page.getByTestId('score-label').boundingBox())?.width ?? 0).toBeGreaterThan(8)
+  await expect(page.getByTestId('speech-tail-tip')).toBeVisible()
 }
 
 async function readBox(page: Page, testId: string): Promise<Box> {
@@ -24,15 +24,6 @@ async function readBox(page: Page, testId: string): Promise<Box> {
     return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }
   })
   return box
-}
-
-function scoreBox(label: Box, number: Box): Box {
-  return {
-    left: Math.min(label.left, number.left),
-    right: Math.max(label.right, number.right),
-    top: Math.min(label.top, number.top),
-    bottom: Math.max(label.bottom, number.bottom),
-  }
 }
 
 function inside(box: Box, width: number, height: number, margin: number): void {
@@ -51,30 +42,26 @@ async function expectNoGround(page: Page): Promise<void> {
 for (const theme of themes) {
   for (const width of desktop) {
     const height = width === 1024 ? 768 : width === 768 ? 1024 : 900
-    test(`desktop ${width} ${theme} keeps the machine and the score inside`, async ({ page }) => {
+    test(`desktop ${width} ${theme} keeps the machine inside`, async ({ page }) => {
       await paint(page, theme, width, height)
       const machine = await readBox(page, 'machine')
-      const score = scoreBox(await readBox(page, 'score-label'), await readBox(page, 'score'))
       const hero = await readBox(page, 'page-hero')
       inside(machine, width, height, 32)
-      inside(score, width, height, 32)
       // The hero column is inset from the viewport. A 32px viewport margin
       // still left the machine on the column edge at 1440.
       expect(machine.left).toBeGreaterThanOrEqual(hero.left + 48)
-      expect(score.left).toBeGreaterThanOrEqual(hero.left + 48)
-      await expect(page.getByTestId('score-label')).toHaveText('score')
+      await expect(page.getByTestId('score')).toHaveCount(0)
       await expectNoGround(page)
     })
   }
 
-  test(`390 ${theme} keeps the machine, the score, and every box inside`, async ({ page }) => {
+  test(`390 ${theme} keeps the machine and every box inside`, async ({ page }) => {
     const width = 390
     const height = 844
     await paint(page, theme, width, height)
     const machine = await readBox(page, 'machine')
-    const score = scoreBox(await readBox(page, 'score-label'), await readBox(page, 'score'))
     inside(machine, width, height, 8)
-    inside(score, width, height, 8)
+    await expect(page.getByTestId('score')).toHaveCount(0)
     await expectNoGround(page)
     let seen = 0
     const started = Date.now()
@@ -158,6 +145,46 @@ test('outline shows for Tab and stays off after a click', async ({ page }) => {
     }).length
   })
   expect(stray).toBe(0)
+})
+
+test('tail aims at the head', async ({ page }) => {
+  test.setTimeout(60_000)
+  for (const theme of themes) {
+    for (const width of [390, 768, 1440]) {
+      const height = width === 390 ? 844 : width === 768 ? 1024 : 900
+      await paint(page, theme, width, height)
+      const aim = async () => page.evaluate(() => {
+        const scene = document.querySelector('[data-test="sandbox-scene"]')
+        const tip = scene?.querySelector('[data-test="speech-tail-tip"]')
+        const hat = scene?.querySelector('[data-test="hard-hat"]')
+        if (!tip || !hat) throw new Error('missing tail or hat')
+        const t = tip.getBoundingClientRect()
+        const h = hat.getBoundingClientRect()
+        const tipX = (t.left + t.right) / 2
+        const tipY = (t.top + t.bottom) / 2
+        const hatX = (h.left + h.right) / 2
+        const hatY = (h.top + h.bottom) / 2
+        const bubble = scene.querySelector('[data-test="speech-bubble"]')
+        if (!bubble) throw new Error('missing bubble')
+        const b = bubble.getBoundingClientRect()
+        const above = tipY <= h.top + 6 && tipX >= h.left - 24 && tipX <= h.right + 24
+        const beside = (tipX <= h.left + 4 || tipX >= h.right - 4) && tipY >= h.top - 8 && tipY <= h.bottom + 8
+        const vx = tipX - (b.left + b.right) / 2
+        const vy = tipY - (b.top + b.bottom) / 2
+        const hx = hatX - (b.left + b.right) / 2
+        const hy = hatY - (b.top + b.bottom) / 2
+        const cos = (vx * hx + vy * hy) / (Math.hypot(vx, vy) * Math.hypot(hx, hy))
+        return { above, beside, cos }
+      })
+      const first = await aim()
+      expect(first.above || first.beside).toBe(true)
+      expect(first.cos).toBeGreaterThan(0.85)
+      await page.waitForTimeout(400)
+      const second = await aim()
+      expect(second.above || second.beside).toBe(true)
+      expect(second.cos).toBeGreaterThan(0.85)
+    }
+  }
 })
 
 test('leaves breathing room above the game on a phone', async ({ page }) => {

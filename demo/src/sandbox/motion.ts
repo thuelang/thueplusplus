@@ -13,9 +13,11 @@ import {
   SCALE,
   YANK,
   leverKnob,
+  type Pt,
 } from './layout'
 import {
   DOT_R,
+  EYE_DY,
   FOOT_DX,
   HAND_DX,
   HAND_DY,
@@ -47,6 +49,29 @@ export interface PoseInput {
   reduced: boolean
   spring: Spring
   dt: number
+  /** View-space point the right hand and the eyes follow. Null looks ahead. */
+  aim?: Pt | null
+}
+
+const AIM_REACH = 14
+
+/** Right hand reaches toward `aim`. The offset is capped so the arm stays short. */
+function pointHand(rootX: number, rootY: number, handX: number, handY: number, aim: Pt): { x: number, y: number } {
+  const hx = rootX + handX * SCALE
+  const hy = rootY + handY * SCALE
+  const dx = (aim.x - hx) / SCALE
+  const dy = (aim.y - hy) / SCALE
+  const len = Math.hypot(dx, dy)
+  if (len < 1e-6) return { x: handX, y: handY }
+  const reach = Math.min(AIM_REACH, len)
+  return { x: handX + (dx / len) * reach, y: handY + (dy / len) * reach }
+}
+
+function pointGlance(rootX: number, rootY: number, aim: Pt): Pt {
+  const dx = aim.x - rootX
+  const dy = aim.y - (rootY + EYE_DY * SCALE)
+  const len = Math.hypot(dx, dy) || 1
+  return { x: (dx / len) * 5.2, y: (dy / len) * 2.4 }
 }
 
 function rest(rootX: number, rootY: number, squash: number): Body {
@@ -190,6 +215,13 @@ export function framePose(input: PoseInput): Pose {
   } else {
     const unknown: never = input.mode
     throw new Error(`unknown pose mode ${String(unknown)}`)
+  }
+
+  const aim = input.aim ?? null
+  if (input.mode !== 'idle' && aim) {
+    const hand = pointHand(body.rootX, body.rootY, body.handRX, body.handRY, aim)
+    body = { ...body, handRX: hand.x, handRY: hand.y }
+    glance = pointGlance(body.rootX, body.rootY, aim)
   }
 
   return finishPose(body, target, glance, blink, hat, input.spring, input.dt, still)
