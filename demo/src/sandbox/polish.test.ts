@@ -30,14 +30,16 @@ import {
   boxInFrame,
   boxPlace,
   inHit,
-  LEVER_BASE,
+  KNOB_R,
   LEVER_PIVOT,
+  LEVER_STROKE,
   leverKnob,
-  leverSwitchPath,
+  leverOutsideBase,
   machineHeadShake,
   machineScale,
   machineTada,
   machineTransform,
+  switchSquare,
 } from './layout'
 
 function block(css: string, marker: string): string {
@@ -292,12 +294,39 @@ describe('hero polish', () => {
     }
   })
 
-  it('the lever reads as a gray switch in both themes', () => {
-    const plate = leverSwitchPath()
-    const { x, y } = LEVER_PIVOT
-    const r = LEVER_BASE
-    expect(plate).toBe(`M ${x - r} ${y} A ${r} ${r} 0 0 1 ${x + r} ${y} Z`)
-    expect(r).toBeLessThan(58)
+  it('the lever is a switch square on the pivot', () => {
+    const square = switchSquare()
+    expect(square.s).toBe(44)
+    expect(square.x + square.s / 2).toBe(LEVER_PIVOT.x)
+    expect(square.y + square.s / 2).toBe(LEVER_PIVOT.y)
+    expect(square.s).toBeGreaterThan(KNOB_R * 2)
+    expect(square.s).toBeLessThan(58)
+    const bottom = square.y + square.s
+    for (const lever of [0, 1]) {
+      const tip = leverKnob(lever)
+      const dx = tip.x - LEVER_PIVOT.x
+      const dy = tip.y - LEVER_PIVOT.y
+      const len = Math.hypot(dx, dy)
+      const dir = { x: dx / len, y: dy / len }
+      const perp = { x: -dir.y, y: dir.x }
+      for (const sign of [-1, 1]) {
+        const corner = {
+          x: LEVER_PIVOT.x + perp.x * (LEVER_STROKE / 2) * sign,
+          y: LEVER_PIVOT.y + perp.y * (LEVER_STROKE / 2) * sign,
+        }
+        expect(corner.x).toBeGreaterThan(square.x + 1)
+        expect(corner.x).toBeLessThan(square.x + square.s - 1)
+        expect(corner.y).toBeGreaterThan(square.y + 1)
+        expect(corner.y).toBeLessThan(bottom - 1)
+      }
+      const outside = leverOutsideBase(lever)
+      expect(outside.length).toBeGreaterThan(0)
+      for (const point of outside) {
+        const along = (point.x - LEVER_PIVOT.x) * dir.x + (point.y - LEVER_PIVOT.y) * dir.y
+        expect(along).toBeGreaterThan(0)
+        expect(point.y).toBeLessThanOrEqual(bottom)
+      }
+    }
     const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
     const stick = scene.indexOf('data-test="lever-stick"')
     const knob = scene.indexOf('data-test="lever-knob"')
@@ -306,10 +335,12 @@ describe('hero polish', () => {
     expect(knob).toBeGreaterThan(stick)
     expect(base).toBeGreaterThan(knob)
     expect(scene.slice(knob, base)).toContain('</g>')
-    expect(scene.slice(stick, knob)).toContain('stroke="var(--ash)"')
-    expect(scene.slice(knob, base)).toContain('fill="var(--ash)"')
-    expect(scene.slice(stick, base)).not.toContain('var(--signal)')
-    expect(scene.slice(stick, base)).not.toContain('currentColor')
+    expect(scene.slice(stick, base)).toContain('stroke="var(--ash)"')
+    expect(scene.slice(stick, base)).toContain('stroke-linecap="butt"')
+    expect(scene.slice(base, base + 220)).toContain('fill="var(--ash)"')
+    expect(scene.slice(stick, base + 220)).not.toContain('var(--signal)')
+    expect(scene).not.toContain('leverSwitchPath')
+    expect(scene).not.toContain('stroke-linecap="round"')
     const figure = readFileSync('src/components/RexFigure.vue', 'utf8')
     expect(figure).toContain(':fill="markPaint"')
     expect(figure).not.toContain('var(--ash)')

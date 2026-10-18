@@ -27,17 +27,24 @@ export const LEVER_LEN = 58
 /** Degrees from straight up. Negative leans back toward Rex. */
 export const LEVER_OFF = -52
 export const LEVER_ON = 16
-/** Radius of the switch plate. It covers the lower handle and not the knob. */
-export const LEVER_BASE = 22
-
+/** Stick thickness. The cap is butt, so the end stops on the pivot. */
+export const LEVER_STROKE = 4
+export const KNOB_R = 9
+export const KNOB_STROKE = 2
 /**
- * Filled semicircle centered on the pivot. The flat side is the bottom.
- * SVG sweep 1 from the left end to the right end travels through the top.
+ * Side of the switch base. The old plate was a semicircle of radius 22,
+ * so 44 is that width. The square is centered on the pivot and covers the
+ * stick's end.
  */
-export function leverSwitchPath(): string {
-  const { x, y } = LEVER_PIVOT
-  const r = LEVER_BASE
-  return `M ${x - r} ${y} A ${r} ${r} 0 0 1 ${x + r} ${y} Z`
+export const SWITCH_SIDE = 44
+
+/** Axis-aligned square centered on the pivot. `x` and `y` are the top left. */
+export function switchSquare(): { x: number, y: number, s: number } {
+  return {
+    x: LEVER_PIVOT.x - SWITCH_SIDE / 2,
+    y: LEVER_PIVOT.y - SWITCH_SIDE / 2,
+    s: SWITCH_SIDE,
+  }
 }
 
 /** Boxes enter at the right edge and travel left into the tunnel. */
@@ -91,6 +98,49 @@ export function leverKnob(lever: number): Pt {
     x: LEVER_PIVOT.x + Math.sin(rad) * LEVER_LEN,
     y: LEVER_PIVOT.y - Math.cos(rad) * LEVER_LEN,
   }
+}
+
+function insideSquare(point: Pt, square: { x: number, y: number, s: number }): boolean {
+  return point.x >= square.x
+    && point.x <= square.x + square.s
+    && point.y >= square.y
+    && point.y <= square.y + square.s
+}
+
+/**
+ * Handle samples that sit outside the switch square: the stick stroke and
+ * the knob's outer edge. The pivot end is covered, so it is not included.
+ */
+export function leverOutsideBase(lever: number): Pt[] {
+  if (!Number.isFinite(lever)) throw new Error(`lever must be finite, got ${lever}`)
+  const square = switchSquare()
+  const tip = leverKnob(lever)
+  const pivot = LEVER_PIVOT
+  const dx = tip.x - pivot.x
+  const dy = tip.y - pivot.y
+  const len = Math.hypot(dx, dy) || 1
+  const perp = { x: -dy / len, y: dx / len }
+  const half = LEVER_STROKE / 2
+  const points: Pt[] = []
+  const steps = 16
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps
+    const cx = pivot.x + dx * t
+    const cy = pivot.y + dy * t
+    points.push(
+      { x: cx + perp.x * half, y: cy + perp.y * half },
+      { x: cx - perp.x * half, y: cy - perp.y * half },
+    )
+  }
+  const outer = KNOB_R + KNOB_STROKE / 2
+  for (let i = 0; i < 24; i += 1) {
+    const angle = (i / 24) * Math.PI * 2
+    points.push({
+      x: tip.x + Math.cos(angle) * outer,
+      y: tip.y + Math.sin(angle) * outer,
+    })
+  }
+  return points.filter(point => !insideSquare(point, square))
 }
 
 /** `progress` 0 is the right-hand entrance. 1 is inside the left tunnel. Values past 1 draw further in. */
@@ -160,6 +210,29 @@ export function boxPlace(progress: number, lane: number, spin: number): BoxPlace
   const y = spawnY + (OPENING_Y - spawnY) * blend + bob
   const rot = Math.sin(p * 4 + phase) * DRIFT_TURN
   return { x, y, rot }
+}
+
+/** Inverse of the box's horizontal travel. Progress grows as x moves left. */
+export function progressAt(x: number): number {
+  if (!Number.isFinite(x)) throw new Error(`x must be finite, got ${x}`)
+  const enter = VIEW_W + BOX_REACH
+  const span = BELT_MOUTH - enter
+  return (x - enter) / span
+}
+
+/** Progress where the box center is on the machine drawing's horizontal center. */
+export function centerProgress(): number {
+  return progressAt(MACHINE_BASE.x)
+}
+
+/** Last progress that is still inside the catch. The next step has left the machine. */
+export function safeCatchProgress(): number {
+  return progressAt(MACHINE_X - BOX_HALF)
+}
+
+/** Progress where the box center reaches the front of the hit range. */
+export function zoneEntryProgress(): number {
+  return progressAt(HIT_FRONT)
 }
 
 /** The whole square is left of the machine. That is a miss for the visitor. */

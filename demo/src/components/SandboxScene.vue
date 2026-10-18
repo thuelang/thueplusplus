@@ -5,6 +5,9 @@ import {
   HIT_FRONT,
   LEVER_LEN,
   LEVER_PIVOT,
+  LEVER_STROKE,
+  KNOB_R,
+  KNOB_STROKE,
   MACHINE_X,
   SCALE,
   SCAN_TOP,
@@ -18,10 +21,10 @@ import {
   flourishPose,
   leverDegrees,
   leverKnob,
-  leverSwitchPath,
   machineHeadShake,
   machineTada,
   machineTransform as placeMachine,
+  switchSquare,
 } from '@/sandbox/layout'
 import { MACHINE_D } from '@/sandbox/machine'
 import { framePose, settledSpring, type Pose, type Spring } from '@/sandbox/motion'
@@ -193,7 +196,7 @@ const leverLabel = computed(() => (
 const leverAngle = computed(() => leverDegrees(game.value.lever))
 const inRange = computed(() => game.value.boxes.some(box => inZone(box.progress, box.lane, box.spin)))
 const grown = ref(0)
-const switchPath = leverSwitchPath()
+const base = switchSquare()
 
 const rexBox = computed(() => pct(pose.value.rootX - 78, pose.value.rootY - 268, 160, 286))
 const leverBox = computed(() => {
@@ -428,10 +431,10 @@ defineExpose({ game, advance, act })
 
       <g data-test="lever" :data-on="game.lever >= 0.5 ? 'yes' : 'no'">
         <g :transform="`rotate(${leverAngle} ${LEVER_PIVOT.x} ${LEVER_PIVOT.y})`">
-          <line data-test="lever-stick" :x1="LEVER_PIVOT.x" :y1="LEVER_PIVOT.y" :x2="LEVER_PIVOT.x" :y2="LEVER_PIVOT.y - LEVER_LEN" stroke="var(--ash)" stroke-width="4" stroke-linecap="round" />
-          <circle data-test="lever-knob" :cx="LEVER_PIVOT.x" :cy="LEVER_PIVOT.y - LEVER_LEN" r="9" fill="var(--ash)" stroke="var(--ash)" stroke-width="2" />
+          <line data-test="lever-stick" :x1="LEVER_PIVOT.x" :y1="LEVER_PIVOT.y" :x2="LEVER_PIVOT.x" :y2="LEVER_PIVOT.y - LEVER_LEN" stroke="var(--ash)" :stroke-width="LEVER_STROKE" stroke-linecap="butt" />
+          <circle data-test="lever-knob" :cx="LEVER_PIVOT.x" :cy="LEVER_PIVOT.y - LEVER_LEN" :r="KNOB_R" fill="var(--ash)" stroke="var(--ash)" :stroke-width="KNOB_STROKE" />
         </g>
-        <path data-test="lever-base" :d="switchPath" fill="var(--ash)" />
+        <rect data-test="lever-base" :x="base.x" :y="base.y" :width="base.s" :height="base.s" fill="var(--ash)" />
       </g>
       <g
         v-for="box in drawnBoxes"

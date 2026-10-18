@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { BELT_ENTRANCE, BELT_MOUTH, BELT_X0, BREAK_BEAT, SCALE, YANK, beltPoint, boxPlace, leverKnob } from './layout'
+import { BELT_ENTRANCE, BELT_MOUTH, BELT_X0, BOX_REACH, BREAK_BEAT, MACHINE_BASE, SCALE, VIEW_W, YANK, beltPoint, boxPlace, centerProgress, leverKnob, safeCatchProgress } from './layout'
 import { framePose, settledSpring } from './motion'
 import {
   GRACE,
@@ -10,6 +10,7 @@ import {
   beginAutoplay,
   beginPlayer,
   handBack,
+  planCatch,
   boxesOverlap,
   createGame,
   demoRuns,
@@ -271,6 +272,85 @@ describe('lever game', () => {
       expect(game.clears).toBeGreaterThan(12)
       expect(belt(game)).toBeGreaterThan(difficulty(0, reduced).beltRate * 2.5)
     }
+  })
+
+  it('autoplay clears at the machine center', () => {
+    const center = centerProgress()
+    const low = difficulty(0, false).beltRate
+    const high = difficulty(10_000, false).beltRate
+    expect(planCatch(low, false)).toMatchObject({ clearAt: center, centered: true })
+    expect(planCatch(high, false)).toMatchObject({ clearAt: center, centered: true })
+    expect(planCatch(low, true).lead).toBe(0)
+    expect(planCatch(low, true).centered).toBe(true)
+    const late = planCatch(30, false)
+    expect(late.centered).toBe(false)
+    expect(late.clearAt).toBeLessThan(center)
+    expect(late.clearAt).toBeLessThanOrEqual(safeCatchProgress())
+
+    function tolerance(rate: number): number {
+      return Math.abs(BELT_MOUTH - (VIEW_W + BOX_REACH)) * (rate / 30) + 2
+    }
+
+    function catchXs(clears: number, reduced: boolean, want: number): number[] {
+      const rate = difficulty(clears, reduced).beltRate
+      let game = { ...beginAutoplay(createGame({ seed: 4, reduced })), clears }
+      const caught: number[] = []
+      let frames = 0
+      while (caught.length < want && frames < 6000) {
+        const prev = game
+        game = step(game, 1 / 60)
+        frames += 1
+        if (game.phase !== 'playing') throw new Error(`autoplay broke at clear ${game.clears}`)
+        if (game.clears > prev.clears) {
+          expect(game.windup).toBe(0)
+          const removed = prev.boxes.filter(box => !game.boxes.some(next => next.id === box.id))
+          const lead = removed.reduce((best, box) => (box.progress > best.progress ? box : best))
+          caught.push(boxPlace(lead.progress, lead.lane, lead.spin).x)
+        }
+      }
+      expect(caught).toHaveLength(want)
+      for (const x of caught) {
+        expect(Math.abs(x - MACHINE_BASE.x)).toBeLessThanOrEqual(tolerance(rate))
+      }
+      return caught
+    }
+
+    catchXs(0, false, 2)
+    catchXs(80, false, 2)
+    catchXs(0, true, 2)
+
+    const plan = planCatch(low, false)
+    let paired = beginAutoplay(createGame({ seed: 1, reduced: false }))
+    paired = {
+      ...paired,
+      spawnIn: 30,
+      nextId: 3,
+      boxes: [
+        { id: 1, progress: plan.clearAt - 0.02, lane: 0.5, spin: 0.5 },
+        { id: 2, progress: plan.clearAt - 0.08, lane: 0.4, spin: 0.2 },
+      ],
+    }
+    expect(paired.boxes.every(box => inZone(box.progress, box.lane, box.spin))).toBe(true)
+    let pulls = 0
+    let leadX = 0
+    let guard = 0
+    while (paired.clears < 2 && guard < 400) {
+      const prev = paired
+      paired = step(paired, 1 / 60)
+      guard += 1
+      if (paired.phase !== 'playing') throw new Error('paired clear broke')
+      if (paired.clears > prev.clears) {
+        pulls += 1
+        expect(paired.clears - prev.clears).toBe(2)
+        const removed = prev.boxes.filter(box => !paired.boxes.some(next => next.id === box.id))
+        const lead = removed.reduce((best, box) => (box.progress > best.progress ? box : best))
+        leadX = boxPlace(lead.progress, lead.lane, lead.spin).x
+      }
+    }
+    expect(pulls).toBe(1)
+    expect(Math.abs(leadX - MACHINE_BASE.x)).toBeLessThanOrEqual(tolerance(low))
+    expect(paired.phase).toBe('playing')
+    expect(paired.windup).toBe(0)
   })
 
   it('gate break', () => {
@@ -646,6 +726,8 @@ describe('lever game', () => {
     }
 
     let auto = beginAutoplay(createGame({ seed: 4, reduced: false }))
+    const rate = difficulty(0, false).beltRate
+    const plan = planCatch(rate, false)
     auto = {
       ...auto,
       rex: 'ready',
@@ -655,7 +737,7 @@ describe('lever game', () => {
       cooldown: 0,
       deny: 0,
       spawnIn: 40,
-      boxes: [{ id: 3, progress: 0.97, lane: 0.4, spin: 0.3 }],
+      boxes: [{ id: 3, progress: plan.clearAt - plan.lead * rate - rate * (2 / 60), lane: 0.4, spin: 0.3 }],
     }
     let clock = 0.9
     let frames = 0
@@ -767,9 +849,14 @@ describe('lever game', () => {
     expect(belt(cleared)).toBeGreaterThan(belt(game))
 
     let auto = beginAutoplay(createGame({ seed: 2, reduced: false }))
+    const ripe = centerProgress()
     auto = {
       ...auto,
-      boxes: [first, second, { id: 3, progress: 0.2, lane: 0.5, spin: 0.2 }],
+      boxes: [
+        { ...first, progress: ripe },
+        { ...second, progress: ripe - 0.01 },
+        { id: 3, progress: 0.2, lane: 0.5, spin: 0.2 },
+      ],
       spawnIn: 30,
       rex: 'ready',
       rexT: 0,
