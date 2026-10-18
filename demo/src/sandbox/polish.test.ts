@@ -296,7 +296,7 @@ describe('hero polish', () => {
     const plate = leverSwitchPath()
     const { x, y } = LEVER_PIVOT
     const r = LEVER_BASE
-    expect(plate).toBe(`M ${x - r} ${y} A ${r} ${r} 0 0 0 ${x + r} ${y} Z`)
+    expect(plate).toBe(`M ${x - r} ${y} A ${r} ${r} 0 0 1 ${x + r} ${y} Z`)
     expect(r).toBeLessThan(58)
     const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
     const stick = scene.indexOf('data-test="lever-stick"')

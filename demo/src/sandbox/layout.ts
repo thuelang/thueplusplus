@@ -32,12 +32,12 @@ export const LEVER_BASE = 22
 
 /**
  * Filled semicircle centered on the pivot. The flat side is the bottom.
- * SVG sweep 0 from the left end to the right end travels through the top.
+ * SVG sweep 1 from the left end to the right end travels through the top.
  */
 export function leverSwitchPath(): string {
   const { x, y } = LEVER_PIVOT
   const r = LEVER_BASE
-  return `M ${x - r} ${y} A ${r} ${r} 0 0 0 ${x + r} ${y} Z`
+  return `M ${x - r} ${y} A ${r} ${r} 0 0 1 ${x + r} ${y} Z`
 }
 
 /** Boxes enter at the right edge and travel left into the tunnel. */
