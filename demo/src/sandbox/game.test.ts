@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { BELT_ENTRANCE, BELT_MOUTH, BELT_X0, BREAK_BEAT, beltPoint } from './layout'
+import { BELT_ENTRANCE, BELT_MOUTH, BELT_X0, BREAK_BEAT, YANK, beltPoint } from './layout'
 import { WALK_DURATION } from './motion'
 import {
   GRACE,
@@ -14,6 +15,7 @@ import {
   TRACK,
   difficulty,
   inZone,
+  leverCurve,
   playerAct,
   pull,
   rebuild,
@@ -176,7 +178,13 @@ describe('lever game', () => {
     expect(miss.score).toBe(0)
     expect(miss.miss).toBe(1)
     expect(miss.cooldown).toBe(MISS_COOLDOWN)
-    expect(pull(miss)).toBe(miss)
+    const refused = pull(miss)
+    expect(refused.deny).toBe(1)
+    expect(refused.rex).toBe(miss.rex)
+    expect(refused.rexT).toBe(miss.rexT)
+    expect(refused.score).toBe(0)
+    expect(refused.cooldown).toBe(miss.cooldown)
+    expect(pull(refused)).toBe(refused)
 
     let early = started(4, true)
     early = until(early, current => current.boxes.some(box => box.progress > 0.25 && !inZone(box.progress, current.score, true)) && canPull(current))
@@ -442,5 +450,61 @@ describe('lever game', () => {
     expect(demoRuns(true, false)).toBe(false)
     expect(() => demoRuns(0 as unknown as boolean, true)).toThrow(/hidden/)
     expect(() => demoRuns(false, 'yes' as unknown as boolean)).toThrow(/inView/)
+  })
+
+  it('cooldown matches the lever return', () => {
+    expect(MISS_COOLDOWN).toBe(YANK)
+    expect(leverCurve(0)).toBe(0)
+    expect(leverCurve(YANK * 0.2)).toBeGreaterThan(0.5)
+    expect(leverCurve(YANK - 1 / 60)).toBeGreaterThan(0)
+    expect(leverCurve(YANK)).toBe(0)
+    const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
+    expect(scene).toContain('data-test="not-yet"')
+    expect(scene).toContain('game.deny > 0')
+
+    const frame = 1 / 60
+    const earlyFrames = Math.floor((YANK - 1e-6) / frame)
+    for (const reduced of [false, true]) {
+      let game = beginPlayer(createGame({ seed: 1, reduced, best: 0 }))
+      game = step(game, (reduced ? 0 : WALK_DURATION) + 0.05)
+      game = {
+        ...game,
+        boxes: [],
+        spawnIn: 30,
+        cooldown: 0,
+        deny: 0,
+        rex: 'ready',
+        rexT: 0,
+        lever: 0,
+        leverT: 0,
+        miss: 0,
+        score: 0,
+      }
+      game = pull(game)
+      expect(game.rex).toBe('yank')
+      expect(game.cooldown).toBe(YANK)
+      expect(game.deny).toBe(0)
+      expect(game.score).toBe(0)
+      for (let i = 0; i < earlyFrames; i += 1) game = step(game, frame)
+      expect(game.rex).toBe('yank')
+      expect(game.cooldown).toBeGreaterThan(0)
+      expect(game.lever).toBeGreaterThan(0)
+      const refused = pull(game)
+      expect(refused.deny).toBe(1)
+      expect(refused.rex).toBe('yank')
+      expect(refused.rexT).toBe(game.rexT)
+      expect(refused.score).toBe(0)
+      expect(refused.cooldown).toBe(game.cooldown)
+      expect(pull(refused)).toBe(refused)
+      const ready = step(refused, frame)
+      expect(ready.rex).toBe('ready')
+      expect(ready.lever).toBe(0)
+      expect(ready.cooldown).toBe(0)
+      expect(ready.deny).toBe(0)
+      const again = pull(ready)
+      expect(again.rex).toBe('yank')
+      expect(again.cooldown).toBe(YANK)
+      expect(again.deny).toBe(0)
+    }
   })
 })

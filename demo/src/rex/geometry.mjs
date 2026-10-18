@@ -426,11 +426,9 @@ export const BLINK_MS = 230
 
 /**
  * 16-unit icon canvas. One unit is one pixel at 16px and two pixels at 32px.
- * The hat is the shared crown, scaled down. The eyes and dots are heavier
- * than the rest pose so the body, not the hat, fills the canvas.
+ * The favicon has no hat. The eyes and dots are heavy so the body fills the canvas.
  */
 const ICON_BOX = { x: 0, y: 0, w: 16, h: 16 }
-const ICON_HAT_SCALE = 0.17
 
 /**
  * @param {'icon' | 'header' | 'full'} detail
@@ -466,27 +464,23 @@ export function markModel(detail) {
   return placeHardHat({ hatAt: { x: 0, y: eyeDy }, hatScale: 1, parts })
 }
 
-/** Bold 16-unit Rex. Hat local y=-34 is the crown top. */
+/** Bold 16-unit Rex, with no hat, filling the icon canvas. */
 function iconModel() {
-  const hatScale = ICON_HAT_SCALE
-  const hatAt = { x: 8, y: 0.15 + 34 * hatScale }
-  const eyeW = 3
-  const eyeH = 5
-  const eyeY = 4.85
-  const eyeRx = 1
-  const dotR = 1.6
+  const eyeW = 4.2
+  const eyeH = 7.4
+  const eyeY = 0.8
+  const eyeRx = 1.2
+  const dotR = 2.05
   /** @type {MarkPart[]} */
   const parts = [
-    { kind: 'path', d: hat.crown, role: 'hat', space: 'hat' },
-    { kind: 'ellipse', ...hat.brim, role: 'hat', space: 'hat' },
-    { kind: 'rect', x: 4, y: eyeY, w: eyeW, h: eyeH, rx: eyeRx, role: 'eye', space: 'world' },
-    { kind: 'rect', x: 9, y: eyeY, w: eyeW, h: eyeH, rx: eyeRx, role: 'eye', space: 'world' },
-    { kind: 'circle', cx: 2.15, cy: 10.35, r: dotR, role: 'dot', space: 'world' },
-    { kind: 'circle', cx: 13.85, cy: 10.35, r: dotR, role: 'dot', space: 'world' },
-    { kind: 'circle', cx: 5.5, cy: 13.9, r: dotR, role: 'dot', space: 'world' },
-    { kind: 'circle', cx: 10.5, cy: 13.9, r: dotR, role: 'dot', space: 'world' },
+    { kind: 'rect', x: 2.4, y: eyeY, w: eyeW, h: eyeH, rx: eyeRx, role: 'eye', space: 'world' },
+    { kind: 'rect', x: 9.4, y: eyeY, w: eyeW, h: eyeH, rx: eyeRx, role: 'eye', space: 'world' },
+    { kind: 'circle', cx: 2.3, cy: 9.8, r: dotR, role: 'dot', space: 'world' },
+    { kind: 'circle', cx: 13.7, cy: 9.8, r: dotR, role: 'dot', space: 'world' },
+    { kind: 'circle', cx: 5.2, cy: 13.7, r: dotR, role: 'dot', space: 'world' },
+    { kind: 'circle', cx: 10.8, cy: 13.7, r: dotR, role: 'dot', space: 'world' },
   ]
-  return placeHardHat({ hatAt, hatScale, parts })
+  return placeHardHat({ hatAt: { x: 8, y: 2 }, hatScale: 1, parts })
 }
 
 /** Favicon, header bounds, and the open-graph card all wear the hard hat's cock. */
@@ -793,24 +787,20 @@ export function hatGroupTransform(model) {
   return `translate(${num(model.hatAt.x)} ${num(model.hatAt.y)}) scale(${num(model.hatScale)}) translate(${num(model.hatOffset.x)} ${num(model.hatOffset.y)}) rotate(${num(model.hatTilt)})`
 }
 
-/** SVG favicon. Ink follows the browser scheme. The hard hat keeps its cock. */
+/** SVG favicon. Ink follows the browser scheme. The tab icon has no hat. */
 export function faviconSvg() {
   const model = markModel('icon')
-  const hatParts = model.parts.filter(part => part.space === 'hat')
   const worldParts = model.parts.filter(part => part.space === 'world')
+  if (model.parts.some(part => part.space === 'hat')) throw new Error('favicon still has a hat')
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBoxString('icon')}" role="img">
   <title>Rex</title>
   <style>
     :root { color-scheme: light dark; }
     .ink { fill: ${paint.iconInkLight.hex}; }
-    .hat { fill: ${paint.hat.hex}; }
     @media (prefers-color-scheme: dark) {
       .ink { fill: ${paint.iconInkDark.hex}; }
     }
   </style>
-  <g class="hat" transform="${hatGroupTransform(model)}">
-    ${hatParts.map(svgElement).join('\n    ')}
-  </g>
   <g class="ink">
     ${worldParts.map(svgElement).join('\n    ')}
   </g>

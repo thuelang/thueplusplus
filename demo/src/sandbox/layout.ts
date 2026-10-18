@@ -11,8 +11,15 @@ export const SCALE = 2.5
  */
 export const GROUND = 356
 
+/**
+ * Left inset of the machine, in view units.
+ * At 768px wide this is 38px of screen margin, and at 1440 it is 72px,
+ * so the machine and the score clear the viewport edge.
+ */
+export const SCENE_INSET = 72
+
 /** A quiet tally in the corner. It does not compete with the headline. */
-export const SCORE_X = 40
+export const SCORE_X = SCENE_INSET + 22
 export const SCORE_LABEL_Y = 18
 export const SCORE_LABEL_SIZE = 11
 export const SCORE_NUMBER_Y = 64
@@ -48,7 +55,7 @@ export function scoreFlashRadius(scale: number, flash: number): number {
 export const REX_HOME = 430
 export const REX_LEVER = 510
 
-export const LEVER_PIVOT = { x: 590, y: BELT_TOP }
+export const LEVER_PIVOT = { x: REX_LEVER - 52, y: GROUND - 46 }
 /**
  * Hint baseline, to the right of Rex's hat and level with the lever knob.
  * The longer "pull the lever" string stays left of the title column.
@@ -58,15 +65,16 @@ export const HINT_Y = LEVER_PIVOT.y - 44
 /** Speech sits in the open sky above Rex, right of the machine and left of the title. */
 export const SPEECH_X = 470
 export const SPEECH_Y = -6
-export const LEVER_LEN = 74
+export const LEVER_LEN = 58
 /** Degrees from straight up. Negative leans back toward Rex. */
 export const LEVER_OFF = -52
 export const LEVER_ON = 16
 
-/** The belt graphic spans the view. Boxes enter at the right edge and travel left into the tunnel. */
+/** Boxes enter at the right edge and travel left into the tunnel. */
 export const BELT_X0 = 0
 export const BELT_ENTRANCE = VIEW_W
-export const BELT_MOUTH = 200
+/** Center of a box at progress 1. Same place inside the tunnel as before the inset. */
+export const BELT_MOUTH = SCENE_INSET + 182
 
 /** Seconds for one yank, from rest through the pull and back. */
 export const YANK = 0.24
@@ -79,7 +87,7 @@ export const BREAK_BEAT = 0.85
  * into the view. The tunnel opening is the clear bay at the bottom right
  * of that sketch, and the grid window sits above it.
  */
-export const MACHINE_X = 18
+export const MACHINE_X = SCENE_INSET
 export const MACHINE_Y = -20
 export const MACHINE_S = 0.8
 /** Right lip of the tunnel, where boxes enter. */
@@ -119,6 +127,58 @@ export function leverKnob(lever: number): Pt {
 export function beltPoint(progress: number): Pt {
   const p = clamp(progress, 0, 1.2)
   return { x: BELT_ENTRANCE + (BELT_MOUTH - BELT_ENTRANCE) * p, y: TUNNEL_BOTTOM }
+}
+
+/** A plain square. The reach covers the stroke and a gentle turn. */
+export const BOX_SIZE = 36
+export const BOX_HALF = BOX_SIZE / 2
+export const BOX_REACH = 24
+/** Drift band in front of the machine. Boxes do not ride the ground line. */
+export const DRIFT_TOP = 150
+export const DRIFT_BOTTOM = 300
+const DRIFT_BOB = 8
+const DRIFT_TURN = 12
+
+export interface BoxPlace {
+  x: number
+  y: number
+  rot: number
+}
+
+/**
+ * A box starts just past the right edge and drifts to the machine.
+ * `lane` and `spin` are 0 to 1, chosen when it spawns.
+ */
+export function boxPlace(progress: number, lane: number, spin: number): BoxPlace {
+  if (!Number.isFinite(progress)) throw new Error(`progress must be finite, got ${progress}`)
+  if (!Number.isFinite(lane) || lane < 0 || lane > 1) throw new Error(`lane must be from 0 to 1, got ${lane}`)
+  if (!Number.isFinite(spin) || spin < 0 || spin > 1) throw new Error(`spin must be from 0 to 1, got ${spin}`)
+  const p = clamp(progress, 0, 1.2)
+  const enter = VIEW_W + BOX_REACH
+  const x = enter + (BELT_MOUTH - enter) * p
+  const phase = spin * Math.PI * 2
+  const y = DRIFT_TOP + (DRIFT_BOTTOM - DRIFT_TOP) * lane + Math.sin(p * 6 + phase) * DRIFT_BOB
+  const rot = Math.sin(p * 4 + phase) * DRIFT_TURN
+  return { x, y, rot }
+}
+
+/** False while any part of the turned square would sit outside the view. */
+export function boxInFrame(progress: number, lane = 0.5, spin = 0): boolean {
+  const place = boxPlace(progress, lane, spin)
+  return place.x - BOX_REACH >= 0
+    && place.x + BOX_REACH <= VIEW_W
+    && place.y - BOX_REACH >= 0
+    && place.y + BOX_REACH <= VIEW_H
+}
+
+/** 1 at rest. A little over 1 while a box is in range. `grown` eases between them. */
+export const MACHINE_GROW = 0.055
+
+export function machineScale(grown: number): number {
+  if (!Number.isFinite(grown) || grown < 0 || grown > 1) {
+    throw new Error(`grown must be from 0 to 1, got ${grown}`)
+  }
+  return 1 + MACHINE_GROW * grown
 }
 
 /** Source-unit distance Rex walks between home and the lever. */

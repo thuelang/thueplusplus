@@ -94,16 +94,15 @@ export function framePose(input: PoseInput): Pose {
     glance = { x: 2.2, y: -0.4 }
   } else if (input.mode === 'ready') {
     const breathe = Math.sin(input.clock * 1.7) * 0.35
-    const knob = knobLocal(0)
-    const reach = 0.42
+    const knob = knobLocal(input.lever)
     body = {
       rootX: REX_LEVER,
       rootY: GROUND + breathe * SCALE,
       travel: 1,
-      handLX: -HAND_DX,
-      handLY: HAND_DY + breathe,
-      handRX: HAND_DX + (knob.x - HAND_DX) * reach,
-      handRY: HAND_DY + (knob.y - HAND_DY) * reach,
+      handLX: knob.x,
+      handLY: knob.y + breathe,
+      handRX: HAND_DX,
+      handRY: HAND_DY + breathe,
       footLX: -FOOT_DX,
       footLY: -DOT_R,
       footRX: FOOT_DX,
@@ -122,10 +121,10 @@ export function framePose(input: PoseInput): Pose {
       rootX: REX_LEVER + reach * 4,
       rootY: GROUND + crouch * SCALE,
       travel: 1,
-      handLX: -HAND_DX - reach * 4,
-      handLY: HAND_DY + reach * 4,
-      handRX: HAND_DX + (knob.x - HAND_DX) * reach,
-      handRY: HAND_DY + (knob.y - HAND_DY) * reach,
+      handLX: -HAND_DX + (knob.x + HAND_DX) * reach,
+      handLY: HAND_DY + (knob.y - HAND_DY) * reach,
+      handRX: HAND_DX,
+      handRY: HAND_DY - reach * 6,
       footLX: -FOOT_DX,
       footLY: -DOT_R,
       footRX: FOOT_DX,

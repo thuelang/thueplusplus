@@ -23,12 +23,10 @@ import {
   TUNNEL_BOTTOM,
   VIEW_H,
   VIEW_W,
-  WINDOW_H,
-  WINDOW_W,
-  WINDOW_X,
-  WINDOW_Y,
   beltPoint,
-  scanLineX,
+  boxInFrame,
+  boxPlace,
+  machineScale,
   scannerAperture,
   scoreFlashRadius,
   scoreNumberCenterY,
@@ -188,14 +186,8 @@ const floatPos = computed(() => {
 })
 const aperture = computed(() => scannerAperture(diff.value.span))
 const zoneLeft = computed(() => Math.min(aperture.value.entrance, aperture.value.exit))
-const scanned = computed(() => game.value.boxes
-  .filter(box => inZone(box.progress, game.value.score, game.value.reduced))
-  .sort((a, b) => b.progress - a.progress || a.id - b.id)[0])
-const scanX = computed(() => {
-  const lead = scanned.value
-  if (!lead) return null
-  return scanLineX(clock.value, reduced.value, WINDOW_X, WINDOW_X + WINDOW_W, beltPoint(lead.progress).x)
-})
+const inRange = computed(() => game.value.boxes.some(box => inZone(box.progress, game.value.score, game.value.reduced)))
+const grown = ref(0)
 const scannerTransform = computed(() => {
   if (reduced.value || game.value.jolt === 0) return 'translate(0 0)'
   const jolt = game.value.jolt
@@ -228,11 +220,25 @@ function pct(x: number, y: number, w: number, h: number): Record<string, string>
   }
 }
 
+const drawnBoxes = computed(() => game.value.boxes.filter(box => boxInFrame(box.progress, box.lane, box.spin)))
+const machineTransform = computed(() => {
+  const scale = machineScale(grown.value)
+  return `translate(${MACHINE_X} ${GROUND}) scale(${scale}) translate(${-MACHINE_X} ${-GROUND}) translate(${MACHINE_X} ${MACHINE_Y}) scale(${MACHINE_S})`
+})
+
+function easeGrown(dt: number): void {
+  const target = inRange.value ? 1 : 0
+  if (reduced.value) {
+    grown.value = target
+    return
+  }
+  const step = 1 - Math.exp(-8 * dt)
+  grown.value += (target - grown.value) * step
+}
+
 function boxTransform(box: Box): string {
-  const point = beltPoint(box.progress)
-  const hot = inZone(box.progress, game.value.score, game.value.reduced)
-  const scale = hot ? 1.12 : 1
-  return `translate(${point.x} ${point.y}) scale(${scale})`
+  const place = boxPlace(box.progress, box.lane, box.spin)
+  return `translate(${place.x} ${place.y}) rotate(${place.rot})`
 }
 
 function presenceOf(event: Event): Presence {
@@ -291,6 +297,11 @@ function onPointerDown(event: PointerEvent): void {
   notePresence(presenceOf(event))
 }
 
+function onHitPointerDown(event: PointerEvent): void {
+  if (event.pointerType === 'mouse') event.preventDefault()
+  notePresence(presenceOf(event))
+}
+
 function onFocusIn(): void {
   if (game.value.presence === 'pointer' || game.value.presence === 'touch') return
   notePresence('keys')
@@ -315,6 +326,7 @@ function tick(now: number): void {
     clock.value += reduced.value ? 0 : dt
     const miss = game.value.miss
     commit(step(game.value, dt), dt)
+    easeGrown(dt)
     if (miss > 0 && game.value.miss === 0) note()
   }
   raf = requestAnimationFrame(tick)
@@ -347,6 +359,7 @@ function advance(dt: number): void {
   clock.value += reduced.value ? 0 : dt
   const miss = game.value.miss
   commit(step(game.value, dt), dt)
+  easeGrown(dt)
   if (miss > 0 && game.value.miss === 0) note()
 }
 
@@ -487,6 +500,16 @@ defineExpose({ game, advance, act })
           <circle :cx="LEVER_PIVOT.x" :cy="LEVER_PIVOT.y - LEVER_LEN" r="9" fill="var(--signal)" stroke="currentColor" stroke-width="2" />
         </g>
       </g>
+      <text
+        v-if="game.deny > 0"
+        data-test="not-yet"
+        :x="LEVER_PIVOT.x - 20"
+        :y="LEVER_PIVOT.y - 72"
+        fill="var(--signal)"
+        font-family="JetBrains Mono, ui-monospace, monospace"
+        font-size="12"
+        text-anchor="middle"
+      >not yet</text>
 
       <text
         v-if="showHint"
@@ -522,28 +545,21 @@ defineExpose({ game, advance, act })
       >yeah</text>
 
       <g
-        v-for="box in game.boxes"
+        v-for="box in drawnBoxes"
         :key="box.id"
         data-test="box"
         :data-progress="box.progress.toFixed(3)"
         :data-zone="inZone(box.progress, game.score, game.reduced) ? 'yes' : 'no'"
         :transform="boxTransform(box)"
       >
-        <template v-if="inZone(box.progress, game.score, game.reduced)">
-          <rect data-test="x-ray" x="-24" y="-42" width="48" height="46" rx="3" fill="var(--signal)" opacity="0.22" />
-          <rect x="-18" y="-36" width="36" height="36" rx="2" fill="var(--signal)" opacity="0.42" stroke="var(--bone)" stroke-width="1.6" />
-          <path data-test="x-ray-silhouette" d="M-18 -18 H18 M0 -36 V0" fill="none" stroke="var(--bone)" stroke-width="1.8" opacity="0.95" />
-        </template>
-        <template v-else>
-          <rect x="-18" y="-36" width="36" height="36" rx="2" fill="var(--surface)" stroke="currentColor" stroke-width="2.4" />
-          <path d="M-18 -18 H18 M0 -36 V0" stroke="currentColor" stroke-width="1.4" opacity="0.5" />
-        </template>
+        <rect x="-18" y="-18" width="36" height="36" fill="var(--surface)" stroke="currentColor" stroke-width="2.4" />
       </g>
 
-      <g data-test="scanner" data-test-machine="sketch" :data-scanning="scanned ? 'yes' : 'no'" :transform="scannerTransform">
+      <g data-test="scanner" data-test-machine="sketch" :transform="scannerTransform">
         <g
           data-test="machine"
-          :transform="`translate(${MACHINE_X} ${MACHINE_Y}) scale(${MACHINE_S})`"
+          :data-grown="grown.toFixed(2)"
+          :transform="machineTransform"
           fill="currentColor"
         >
           <g transform="translate(0 500) scale(0.1 -0.1)">
@@ -572,18 +588,6 @@ defineExpose({ game, advance, act })
         :opacity="Math.min(1, game.pop + 0.2)"
       >+1</text>
 
-      <line
-        v-if="scanX !== null"
-        data-test="scan-line"
-        :x1="scanX"
-        :x2="scanX"
-        :y1="WINDOW_Y + 4"
-        :y2="WINDOW_Y + WINDOW_H - 4"
-        stroke="var(--signal)"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        opacity="0.9"
-      />
       <g v-if="game.phase === 'broken'" data-test="scene-cracks" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
         <path d="M70 18 L128 96 L104 168 L176 250 L150 340" />
         <path d="M128 96 L210 132 L248 210" />
@@ -598,6 +602,7 @@ defineExpose({ game, advance, act })
       :style="rexBox"
       :aria-label="rexLabel"
       aria-keyshortcuts="Space Enter"
+      @pointerdown="onHitPointerDown"
       @click="onButtonClick"
       @keydown="onButtonKey"
     />
@@ -608,6 +613,7 @@ defineExpose({ game, advance, act })
       :style="leverBox"
       :aria-label="leverLabel"
       aria-keyshortcuts="Space Enter"
+      @pointerdown="onHitPointerDown"
       @click="onButtonClick"
       @keydown="onButtonKey"
     />

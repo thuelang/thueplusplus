@@ -56,10 +56,10 @@ describe('rex geometry', () => {
     expect(wrapper.findAll('[data-test="rex-dot"]')).toHaveLength(4)
   })
 
-  it('small icon is a bolder rex on the shared hat', () => {
+  it('small icon is a bolder rex with no hat', () => {
     const icon = markModel('icon')
-    expect(icon.hatScale).toBeLessThan(0.25)
-    expect(icon.parts.some(part => part.kind === 'path' && part.d === hat.crown)).toBe(true)
+    expect(icon.parts.some(part => part.role === 'hat')).toBe(false)
+    expect(icon.parts.some(part => part.kind === 'path' && part.d === hat.crown)).toBe(false)
     const eyes = icon.parts.filter(part => part.role === 'eye')
     const dots = icon.parts.filter(part => part.role === 'dot')
     expect(eyes).toHaveLength(2)
