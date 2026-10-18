@@ -161,7 +161,7 @@ describe('lever game', () => {
     expect(game.phase).toBe('playing')
     expect(game.boxes.some(box => box.id === hit.id)).toBe(false)
     expect(game.clears).toBe(1)
-    expect(game.jolt).toBe(1)
+    expect(game).not.toHaveProperty('jolt')
 
     let miss = started(3, true)
     miss = pull(miss)

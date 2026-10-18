@@ -86,7 +86,6 @@ export interface Game {
   leverT: number
   rex: RexMode
   rexT: number
-  jolt: number
   miss: number
   brokenT: number
   showRebuild: boolean
@@ -192,7 +191,6 @@ export function createGame(options: GameOptions): Game {
     leverT: 0,
     rex: 'idle',
     rexT: 0,
-    jolt: 0,
     miss: 0,
     brokenT: 0,
     showRebuild: false,
@@ -310,7 +308,6 @@ function clearHits(game: Game, hits: readonly Box[]): Game {
     ...game,
     boxes: game.boxes.filter(box => !ids.has(box.id)),
     clears: game.clears + hits.length,
-    jolt: 1,
     miss: 0,
     cooldown: 0,
     deny: 0,
@@ -466,7 +463,6 @@ function advanceBroken(game: Game, dt: number): Game {
 function decay(game: Game, dt: number): Game {
   const next = {
     ...game,
-    jolt: Math.max(0, game.jolt - dt / 0.4),
     miss: Math.max(0, game.miss - dt / 0.5),
     cooldown: Math.max(0, game.cooldown - dt),
   }
