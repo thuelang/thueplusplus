@@ -3,16 +3,10 @@
  * Run from the repo root: node demo/scripts/check-polish.mjs <mode>
  * Dev server defaults to http://127.0.0.1:5173. Preview is started from demo/dist.
  */
-import { spawn } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
 import { inflateSync } from 'node:zlib'
 import { chromium } from '@playwright/test'
 
-const demoRoot = fileURLToPath(new URL('..', import.meta.url))
-
 const DEV = process.env.POLISH_DEV ?? 'http://127.0.0.1:5173'
-const PREVIEW_PORT = 4173
-const PREVIEW = process.env.POLISH_PREVIEW ?? `http://127.0.0.1:${PREVIEW_PORT}`
 
 const ROUTES = [
   '/',
@@ -350,75 +344,21 @@ async function checkScore() {
   }
 }
 
-async function readPillar(page, errors) {
-  errors.length = 0
-  await page.goto(`${page.url().startsWith(PREVIEW) ? PREVIEW : DEV}/`, { waitUntil: 'domcontentloaded', timeout: 30000 })
-  const pillar = page.locator('[data-test="pillar-secure-sandbox"]')
-  await pillar.waitFor()
-  const deadline = Date.now() + 20000
-  let state = {}
-  while (Date.now() < deadline) {
-    state = await pillar.evaluate(element => ({
-      ok: element.getAttribute('data-ok'),
-      limit: element.getAttribute('data-limit'),
-      text: element.innerText.replace(/\s+/g, ' ').slice(0, 240),
-    }))
-    if (state.ok === 'yes' && state.limit === 'steps') break
-    await page.waitForTimeout(200)
-  }
-  const workerErrors = errors.filter(error => /NetworkError|wasm_exec|SyntaxError|import statement|Failed to execute/i.test(error))
-  if (workerErrors.length) fail(workerErrors.join('\n'))
-  if (state.ok !== 'yes' || state.limit !== 'steps') fail(`pillar settled as ${JSON.stringify(state)}`)
-  if (!/step limit/i.test(state.text)) fail(`pillar did not report a step limit: ${state.text}`)
-}
-
-async function checkPillar() {
+async function checkExplainer() {
   const dev = await open()
   try {
     await dev.page.goto(DEV, { waitUntil: 'domcontentloaded', timeout: 30000 })
-    await readPillar(dev.page, dev.errors)
-    console.log('pillar dev ok')
+    await dev.page.locator('[data-explainer="origin"]').waitFor()
+    const text = await dev.page.locator('[data-test="page-details"]').innerText()
+    if (!text.includes('makes it a practical portable cross platform runtime')) fail('origin phrase missing')
+    if (/re2/i.test(text)) fail('explainer says RE2')
+    const count = await dev.page.locator('[data-test="explainer"]').count()
+    if (count !== 5) fail(`expected 5 sections, got ${count}`)
+    if (await dev.page.locator('video').count() !== 0) fail('explainer rendered a video')
+    if (await dev.page.locator('canvas').count() !== 0) fail('explainer rendered a canvas')
+    console.log('explainer dev ok')
   } finally {
     await dev.browser.close()
-  }
-
-  const preview = spawn('npx', ['vite', 'preview', '--host', '127.0.0.1', '--port', String(PREVIEW_PORT), '--strictPort'], {
-    cwd: demoRoot,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-  let previewLog = ''
-  preview.stdout.on('data', chunk => { previewLog += chunk })
-  preview.stderr.on('data', chunk => { previewLog += chunk })
-  const ready = await new Promise(resolve => {
-    const timer = setTimeout(() => resolve(false), 20000)
-    const watch = () => {
-      if (previewLog.includes('Local') || previewLog.includes(String(PREVIEW_PORT))) {
-        clearTimeout(timer)
-        resolve(true)
-      }
-    }
-    preview.stdout.on('data', watch)
-    preview.stderr.on('data', watch)
-    preview.on('exit', () => {
-      clearTimeout(timer)
-      resolve(false)
-    })
-  })
-  if (!ready) {
-    preview.kill('SIGTERM')
-    fail(`vite preview did not start\n${previewLog}`)
-  }
-  const built = await open()
-  try {
-    await built.page.goto(PREVIEW, { waitUntil: 'domcontentloaded', timeout: 30000 })
-    await readPillar(built.page, built.errors)
-    console.log('pillar preview ok')
-  } finally {
-    await built.browser.close()
-    preview.kill('SIGTERM')
-    preview.stdout.destroy()
-    preview.stderr.destroy()
-    preview.unref()
   }
 }
 
@@ -613,12 +553,12 @@ const modes = {
   score: checkScore,
   scoreplace: checkScorePlace,
   stray: checkStray,
-  pillar: checkPillar,
+  explainer: checkExplainer,
   raf: checkRaf,
   overflow: checkOverflow,
   console: checkConsole,
 }
 
 const mode = process.argv[2]
-if (!modes[mode]) fail('usage: check-polish.mjs veil|ground|score|scoreplace|stray|pillar|raf|overflow|console')
+if (!modes[mode]) fail('usage: check-polish.mjs veil|ground|score|scoreplace|stray|explainer|raf|overflow|console')
 await modes[mode]()
