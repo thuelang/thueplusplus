@@ -2,28 +2,21 @@
 
 export const VIEW_W = 1440
 export const VIEW_H = 420
-/** Top surface of the foreground belt. Boxes sit on this line. */
+/** Lever height. Boxes travel lower, through the tunnel opening. */
 export const BELT_TOP = 292
-export const BELT_H = 72
-export const BELT_Y = BELT_TOP + BELT_H / 2
-/**
- * Rex stands behind the belt. His feet tuck under the belt and a short
- * length peeks out at the bottom edge, so they read as attached.
- */
-export const BELT_BOTTOM = BELT_TOP + BELT_H
-/** Top of the belt's raised face. Machine strokes stop here, outside the tunnel. */
-export const BELT_FACE = BELT_TOP - 14
-/** How far the foot circles extend below the belt. */
-export const FOOT_PEEK = 12
 export const SCALE = 2.5
-export const GROUND = BELT_BOTTOM + FOOT_PEEK
+/**
+ * One thin ground line. Rex's feet stand on it, fully above it.
+ * It sits just under the traced machine.
+ */
+export const GROUND = 356
 
-/** Score sits in the open sky left of the veil. The label does not scale with the number. */
-export const SCORE_X = 56
-export const SCORE_LABEL_Y = 22
-export const SCORE_LABEL_SIZE = 14
-export const SCORE_NUMBER_Y = 108
-export const SCORE_NUMBER_SIZE = 48
+/** A quiet tally in the corner. It does not compete with the headline. */
+export const SCORE_X = 40
+export const SCORE_LABEL_Y = 18
+export const SCORE_LABEL_SIZE = 11
+export const SCORE_NUMBER_Y = 64
+export const SCORE_NUMBER_SIZE = 20
 const SCORE_CAP = 0.34
 
 export function scoreNumberCenterY(): number {
@@ -64,7 +57,7 @@ export const HINT_X = REX_LEVER + 24 * SCALE + 18
 export const HINT_Y = LEVER_PIVOT.y - 44
 /** Speech sits in the open sky above Rex, right of the machine and left of the title. */
 export const SPEECH_X = 470
-export const SPEECH_Y = 18
+export const SPEECH_Y = -6
 export const LEVER_LEN = 74
 /** Degrees from straight up. Negative leans back toward Rex. */
 export const LEVER_OFF = -52
@@ -80,12 +73,6 @@ export const YANK = 0.24
 /** Seconds Rex holds a milestone cheer. */
 export const CHEER = 0.7
 export const BREAK_BEAT = 0.85
-
-export const CAGE_X = 330
-export const CAGE_W = 44
-export const CAGE_H = 42
-export const CAGE_BASE = BELT_TOP - CAGE_H
-export const CAGE_PITCH = 46
 
 /**
  * The traced machine, placed on the left. Scale maps the 345×500 sketch
@@ -107,13 +94,6 @@ export const WINDOW_X = MACHINE_X + 189 * MACHINE_S
 export const WINDOW_W = (297 - 189) * MACHINE_S
 export const WINDOW_Y = MACHINE_Y + 300 * MACHINE_S
 export const WINDOW_H = (385 - 300) * MACHINE_S
-/** Solid curtain panels in the tunnel mouth. Gaps are almost as wide as the panels. */
-export const CURTAIN_COUNT = 3
-export const CURTAIN_W = 22
-export const CURTAIN_GAP = 20
-const FLAP_COUNT = 5
-const FLAP_PITCH = 9
-
 export interface Pt {
   x: number
   y: number
@@ -138,16 +118,7 @@ export function leverKnob(lever: number): Pt {
 /** `progress` 0 is the right-hand entrance. 1 is inside the left tunnel. Values past 1 draw further in. */
 export function beltPoint(progress: number): Pt {
   const p = clamp(progress, 0, 1.2)
-  return { x: BELT_ENTRANCE + (BELT_MOUTH - BELT_ENTRANCE) * p, y: BELT_TOP }
-}
-
-/** Cage `index` 0 sits on the exit. Later cages stack upward, then compress. */
-export function cageOrigin(index: number): Pt {
-  if (index < 0) throw new Error(`cage index must be >= 0, got ${index}`)
-  const y = index <= 5
-    ? CAGE_BASE - index * CAGE_PITCH
-    : CAGE_BASE - 5 * CAGE_PITCH - (index - 5) * 14
-  return { x: CAGE_X, y }
+  return { x: BELT_ENTRANCE + (BELT_MOUTH - BELT_ENTRANCE) * p, y: TUNNEL_BOTTOM }
 }
 
 /** Source-unit distance Rex walks between home and the lever. */
@@ -170,35 +141,6 @@ export function scannerAperture(span: number): Aperture {
   const entrance = beltPoint(1 - span).x
   const exit = beltPoint(1).x
   return { entrance, exit, top: SCAN_TOP, width: Math.abs(exit - entrance) }
-}
-
-/** Centers of the curtains across the tunnel mouth. */
-export function curtainXs(): number[] {
-  const span = CURTAIN_COUNT * CURTAIN_W + (CURTAIN_COUNT - 1) * CURTAIN_GAP
-  const mouth = TUNNEL_LIP - TUNNEL_DEEP
-  const start = TUNNEL_DEEP + (mouth - span) / 2
-  return Array.from({ length: CURTAIN_COUNT }, (_, index) => start + index * (CURTAIN_W + CURTAIN_GAP) + CURTAIN_W / 2)
-}
-
-/** Top of a curtain. They hang into the mouth and stop at the belt face. */
-export const CURTAIN_TOP = BELT_FACE - 64
-
-/** X positions of the strips hanging at one edge of the tunnel. */
-export function flapXs(edge: number): number[] {
-  if (!Number.isFinite(edge)) throw new Error(`flap edge must be finite, got ${edge}`)
-  const start = edge - ((FLAP_COUNT - 1) * FLAP_PITCH) / 2
-  return Array.from({ length: FLAP_COUNT }, (_, index) => start + index * FLAP_PITCH)
-}
-
-/** Degrees a flap leans as a box pushes through it. Negative leans left, with the belt. */
-export function flapBend(flapX: number, boxX: number): number {
-  if (!Number.isFinite(flapX) || !Number.isFinite(boxX)) {
-    throw new Error(`flap bend needs finite positions, got ${flapX}, ${boxX}`)
-  }
-  const reach = 28
-  const dist = boxX - flapX
-  if (dist < -reach || dist > reach) return 0
-  return -((1 - Math.abs(dist) / reach) * 28)
 }
 
 /** Scan line across the tunnel. Reduced motion holds it on the box. */

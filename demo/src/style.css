@@ -350,7 +350,7 @@ html:not(.dark) {
 
 .rex-bleed .rex-scene {
   height: 100%;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .hero-copy {

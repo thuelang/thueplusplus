@@ -4,10 +4,11 @@ import { WALK_DURATION } from './motion'
 import {
   GRACE,
   MISS_COOLDOWN,
-  IDLE,
   RETURN,
+  TOUCH_IDLE,
   beginAutoplay,
   beginPlayer,
+  boxesOverlap,
   createGame,
   demoRuns,
   TRACK,
@@ -18,6 +19,7 @@ import {
   rebuild,
   roll,
   scoreJump,
+  setPresence,
   step,
   type Game,
 } from './game'
@@ -162,7 +164,7 @@ describe('lever game', () => {
     game = pull(game)
     expect(game.phase).toBe('playing')
     expect(game.score).toBe(1)
-    expect(game.cages.map(cage => cage.id)).toEqual([hit.id])
+    expect(game.cages).toHaveLength(0)
     expect(game.boxes.some(box => box.id === hit.id)).toBe(false)
     expect(game.jolt).toBe(1)
     expect(game.flash).toBe(1)
@@ -336,9 +338,25 @@ describe('lever game', () => {
         if (game.phase === 'broken') throw new Error(`autoplay broke at ${elapsed.toFixed(2)}s score ${game.score}`)
         expect(game.miss).toBe(0)
         expect(game.control).toBe('auto')
+        expect(game.cages).toHaveLength(0)
+        expect(boxesOverlap(game.boxes)).toBe(false)
       }
       expect(game.score).toBeGreaterThan(0)
       expect(game.best).toBe(3)
+      let broken = beginPlayer(game)
+      broken = fumbleUntilBroken(broken)
+      expect(broken.phase).toBe('broken')
+      const resumed = until(broken, current => current.control === 'auto' && current.phase === 'playing', RETURN + 1)
+      let again = resumed
+      let second = 0
+      while (second < 60) {
+        again = step(again, 1 / 30)
+        second += 1 / 30
+        if (again.phase === 'broken') throw new Error(`reset autoplay broke at ${second.toFixed(2)}s`)
+        expect(again.cages).toHaveLength(0)
+        expect(boxesOverlap(again.boxes)).toBe(false)
+      }
+      expect(again.score).toBeGreaterThan(0)
     }
 
     let visible = beginAutoplay(createGame({ seed: 9, reduced: false, best: 0 }))
@@ -373,15 +391,48 @@ describe('lever game', () => {
     expect(missed.control).toBe('player')
     expect(missed.score).toBe(0)
 
-    let idle = started(7, true)
-    idle = step(idle, IDLE - 0.05)
-    expect(idle.control).toBe('player')
-    expect(idle.phase).toBe('playing')
-    idle = step(idle, 0.1)
-    expect(idle.control).toBe('auto')
-    expect(idle.phase).toBe('playing')
-    expect(idle.phase).not.toBe('broken')
-    expect(idle.score).toBe(0)
+    let held = setPresence(started(7, true), 'pointer')
+    held = step(held, TOUCH_IDLE + 5)
+    expect(held.control).toBe('player')
+    expect(held.phase).toBe('playing')
+
+    let touched = setPresence(started(7, true), 'touch')
+    touched = step(touched, TOUCH_IDLE - 0.05)
+    expect(touched.control).toBe('player')
+    touched = step(touched, 0.1)
+    expect(touched.control).toBe('auto')
+    expect(touched.phase).toBe('playing')
+    expect(touched.presence).toBe('away')
+  })
+
+  it('never stack caught boxes', () => {
+    let game = beginAutoplay(createGame({ seed: 12, reduced: false, best: 0 }))
+    let scores = 0
+    let elapsed = 0
+    while (scores < 12 && elapsed < 90) {
+      game = step(game, 1 / 30)
+      elapsed += 1 / 30
+      scores = game.score
+      expect(game.cages).toHaveLength(0)
+      expect(boxesOverlap(game.boxes)).toBe(false)
+      expect(game.phase).not.toBe('broken')
+    }
+    expect(game.score).toBeGreaterThanOrEqual(12)
+  })
+
+  it('handoff drops a box that would have escaped', () => {
+    let game = setPresence(beginPlayer(createGame({ seed: 15, reduced: true, best: 1 })), 'pointer')
+    game = until(game, current => current.boxes.some(box => box.progress > 0.92), 30)
+    const escaping = game.boxes.find(box => box.progress > 0.92)
+    if (!escaping) throw new Error('no box near the exit')
+    const handed = setPresence(game, 'away')
+    expect(handed.control).toBe('auto')
+    expect(handed.phase).toBe('playing')
+    expect(handed.boxes).toHaveLength(0)
+    expect(handed.score).toBe(0)
+    const later = step(handed, 1)
+    expect(later.phase).not.toBe('broken')
+    expect(later.control).toBe('auto')
   })
 
   it('gate demo', () => {

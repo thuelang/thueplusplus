@@ -1,15 +1,19 @@
 /**
  * Lever-timing game for the home sandbox.
  *
- * Rex autoplays on load: the belt runs and he pulls for every box, so the
- * demo loops and the page does not break. A click, the your-turn control, or
- * the keyboard hands the lever to the player and resets the score. Only the
- * player's missed box breaks the run. After the break, or after the player
- * goes idle, Rex takes the demo back.
+ * Rex autoplays on load and catches every box, so the demo loops and the
+ * page does not break. A click on the game, or Space or Enter while it is
+ * focused, hands him the lever and starts a fresh score. The visitor keeps
+ * that turn only while the pointer stays over the game, the last touch is
+ * still recent, or the game stays focused. Leaving, a short touch idle, or
+ * blur starts a fresh autoplay, so a box in flight cannot break the page
+ * during the handoff. Only a miss while the visitor still has the turn
+ * breaks the run. Caught boxes are removed. They are not kept, so they
+ * cannot pile up.
  * Nothing here reads the clock, the DOM, or storage.
  */
 
-import { BREAK_BEAT, CHEER, YANK } from './layout'
+import { BELT_ENTRANCE, BELT_MOUTH, BREAK_BEAT, CHEER, YANK } from './layout'
 import { WALK_DURATION } from './motion'
 
 export const GRACE = 0.8
@@ -17,12 +21,11 @@ export const MISS_COOLDOWN = 0.42
 export const MILESTONE = 5
 export const DANGER = 0.84
 /**
- * Seconds without a player pull before Rex resumes the demo.
- * Past the moment the first reduced-motion box reaches the scanner, and
- * short of that box leaving the belt, so a quiet takeover ends in the demo
- * and does not break the page on its own.
+ * Seconds after the last touch before Rex resumes the demo.
+ * Long enough for a box already on screen to reach the scanner, and short
+ * enough that a lifted finger does not hold the turn.
  */
-export const IDLE = 20
+export const TOUCH_IDLE = 8
 /** Seconds the break stays up before the demo resumes. */
 export const RETURN = BREAK_BEAT + 1.6
 /**
@@ -48,6 +51,8 @@ export interface Cage {
 
 export type Phase = 'waiting' | 'playing' | 'broken'
 export type Control = 'auto' | 'player'
+/** Who is present. `away` is Rex's demo. A touch idle is the only timer. */
+export type Presence = 'away' | 'pointer' | 'touch' | 'keys'
 export type RexMode = 'idle' | 'to-lever' | 'ready' | 'yank' | 'cheer' | 'nervous' | 'startled'
 
 export interface Game {
@@ -80,7 +85,9 @@ export interface Game {
   beltOn: boolean
   /** Rex runs the demo, or the player has the lever. */
   control: Control
-  /** Seconds since the player's last pull. */
+  /** Pointer, touch, or keyboard focus. Away means Rex has the illustration. */
+  presence: Presence
+  /** Seconds since the player's last touch. Pointer and keys do not use it. */
   idle: number
 }
 
@@ -147,6 +154,21 @@ export function inZone(progress: number, score: number, reduced: boolean): boole
   return progress >= 1 - span && progress < 1
 }
 
+/** A traveling box is 36 view units wide. Centers closer than that are a stack. */
+export const BOX_W = 36
+
+export function boxesOverlap(boxes: readonly Box[]): boolean {
+  const span = BELT_ENTRANCE - BELT_MOUTH
+  if (span <= 0) throw new Error(`belt travel must be positive, got ${span}`)
+  const min = BOX_W / span
+  const sorted = [...boxes].sort((a, b) => a.progress - b.progress || a.id - b.id)
+  for (let index = 1; index < sorted.length; index += 1) {
+    const gap = sorted[index].progress - sorted[index - 1].progress
+    if (gap < min) return true
+  }
+  return false
+}
+
 /** mulberry32. Same state, same next value. State 0 is a later stream value, not a seed. */
 export function roll(state: number): { state: number, value: number } {
   if (!Number.isInteger(state) || state < 0 || state > 0xffffffff) {
@@ -200,6 +222,7 @@ export function createGame(options: GameOptions): Game {
     reduced: options.reduced,
     beltOn: false,
     control: 'auto',
+    presence: 'away',
     idle: 0,
   }
 }
@@ -217,6 +240,7 @@ function arm(game: Game, control: Control): Game {
   return {
     ...createGame({ seed: nextSeed(game.seed), reduced, best: game.best }),
     control,
+    presence: game.presence,
     phase: 'playing',
     beltOn: true,
     rex: reduced ? 'ready' : 'to-lever',
@@ -238,6 +262,28 @@ export function beginPlayer(game: Game): Game {
   return arm(game, 'player')
 }
 
+/**
+ * The pointer left, the touch went idle, or focus left the game.
+ * A fresh autoplay drops every box in flight, so the handoff cannot break the page.
+ * The score starts again. The best score stays.
+ */
+export function handBack(game: Game): Game {
+  if (game.control === 'auto' && game.phase !== 'broken') {
+    return game.presence === 'away' ? game : { ...game, presence: 'away', idle: 0 }
+  }
+  return beginAutoplay({ ...game, presence: 'away' })
+}
+
+export function setPresence(game: Game, presence: Presence): Game {
+  if (presence !== 'away' && presence !== 'pointer' && presence !== 'touch' && presence !== 'keys') {
+    throw new Error(`presence must be away, pointer, touch, or keys, got ${presence}`)
+  }
+  if (presence === 'away') return handBack(game)
+  if (presence === 'touch') return { ...game, presence, idle: 0 }
+  if (presence === game.presence) return game
+  return { ...game, presence, idle: 0 }
+}
+
 function hottest(game: Game): Box | undefined {
   return game.boxes
     .filter(box => inZone(box.progress, game.score, game.reduced))
@@ -247,13 +293,11 @@ function hottest(game: Game): Box | undefined {
 function scoreHit(game: Game, hit: Box): Game {
   const score = game.score + 1
   const milestone = score % MILESTONE === 0
-  let cages = [...game.cages, { id: hit.id }]
-  if (game.control === 'auto' && cages.length > 8) cages = cages.slice(cages.length - 8)
   return {
     ...game,
     score,
     boxes: game.boxes.filter(box => box.id !== hit.id),
-    cages,
+    cages: [],
     flash: 1,
     jolt: 1,
     pop: 1,
@@ -312,7 +356,7 @@ export function demoRuns(hidden: boolean, inView: boolean): boolean {
   return !hidden && inView
 }
 
-/** Lever, your-turn, or the keyboard. Autoplay and a break become the player's run. */
+/** A click or key on the game. Autoplay and a break become the player's run. */
 export function playerAct(game: Game): Game {
   if (game.control === 'player' && game.phase === 'playing') return pull(game)
   return beginPlayer(game)
@@ -427,9 +471,9 @@ function stepOnce(game: Game, dt: number): Game {
   }
   if (game.phase === 'waiting') return game
   let next = game
-  if (next.control === 'player') {
+  if (next.control === 'player' && next.presence === 'touch') {
     const idle = next.idle + dt
-    if (idle >= IDLE) return beginAutoplay(next)
+    if (idle >= TOUCH_IDLE) return beginAutoplay({ ...next, presence: 'away', idle })
     next = { ...next, idle }
   }
   if (next.control === 'auto') next = autoCatch(next)

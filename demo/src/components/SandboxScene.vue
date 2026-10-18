@@ -1,18 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Rex from './Rex.vue'
 import {
-  BELT_BOTTOM,
-  BELT_FACE,
-  BELT_H,
   BELT_TOP,
-  BELT_X0,
-  CAGE_BASE,
-  CAGE_H,
-  CAGE_W,
-  CAGE_X,
-  CURTAIN_TOP,
-  CURTAIN_W,
   GROUND,
   HINT_X,
   HINT_Y,
@@ -31,8 +21,6 @@ import {
   SCORE_NUMBER_Y,
   SCORE_X,
   TUNNEL_BOTTOM,
-  TUNNEL_DEEP,
-  TUNNEL_LIP,
   VIEW_H,
   VIEW_W,
   WINDOW_H,
@@ -40,13 +28,10 @@ import {
   WINDOW_X,
   WINDOW_Y,
   beltPoint,
-  curtainXs,
-  flapBend,
   scanLineX,
   scannerAperture,
   scoreFlashRadius,
   scoreNumberCenterY,
-  cageOrigin,
   leverDegrees,
   leverKnob,
 } from '@/sandbox/layout'
@@ -60,14 +45,16 @@ import {
   inZone,
   playerAct,
   scoreJump,
+  setPresence,
   step,
   type Box,
   type Game,
+  type Presence,
 } from '@/sandbox/game'
 
 const BEST_KEY = 'rex-sandbox-best'
 
-const emit = defineEmits<{ break: [reduced: boolean], rebuilt: [], offer: [value: boolean] }>()
+const emit = defineEmits<{ break: [reduced: boolean], rebuilt: [] }>()
 
 function motionReduced(): boolean {
   return typeof window !== 'undefined'
@@ -87,15 +74,13 @@ const game = ref<Game>(beginAutoplay(createGame({
 const clock = ref(0)
 const spring = ref<Spring>(settledSpring())
 const pose = ref<Pose>(restPose(false))
-const beltScroll = ref(0)
 const floatFrom = ref<{ x: number, y: number } | null>(null)
-const status = ref('Rex is waiting. Pull the lever to start.')
+const status = ref('Rex is running the machine.')
 let raf = 0
 let last = 0
 let observer: IntersectionObserver | undefined
 let media: MediaQueryList | undefined
 let onMedia: (() => void) | undefined
-let onWindowKey: ((event: KeyboardEvent) => void) | undefined
 
 function restPose(isReduced: boolean): Pose {
   return framePose({ mode: 'idle', t: 0, clock: 0, lever: 0, reduced: isReduced, spring: settledSpring(), dt: 0 })
@@ -121,8 +106,8 @@ function readBest(): number {
 
 function note(): void {
   const current = game.value
-  if (current.phase === 'broken') status.value = 'A box got through. The page broke.'
-  else if (current.control === 'auto') status.value = 'Rex is playing. Your turn to take over.'
+  if (current.phase === 'broken') status.value = 'A box got through.'
+  else if (current.control === 'auto') status.value = 'Rex is running the machine.'
   else if (current.miss > 0) status.value = `Miss. Score ${current.score}.`
   else status.value = `Score ${current.score}.`
 }
@@ -169,17 +154,17 @@ function applyReduced(isReduced: boolean): void {
 }
 
 const diff = computed(() => difficulty(game.value.score, game.value.reduced))
-const offerTurn = computed(() => game.value.control === 'auto' || game.value.phase === 'broken')
 const rexLabel = computed(() => (
-  offerTurn.value ? 'Your turn. Take over the lever.' : 'Rex. Pull the lever.'
+  game.value.control === 'player' && game.value.phase === 'playing' ? 'Pull the lever.' : 'Rex.'
 ))
 const leverLabel = computed(() => (
-  offerTurn.value ? 'Your turn. Take over the lever.' : 'Pull the lever to sandbox the box.'
+  game.value.control === 'player' && game.value.phase === 'playing' ? 'Pull the lever.' : 'Rex.'
 ))
-const leverHint = computed(() => (offerTurn.value ? 'your turn' : 'pull the lever'))
-watch(offerTurn, value => emit('offer', value), { immediate: true })
+const showHint = computed(() => game.value.presence !== 'away')
+const leverHint = computed(() => (
+  game.value.control === 'player' && game.value.phase === 'playing' ? 'pull the lever' : 'your turn'
+))
 const leverAngle = computed(() => leverDegrees(game.value.lever))
-const tickOffset = computed(() => (reduced.value || !game.value.beltOn ? 0 : -(beltScroll.value % 16)))
 const jump = computed(() => scoreJump(
   game.value.pop,
   game.value.streak,
@@ -202,7 +187,6 @@ const floatPos = computed(() => {
   }
 })
 const aperture = computed(() => scannerAperture(diff.value.span))
-const curtains = computed(() => curtainXs())
 const zoneLeft = computed(() => Math.min(aperture.value.entrance, aperture.value.exit))
 const scanned = computed(() => game.value.boxes
   .filter(box => inZone(box.progress, game.value.score, game.value.reduced))
@@ -223,14 +207,6 @@ const scannerTransform = computed(() => {
   return `translate(${shakeX} ${shakeY}) rotate(${rot} ${pivotX} ${pivotY})`
 })
 
-function flapTransform(x: number): string {
-  let bend = 0
-  for (const box of game.value.boxes) {
-    const next = flapBend(x, beltPoint(box.progress).x)
-    if (Math.abs(next) > Math.abs(bend)) bend = next
-  }
-  return `rotate(${bend.toFixed(2)} ${x} ${SCAN_TOP})`
-}
 const rexBox = computed(() => pct(pose.value.rootX - 78, pose.value.rootY - 268, 160, 286))
 const leverBox = computed(() => {
   const knob = leverKnob(game.value.lever)
@@ -259,7 +235,18 @@ function boxTransform(box: Box): string {
   return `translate(${point.x} ${point.y}) scale(${scale})`
 }
 
+function presenceOf(event: Event): Presence {
+  if (event instanceof PointerEvent && event.pointerType === 'touch') return 'touch'
+  return 'pointer'
+}
+
+function notePresence(presence: Presence): void {
+  const next = setPresence(game.value, presence)
+  if (next !== game.value) commit(next, 0)
+}
+
 function act(): void {
+  if (game.value.presence === 'away') notePresence('pointer')
   const before = game.value
   const hot = before.control === 'player'
     ? before.boxes
@@ -270,12 +257,50 @@ function act(): void {
   if (hot && game.value.score === before.score + 1) floatFrom.value = beltPoint(hot.progress)
 }
 
+function onSceneClick(event: MouseEvent): void {
+  const target = event.target
+  if (target instanceof Element && target.closest('button')) return
+  act()
+}
+
+function onButtonClick(event: MouseEvent): void {
+  event.stopPropagation()
+  act()
+}
+
 function onButtonKey(event: KeyboardEvent): void {
   if (event.key !== 'Enter' && event.key !== ' ') return
   if (event.repeat) return
   event.preventDefault()
   event.stopPropagation()
+  notePresence('keys')
   act()
+}
+
+function onPointerEnter(event: PointerEvent): void {
+  if (event.pointerType === 'touch') return
+  notePresence('pointer')
+}
+
+function onPointerLeave(event: PointerEvent): void {
+  if (event.pointerType === 'touch') return
+  notePresence('away')
+}
+
+function onPointerDown(event: PointerEvent): void {
+  notePresence(presenceOf(event))
+}
+
+function onFocusIn(): void {
+  if (game.value.presence === 'pointer' || game.value.presence === 'touch') return
+  notePresence('keys')
+}
+
+function onFocusOut(event: FocusEvent): void {
+  const next = event.relatedTarget
+  if (next instanceof Node && sceneEl.value?.contains(next)) return
+  if (game.value.presence === 'pointer' || game.value.presence === 'touch') return
+  notePresence('away')
 }
 
 function tick(now: number): void {
@@ -288,9 +313,6 @@ function tick(now: number): void {
   last = now
   if (dt > 0) {
     clock.value += reduced.value ? 0 : dt
-    if (game.value.beltOn && !reduced.value && game.value.phase === 'playing') {
-      beltScroll.value += dt * diff.value.beltRate * 220
-    }
     const miss = game.value.miss
     commit(step(game.value, dt), dt)
     if (miss > 0 && game.value.miss === 0) note()
@@ -333,18 +355,6 @@ onMounted(() => {
   if (media.matches !== reduced.value) applyReduced(media.matches)
   onMedia = () => applyReduced(media?.matches ?? false)
   media.addEventListener('change', onMedia)
-  onWindowKey = (event: KeyboardEvent) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return
-    if (event.repeat) return
-    const target = event.target
-    if (target instanceof HTMLElement) {
-      const tag = target.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'A' || tag === 'BUTTON') return
-    }
-    event.preventDefault()
-    act()
-  }
-  window.addEventListener('keydown', onWindowKey)
   document.addEventListener('visibilitychange', onVisibility)
   pageHidden.value = document.hidden
   if (typeof IntersectionObserver === 'function' && sceneEl.value) {
@@ -361,7 +371,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (media && onMedia) media.removeEventListener('change', onMedia)
-  if (onWindowKey) window.removeEventListener('keydown', onWindowKey)
   document.removeEventListener('visibilitychange', onVisibility)
   observer?.disconnect()
   observer = undefined
@@ -379,7 +388,14 @@ defineExpose({ game, advance, act })
     data-side="yes"
     data-pin
     role="group"
-    :aria-label="`Sandbox game. ${status}`"
+    :aria-label="`Rex at the machine. ${status}`"
+    :data-presence="game.presence"
+    @pointerenter="onPointerEnter"
+    @pointerleave="onPointerLeave"
+    @pointerdown="onPointerDown"
+    @focusin="onFocusIn"
+    @focusout="onFocusOut"
+    @click="onSceneClick"
     :data-belt="game.beltOn ? 'on' : 'off'"
     :data-broken="game.phase === 'broken' ? 'yes' : 'no'"
     :data-reduced="reduced ? 'yes' : 'no'"
@@ -395,28 +411,7 @@ defineExpose({ game, advance, act })
       preserveAspectRatio="none"
       aria-hidden="true"
     >
-      <defs>
-        <filter id="rex-belt-blur" x="-8%" y="-40%" width="116%" height="200%">
-          <feGaussianBlur stdDeviation="14" />
-        </filter>
-        <linearGradient id="rex-belt-fade" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0.48" stop-color="black" />
-          <stop offset="0.66" stop-color="white" />
-          <stop offset="1" stop-color="white" />
-        </linearGradient>
-        <linearGradient id="rex-belt-sharp" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0.48" stop-color="white" />
-          <stop offset="0.66" stop-color="black" />
-          <stop offset="1" stop-color="black" />
-        </linearGradient>
-        <mask id="rex-belt-left">
-          <rect :width="VIEW_W" :height="VIEW_H" fill="url(#rex-belt-fade)" />
-        </mask>
-        <mask id="rex-belt-right">
-          <rect :width="VIEW_W" :height="VIEW_H" fill="url(#rex-belt-sharp)" />
-        </mask>
-      </defs>
-      <path data-test="floor" :d="`M0 ${GROUND} H${VIEW_W}`" stroke="currentColor" stroke-width="2" opacity="0.45" />
+      <path data-test="floor" :d="`M0 ${GROUND} H${VIEW_W}`" stroke="currentColor" stroke-width="1.5" opacity="0.55" />
 
       <circle
         v-if="flashRadius > 0"
@@ -428,6 +423,7 @@ defineExpose({ game, advance, act })
         :opacity="jump.flash * 0.28"
       />
       <g
+        opacity="0.78"
         data-test="score-jump"
         :data-scale="jump.scale.toFixed(2)"
         :data-flash="jump.flash.toFixed(2)"
@@ -444,9 +440,9 @@ defineExpose({ game, advance, act })
           :fill="jump.flash > 0.2 ? 'var(--signal)' : 'currentColor'"
         >{{ game.score }}</text>
       </g>
-      <g fill="currentColor" font-family="JetBrains Mono, ui-monospace, monospace" text-anchor="start">
+      <g fill="currentColor" font-family="JetBrains Mono, ui-monospace, monospace" text-anchor="start" opacity="0.78">
         <text data-test="score-label" :x="SCORE_X" :y="SCORE_LABEL_Y" :font-size="SCORE_LABEL_SIZE">score</text>
-        <text v-if="game.best > 0" data-test="best" :x="SCORE_X" :y="SCORE_NUMBER_Y + 28" font-size="16">best {{ game.best }}</text>
+        <text v-if="game.best > 0" data-test="best" :x="SCORE_X" :y="SCORE_NUMBER_Y + 16" font-size="11">best {{ game.best }}</text>
       </g>
 
       <g
@@ -493,13 +489,15 @@ defineExpose({ game, advance, act })
       </g>
 
       <text
+        v-if="showHint"
         data-test="start-hint"
         :x="HINT_X"
         :y="HINT_Y"
         text-anchor="start"
         fill="currentColor"
         font-family="JetBrains Mono, ui-monospace, monospace"
-        font-size="14"
+        font-size="12"
+        opacity="0.55"
       >{{ leverHint }}</text>
       <text
         v-if="game.miss > 0"
@@ -523,19 +521,6 @@ defineExpose({ game, advance, act })
         text-anchor="middle"
       >yeah</text>
 
-      <g data-test="belt" data-span="full" :data-running="game.beltOn ? 'yes' : 'no'">
-        <rect :x="BELT_X0" :y="BELT_TOP" :width="VIEW_W" :height="BELT_H" fill="var(--gutter)" stroke="currentColor" stroke-width="3" />
-        <rect data-test="belt-surface" :x="BELT_X0" :y="BELT_TOP - 14" :width="VIEW_W" height="16" fill="var(--dim)" stroke="currentColor" stroke-width="3" />
-        <clipPath id="rex-belt-clip">
-          <rect :x="BELT_X0" :y="BELT_TOP + 8" :width="VIEW_W" :height="BELT_H - 16" />
-        </clipPath>
-        <g clip-path="url(#rex-belt-clip)">
-          <g :transform="`translate(${tickOffset} 0)`" stroke="currentColor" stroke-width="2.2" opacity="0.72">
-            <line v-for="mark in 96" :key="mark" :x1="mark * 18" :y1="BELT_TOP + 10" :x2="mark * 18 - 14" :y2="BELT_TOP + BELT_H - 6" />
-          </g>
-        </g>
-      </g>
-
       <g
         v-for="box in game.boxes"
         :key="box.id"
@@ -556,13 +541,8 @@ defineExpose({ game, advance, act })
       </g>
 
       <g data-test="scanner" data-test-machine="sketch" :data-scanning="scanned ? 'yes' : 'no'" :transform="scannerTransform">
-        <clipPath id="rex-machine-clip">
-          <rect x="-40" y="-80" :width="VIEW_W + 80" :height="BELT_FACE + 80" />
-          <rect :x="TUNNEL_DEEP" :y="BELT_FACE" :width="TUNNEL_LIP - TUNNEL_DEEP" :height="BELT_BOTTOM - BELT_FACE" />
-        </clipPath>
         <g
           data-test="machine"
-          clip-path="url(#rex-machine-clip)"
           :transform="`translate(${MACHINE_X} ${MACHINE_Y}) scale(${MACHINE_S})`"
           fill="currentColor"
         >
@@ -578,14 +558,6 @@ defineExpose({ game, advance, act })
           :height="TUNNEL_BOTTOM - SCAN_TOP"
           fill="none"
         />
-      </g>
-
-      <g data-test="belt-blur" filter="url(#rex-belt-blur)" mask="url(#rex-belt-left)" opacity="0.9">
-        <rect :x="BELT_X0" :y="BELT_TOP - 14" :width="VIEW_W" height="16" fill="var(--dim)" />
-        <rect :x="BELT_X0" :y="BELT_TOP" :width="VIEW_W" :height="BELT_H" fill="var(--gutter)" />
-        <g v-for="box in game.boxes" :key="`blur-${box.id}`" :transform="boxTransform(box)">
-          <rect x="-18" y="-36" width="36" height="36" fill="var(--raised)" />
-        </g>
       </g>
 
       <text
@@ -612,50 +584,6 @@ defineExpose({ game, advance, act })
         stroke-linecap="round"
         opacity="0.9"
       />
-      <g data-test="scanner-flaps" fill="currentColor">
-        <line
-          :x1="curtains[0] - CURTAIN_W / 2"
-          :x2="curtains[curtains.length - 1] + CURTAIN_W / 2"
-          :y1="CURTAIN_TOP"
-          :y2="CURTAIN_TOP"
-          stroke="currentColor"
-          stroke-width="3"
-          stroke-linecap="round"
-        />
-        <g v-for="(x, index) in curtains" :key="`curtain-${index}`" data-test="scanner-flap" data-edge="entrance" :transform="flapTransform(x)">
-          <rect :x="x - CURTAIN_W / 2" :y="CURTAIN_TOP" :width="CURTAIN_W" :height="BELT_FACE - CURTAIN_TOP - 8" rx="4" />
-        </g>
-      </g>
-
-      <g data-test="jail">
-        <g v-if="game.cages.length === 0" :transform="`translate(${CAGE_X} ${CAGE_BASE})`">
-          <rect :width="CAGE_W" :height="CAGE_H" fill="var(--surface)" stroke="currentColor" stroke-width="2" />
-          <g stroke="currentColor" stroke-width="1.6">
-            <line x1="14" y1="2" x2="14" :y2="CAGE_H - 2" />
-            <line x1="22" y1="2" x2="22" :y2="CAGE_H - 2" />
-            <line x1="30" y1="2" x2="30" :y2="CAGE_H - 2" />
-          </g>
-        </g>
-      </g>
-
-      <g
-        v-for="(cage, index) in game.cages"
-        :key="`cage-${cage.id}`"
-        data-test="cage"
-        :transform="`translate(${cageOrigin(index).x} ${cageOrigin(index).y})`"
-      >
-        <rect :width="CAGE_W" :height="CAGE_H" fill="var(--surface)" stroke="currentColor" stroke-width="2" />
-        <g stroke="currentColor" stroke-width="1.6">
-          <line x1="14" y1="2" x2="14" :y2="CAGE_H - 2" />
-          <line x1="22" y1="2" x2="22" :y2="CAGE_H - 2" />
-          <line x1="30" y1="2" x2="30" :y2="CAGE_H - 2" />
-        </g>
-        <g transform="translate(22 22) scale(0.5)">
-          <rect x="-14" y="-14" width="28" height="28" rx="1.5" fill="var(--raised)" stroke="currentColor" stroke-width="2" />
-          <path d="M-14 0 H14 M0 -14 V14" stroke="currentColor" stroke-width="1.2" opacity="0.5" />
-        </g>
-      </g>
-
       <g v-if="game.phase === 'broken'" data-test="scene-cracks" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
         <path d="M70 18 L128 96 L104 168 L176 250 L150 340" />
         <path d="M128 96 L210 132 L248 210" />
@@ -670,7 +598,7 @@ defineExpose({ game, advance, act })
       :style="rexBox"
       :aria-label="rexLabel"
       aria-keyshortcuts="Space Enter"
-      @click="act"
+      @click="onButtonClick"
       @keydown="onButtonKey"
     />
     <button
@@ -680,7 +608,7 @@ defineExpose({ game, advance, act })
       :style="leverBox"
       :aria-label="leverLabel"
       aria-keyshortcuts="Space Enter"
-      @click="act"
+      @click="onButtonClick"
       @keydown="onButtonKey"
     />
     <p class="sr-only" aria-live="polite" data-test="scene-status">{{ status }}</p>

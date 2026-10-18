@@ -3,16 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { DOT_R } from '@/rex/motion'
 import { difficulty, scoreJump } from './game'
 import {
-  BELT_BOTTOM,
-  BELT_FACE,
-  CURTAIN_COUNT,
-  CURTAIN_GAP,
-  CURTAIN_W,
-  FOOT_PEEK,
   GROUND,
   HINT_X,
   REX_LEVER,
   SCALE,
+  SCORE_NUMBER_SIZE,
   VIEW_H,
   beltPoint,
   scoreFlashRadius,
@@ -24,20 +19,20 @@ import {
 const hatRight = REX_LEVER + 24 * SCALE
 
 describe('hero polish', () => {
-  it('grounds rex so his feet touch the belt', () => {
+  it('keeps one ground line and shows the whole foot', () => {
     const footTop = GROUND + (-DOT_R - DOT_R) * SCALE
     const footBottom = GROUND
-    const gap = footTop - BELT_BOTTOM
-    const peek = footBottom - BELT_BOTTOM
-    expect(gap).toBeLessThanOrEqual(0)
-    expect(peek).toBe(FOOT_PEEK)
-    expect(peek).toBeGreaterThan(6)
-    expect(peek).toBeLessThan(18)
+    expect(footBottom - footTop).toBeGreaterThan(24)
+    expect(footTop).toBeLessThan(GROUND)
+    expect(footBottom).toBe(GROUND)
     expect(footBottom).toBeLessThan(VIEW_H - 8)
     expect(beltPoint(0).x).toBeGreaterThan(beltPoint(1).x)
     const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
+    expect(scene).toContain('data-test="floor"')
+    expect(scene).not.toContain('data-test="belt"')
+    expect(scene).not.toContain('data-test="belt-surface"')
+    expect(scene).not.toContain('rex-belt-clip')
     expect(scene.indexOf('data-test="floor"')).toBeLessThan(scene.indexOf('<Rex'))
-    expect(scene.indexOf('<Rex')).toBeLessThan(scene.indexOf('data-test="belt"'))
   })
 
   it('keeps the hint off Rex', () => {
@@ -47,16 +42,25 @@ describe('hero polish', () => {
     expect(scene).toContain('text-anchor="start"')
   })
 
-  it('clips machine strokes at the belt and hangs curtains', () => {
+  it('draws no curtains and no cage stack', () => {
     const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
-    expect(scene).toContain('id="rex-machine-clip"')
-    expect(scene).toContain('clip-path="url(#rex-machine-clip)"')
-    expect(scene).toContain(':height="BELT_FACE + 80"')
-    expect(CURTAIN_COUNT).toBe(3)
-    expect(CURTAIN_GAP).toBeGreaterThan(CURTAIN_W * 0.8)
-    expect(scene).not.toContain('GROUND - 16')
-    expect(scene).not.toContain('GROUND - 10')
-    expect(BELT_FACE).toBeLessThan(BELT_BOTTOM)
+    expect(scene).not.toContain('scanner-flap')
+    expect(scene).not.toContain('data-test="cage"')
+    expect(scene).not.toContain('data-test="jail"')
+    expect(scene).toContain('data-test="machine"')
+    expect(scene).toContain('data-test="x-ray-silhouette"')
+    expect(scene).toContain('data-test="scan-line"')
+  })
+
+  it('keeps the quiet score under the headline size', () => {
+    expect(SCORE_NUMBER_SIZE).toBeLessThan(28)
+    const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
+    const page = readFileSync('src/pages/HomePage.vue', 'utf8')
+    expect(scene).toContain('opacity="0.78"')
+    expect(page).not.toContain('your-turn')
+    expect(page).not.toContain('Your turn')
+    expect(page).toContain('data-test="hero-install"')
+    expect(scene).not.toContain('Your turn to take over')
   })
 
   it('keeps the score label clear of the flash', () => {
