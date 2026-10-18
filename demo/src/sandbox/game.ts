@@ -268,27 +268,25 @@ export function beginAutoplay(game: Game): Game {
 }
 
 /**
- * The player takes the lever. The score resets and boxes in flight are dropped.
- * The best score stays. Pose, lever, and the pull already in motion stay.
+ * The player takes the lever. Only the trigger source changes. Boxes in
+ * flight, the score, the best score, and the belt speed stay. Pose, lever,
+ * and the pull already in motion stay. A game that has not started arms a
+ * fresh run. A break is the only reset.
  */
 export function beginPlayer(game: Game): Game {
   if (game.phase !== 'playing' || game.rex === 'idle') return arm(game, 'player')
   return {
     ...game,
     control: 'player',
-    score: 0,
-    streak: 0,
-    boxes: [],
-    cages: [],
     idle: 0,
   }
 }
 
 /**
  * The pointer left, the touch went idle, or focus left the game.
- * A playing turn hands the same pose back to autoplay, drops every box in
- * flight, and starts the score again. The best score stays. A break or a
- * game that has not started yet begins a fresh run, already at the lever.
+ * A playing turn hands the same run back to autoplay. Boxes in flight, the
+ * score, the best score, and the belt speed stay. A break, or a game that
+ * has not started, begins a fresh run at the lever.
  */
 export function handBack(game: Game): Game {
   if (game.control === 'auto' && game.phase !== 'broken') {
@@ -300,10 +298,6 @@ export function handBack(game: Game): Game {
       control: 'auto',
       presence: 'away',
       idle: 0,
-      score: 0,
-      streak: 0,
-      boxes: [],
-      cages: [],
     }
   }
   return beginAutoplay({ ...game, presence: 'away' })
@@ -351,7 +345,7 @@ function scoreHit(game: Game, hit: Box): Game {
 /**
  * Rex catches once the box is in the middle of the scan.
  * The opening of the tunnel stays visible as an X-ray before he pulls.
- * A box that reaches the exit is still caught, so the demo does not break.
+ * A box already past the exit is not caught here. It passes in advanceBoxes.
  */
 function autoCatch(game: Game): Game {
   if (game.control !== 'auto' || game.phase !== 'playing') return game
@@ -448,7 +442,8 @@ function advanceBoxes(game: Game, dt: number): Game {
   const boxes = game.boxes.map(box => ({ ...box, progress: box.progress + beltRate * dt }))
   const escaped = boxes.find(box => box.progress >= 1)
   if (!escaped) return { ...game, boxes }
-  if (game.control === 'auto') return scoreHit({ ...game, boxes }, escaped)
+  // Too late to score. That box leaves. The rest of the run stays, and the page does not break.
+  if (game.control === 'auto') return { ...game, boxes: boxes.filter(box => box.progress < 1) }
   return {
     ...game,
     phase: 'broken',

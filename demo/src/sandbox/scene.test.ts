@@ -85,7 +85,7 @@ describe('rex sandbox scene', () => {
     expect(wrapper.find('[data-test="scanner"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="capture-zone"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="speech-text"]').text()).toBe('i guess we')
-    expect(wrapper.find('[data-test="floor"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="floor"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="machine"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="start-hint"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="score"]').text()).toBe('0')
@@ -287,11 +287,11 @@ describe('rex sandbox scene', () => {
   it('gate side', async () => {
     const wrapper = mountScene()
     expect(wrapper.find('[data-test="belt"]').exists()).toBe(false)
-    expect(wrapper.find('[data-test="floor"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="floor"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="sandbox-scene"]').attributes('data-side')).toBe('yes')
     const html = wrapper.html()
     expect(html).not.toContain('data-test="belt"')
-    expect(html.indexOf('data-test="floor"')).toBeLessThan(html.indexOf('data-test="rex-mark"'))
+    expect(html).not.toContain('data-test="floor"')
     await wrapper.get('[data-test="rex"]').trigger('click')
     const api = exposed(wrapper)
     let steps = 0
@@ -397,12 +397,16 @@ describe('rex sandbox scene', () => {
       guard += 1
     }
     expect(api.game.boxes.some(box => box.progress > 0.9)).toBe(true)
+    const score = api.game.score
+    const boxes = api.game.boxes.map(box => ({ ...box }))
     await scene.trigger('pointerleave', { pointerType: 'mouse' })
     expect(api.game.control).toBe('auto')
     expect(api.game.phase).toBe('playing')
-    expect(api.game.boxes).toHaveLength(0)
+    expect(api.game.score).toBe(score)
+    expect(api.game.boxes).toEqual(boxes)
     api.advance(1)
     expect(api.game.phase).not.toBe('broken')
+    expect(api.game.score).toBeGreaterThanOrEqual(score)
     wrapper.unmount()
   })
 

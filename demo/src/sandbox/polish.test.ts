@@ -31,7 +31,7 @@ import {
 const hatRight = REX_LEVER + 24 * SCALE
 
 describe('hero polish', () => {
-  it('keeps one ground line and shows the whole foot', () => {
+  it('stands on no drawn ground line and shows the whole foot', () => {
     const footTop = GROUND + (-DOT_R - DOT_R) * SCALE
     const footBottom = GROUND
     expect(footBottom - footTop).toBeGreaterThan(24)
@@ -40,11 +40,14 @@ describe('hero polish', () => {
     expect(footBottom).toBeLessThan(VIEW_H - 8)
     expect(beltPoint(0).x).toBeGreaterThan(beltPoint(1).x)
     const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
-    expect(scene).toContain('data-test="floor"')
+    expect(scene).not.toContain('data-test="floor"')
+    expect(scene).not.toContain(`M0 \${GROUND}`)
     expect(scene).not.toContain('data-test="belt"')
     expect(scene).not.toContain('data-test="belt-surface"')
     expect(scene).not.toContain('rex-belt-clip')
-    expect(scene.indexOf('data-test="floor"')).toBeLessThan(scene.indexOf('<Rex'))
+    const css = readFileSync('src/style.css', 'utf8')
+    const homeBorder = css.slice(css.indexOf('.home-screen.page-screen-bare + .page-details'))
+    expect(homeBorder).toContain('border-top-width: 0')
   })
 
   it('keeps the hint off Rex', () => {
@@ -96,10 +99,13 @@ describe('hero polish', () => {
     }
     expect(MACHINE_X * 390 / VIEW_W).toBeGreaterThanOrEqual(8)
     expect(SCORE_X * 390 / VIEW_W).toBeGreaterThanOrEqual(8)
+    const heroLeft = (1440 - 1320) / 2
+    expect(MACHINE_X).toBeGreaterThanOrEqual(heroLeft + 48)
+    expect(SCORE_X).toBeGreaterThanOrEqual(heroLeft + 48)
     expect(boxInFrame(0)).toBe(false)
     expect(boxInFrame(0.05)).toBe(true)
     expect(boxInFrame(1)).toBe(true)
-    expect(boxInFrame(1.2)).toBe(false)
+    expect(boxInFrame(1.2)).toBe(true)
     expect(() => boxInFrame(Number.NaN)).toThrow(/finite/)
     const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
     expect(scene).toContain('drawnBoxes')
@@ -160,9 +166,9 @@ describe('hero polish', () => {
     expect(taken.rex).toBe(game.rex)
     expect(taken.rexT).toBe(game.rexT)
     expect(taken.lever).toBe(game.lever)
-    expect(taken.score).toBe(0)
+    expect(taken.score).toBe(game.score)
     expect(taken.best).toBe(4)
-    expect(taken.boxes).toHaveLength(0)
+    expect(taken.boxes).toEqual(game.boxes)
   })
 
   it('pauses animation frames while hidden', () => {

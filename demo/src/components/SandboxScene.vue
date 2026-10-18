@@ -424,8 +424,6 @@ defineExpose({ game, advance, act })
       preserveAspectRatio="none"
       aria-hidden="true"
     >
-      <path data-test="floor" :d="`M0 ${GROUND} H${VIEW_W}`" stroke="currentColor" stroke-width="1.5" opacity="0.55" />
-
       <circle
         v-if="flashRadius > 0"
         data-test="score-flash"

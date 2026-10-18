@@ -42,12 +42,10 @@ function inside(box: Box, width: number, height: number, margin: number): void {
   expect(box.bottom).toBeLessThanOrEqual(height - margin)
 }
 
-async function expectGrounded(page: Page): Promise<void> {
-  const machine = await readBox(page, 'machine')
-  const floor = await readBox(page, 'floor')
-  const gap = floor.top - machine.bottom
-  expect(gap).toBeGreaterThan(-4)
-  expect(gap).toBeLessThan(4)
+async function expectNoGround(page: Page): Promise<void> {
+  await expect(page.getByTestId('floor')).toHaveCount(0)
+  const border = await page.getByTestId('page-details').evaluate((el) => getComputedStyle(el).borderTopWidth)
+  expect(border).toBe('0px')
 }
 
 for (const theme of themes) {
@@ -57,10 +55,15 @@ for (const theme of themes) {
       await paint(page, theme, width, height)
       const machine = await readBox(page, 'machine')
       const score = scoreBox(await readBox(page, 'score-label'), await readBox(page, 'score'))
+      const hero = await readBox(page, 'page-hero')
       inside(machine, width, height, 32)
       inside(score, width, height, 32)
+      // The hero column is inset from the viewport. A 32px viewport margin
+      // still left the machine on the column edge at 1440.
+      expect(machine.left).toBeGreaterThanOrEqual(hero.left + 48)
+      expect(score.left).toBeGreaterThanOrEqual(hero.left + 48)
       await expect(page.getByTestId('score-label')).toHaveText('score')
-      await expectGrounded(page)
+      await expectNoGround(page)
     })
   }
 
@@ -72,7 +75,7 @@ for (const theme of themes) {
     const score = scoreBox(await readBox(page, 'score-label'), await readBox(page, 'score'))
     inside(machine, width, height, 8)
     inside(score, width, height, 8)
-    await expectGrounded(page)
+    await expectNoGround(page)
     let seen = 0
     const started = Date.now()
     while (Date.now() - started < 2500) {
@@ -145,16 +148,31 @@ test('outline shows for Tab and stays off after a click', async ({ page }) => {
   expect(ring.heightPx).toBeGreaterThan(ring.offset * 2)
 
   const stray = await page.evaluate(() => {
-    const floor = document.querySelector('[data-test="floor"]')
-    if (!floor) throw new Error('missing floor')
-    const line = floor.getBoundingClientRect()
+    const machine = document.querySelector('[data-test="machine"]')
+    if (!machine) throw new Error('missing machine')
+    const base = machine.getBoundingClientRect().bottom
     const vw = window.innerWidth
     return [...document.querySelectorAll('[data-test="box"]')].filter((el) => {
       const rect = el.getBoundingClientRect()
-      return rect.right > vw - 48 && Math.abs(rect.bottom - line.top) < 12
+      return rect.right > vw - 48 && Math.abs(rect.bottom - base) < 12
     }).length
   })
   expect(stray).toBe(0)
+})
+
+test('leaves breathing room above the game on a phone', async ({ page }) => {
+  for (const width of [390, 768]) {
+    const height = width === 390 ? 844 : 1024
+    await paint(page, 'dark', width, height)
+    const gap = await page.evaluate(() => {
+      const buttons = [...document.querySelectorAll('[data-test="page-hero"] a')]
+      const bubble = document.querySelector('[data-test="speech-bubble"]')
+      if (buttons.length === 0 || !bubble) throw new Error('missing buttons or bubble')
+      const buttonBottom = Math.max(...buttons.map(el => el.getBoundingClientRect().bottom))
+      return bubble.getBoundingClientRect().top - buttonBottom
+    })
+    expect(gap).toBeGreaterThanOrEqual(32)
+  }
 })
 
 test('fits the hero to its picture and its text', async ({ page }) => {
@@ -207,6 +225,6 @@ test('fits the hero to its picture and its text', async ({ page }) => {
   expect(mobile.above).toBeGreaterThanOrEqual(-1)
   expect(mobile.above).toBeLessThan(80)
   expect(Math.abs(mobile.below)).toBeLessThan(40)
-  expect(mobile.copyBottom).toBeLessThanOrEqual(mobile.bleedTop + 32)
+  expect(mobile.copyBottom).toBeLessThanOrEqual(mobile.bleedTop - 24)
   expect(mobile.span).toBeLessThan(mobile.vh * 0.85)
 })
