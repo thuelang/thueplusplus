@@ -90,6 +90,7 @@ Versions are the Thue++ spec versions in `SPEC_VERSION`.
 
 ### Fixed
 
+- `rot-13` no longer treats the line `in` as its read marker. That line is a fixed case and prints `va`. The direct solution reads on `@`, which the rapid alphabet does not draw.
 - The site build survives a shallow git clone. Vercel production builds since #88 failed in `node scripts/build-site.mjs` with `fatal: bad object 5dafc872…` because the checkout is shallow and the build ran `git log` on every metrics commit. Archived benches already store `author` and `timestamp`, and the build uses those. A runs document without them uses git when the object is present and is omitted when it is not. Chart points that exist only because a commit is a shallow-clone boundary are omitted, and the solved-chart tooltip says the added problems are unknown when the earlier history is outside the clone. The next metrics publish stores `author` and `timestamp` on `metrics/latest.json`. A depth-1 clone and a depth-10 clone both build.
 - `reverse-a-string` no longer flakes when a rapid draw is the word `in`. That word was the direct solution's read marker, so the read rule matched the input and the next read hit EOF. The generator refuses `in`, and `in` is a fixed case that prints `ni`. The direct solution now reads on `@`, which is outside the letter alphabet.
 - The playground rule catalog includes the unicode trace programs. The install scene fits one socket per registered host inside the frame.

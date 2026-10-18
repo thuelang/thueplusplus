@@ -54,8 +54,8 @@
 ^r:(?<c>[^A-Za-z%])(?<rest>.*)\|(?<out>.*)$ ::= r:{{rest}}|{{out}}{{c}}
 ^r:\|(?<out>.*)\n?$ ::> stdout {{out|pctdec}}\n
 ^$ ::- 0
-^in\n?$ ::< 30 stdin
+^@\n?$ ::< 30 stdin
 ^(?<s>.*)\n?$ ::= r:{{s}}|
 
 ::=
-in
+@
