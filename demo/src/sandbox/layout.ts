@@ -23,9 +23,6 @@ export const REX_HOME = 454
 export const REX_LEVER = 534
 
 export const LEVER_PIVOT = { x: REX_LEVER - 52, y: GROUND - 46 }
-/** A miss sits beside the lever. */
-export const MISS_X = LEVER_PIVOT.x + 36
-export const MISS_Y = LEVER_PIVOT.y - 96
 export const LEVER_LEN = 58
 /** Degrees from straight up. Negative leans back toward Rex. */
 export const LEVER_OFF = -52
@@ -176,12 +173,43 @@ export function boxInFrame(progress: number, lane = 0.5, spin = 0): boolean {
 
 /** 1 at rest. A little over 1 while a box is in range. `grown` eases between them. */
 export const MACHINE_GROW = 0.055
+/**
+ * Deepest vertical squeeze on a miss, as a fraction of height.
+ * Larger than the in-range grow, and only on the vertical axis.
+ */
+export const MACHINE_SQUEEZE = 0.16
+
+export function easeOut(t: number): number {
+  const u = clamp(t, 0, 1)
+  return 1 - (1 - u) ** 3
+}
+
+export function easeIn(t: number): number {
+  const u = clamp(t, 0, 1)
+  return u * u * u
+}
 
 export function machineScale(grown: number): number {
   if (!Number.isFinite(grown) || grown < 0 || grown > 1) {
     throw new Error(`grown must be from 0 to 1, got ${grown}`)
   }
   return 1 + MACHINE_GROW * grown
+}
+
+/**
+ * Vertical scale while the miss reaction is up. 1 at both ends of that
+ * window, shorter in the middle. The caller anchors it at the machine base.
+ * Reduced motion holds the machine at full height.
+ */
+export function machineSqueeze(miss: number, reduced: boolean): number {
+  if (!Number.isFinite(miss) || miss < 0 || miss > 1) {
+    throw new Error(`miss must be from 0 to 1, got ${miss}`)
+  }
+  if (typeof reduced !== 'boolean') throw new Error('reduced must be a boolean')
+  if (reduced || miss === 0) return 1
+  const u = 1 - miss
+  const down = u <= 0.45 ? easeOut(u / 0.45) : 1 - easeIn((u - 0.45) / 0.55)
+  return 1 - MACHINE_SQUEEZE * down
 }
 
 /** Source-unit distance Rex walks between home and the lever. */

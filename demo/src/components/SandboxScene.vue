@@ -9,8 +9,6 @@ import {
   MACHINE_S,
   MACHINE_X,
   MACHINE_Y,
-  MISS_X,
-  MISS_Y,
   OPENING_X,
   OPENING_Y,
   SCALE,
@@ -23,6 +21,7 @@ import {
   leverDegrees,
   leverKnob,
   machineScale,
+  machineSqueeze,
 } from '@/sandbox/layout'
 import { MACHINE_D } from '@/sandbox/machine'
 import { framePose, settledSpring, type Pose, type Spring } from '@/sandbox/motion'
@@ -168,9 +167,11 @@ function pct(x: number, y: number, w: number, h: number): Record<string, string>
 }
 
 const drawnBoxes = computed(() => game.value.boxes.filter(box => boxInFrame(box.progress, box.lane, box.spin)))
+const squeeze = computed(() => machineSqueeze(game.value.miss, reduced.value))
 const machineTransform = computed(() => {
   const scale = machineScale(grown.value)
-  return `translate(${MACHINE_X} ${GROUND}) scale(${scale}) translate(${-MACHINE_X} ${-GROUND}) translate(${MACHINE_X} ${MACHINE_Y}) scale(${MACHINE_S})`
+  const height = scale * squeeze.value
+  return `translate(${MACHINE_X} ${GROUND}) scale(${scale} ${height}) translate(${-MACHINE_X} ${-GROUND}) translate(${MACHINE_X} ${MACHINE_Y}) scale(${MACHINE_S})`
 })
 
 function easeGrown(dt: number): void {
@@ -373,39 +374,6 @@ defineExpose({ game, advance, act })
           <circle :cx="LEVER_PIVOT.x" :cy="LEVER_PIVOT.y - LEVER_LEN" r="9" fill="var(--signal)" stroke="currentColor" stroke-width="2" />
         </g>
       </g>
-      <text
-        v-if="game.deny > 0"
-        data-test="not-yet"
-        :x="LEVER_PIVOT.x - 20"
-        :y="LEVER_PIVOT.y - 72"
-        fill="var(--signal)"
-        font-family="JetBrains Mono, ui-monospace, monospace"
-        font-size="12"
-        text-anchor="middle"
-      >not yet</text>
-
-      <text
-        v-if="game.miss > 0"
-        data-test="miss"
-        :x="MISS_X"
-        :y="MISS_Y"
-        fill="var(--signal)"
-        font-family="JetBrains Mono, ui-monospace, monospace"
-        font-size="18"
-        text-anchor="end"
-        :opacity="Math.min(1, game.miss + 0.25)"
-      >miss</text>
-      <text
-        v-if="game.rex === 'cheer'"
-        data-test="cheer"
-        :x="pose.rootX"
-        :y="pose.rootY - 278"
-        fill="var(--signal)"
-        font-family="JetBrains Mono, ui-monospace, monospace"
-        font-size="20"
-        text-anchor="middle"
-      >yeah</text>
-
       <g
         v-for="box in drawnBoxes"
         :key="box.id"
@@ -421,6 +389,7 @@ defineExpose({ game, advance, act })
         <g
           data-test="machine"
           :data-grown="grown.toFixed(2)"
+          :data-squeeze="squeeze.toFixed(3)"
           :transform="machineTransform"
           fill="currentColor"
         >

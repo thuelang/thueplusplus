@@ -106,7 +106,7 @@ function onSwap(): void {
         v-for="link in headerLinks"
         :key="link.to"
         :to="link.to"
-        class="shrink-0 lowercase transition-colors duration-150"
+        class="shrink-0 lowercase transition-colors duration-150 ease-out"
         :class="headerLinkCurrent(route.path, link.to) ? 'text-bone' : 'text-ash hover:text-bone'"
         :aria-current="headerLinkCurrent(route.path, link.to) ? 'page' : undefined"
       >
@@ -128,7 +128,7 @@ function onSwap(): void {
       :style="{
         transform: `scaleX(${progress.scale})`,
         opacity: progress.state === 'run' || progress.state === 'done' ? 1 : 0,
-        transition: reduced() || progress.state === 'run' || progress.state === 'idle' ? 'none' : progress.state === 'done' ? 'transform 450ms linear' : 'opacity 200ms linear',
+        transition: reduced() || progress.state === 'run' || progress.state === 'idle' ? 'none' : progress.state === 'done' ? 'transform 450ms cubic-bezier(0.4, 0, 1, 1)' : 'opacity 200ms cubic-bezier(0, 0, 0.2, 1)',
       }"
     />
   </header>

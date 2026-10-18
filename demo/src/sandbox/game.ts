@@ -25,6 +25,8 @@ import {
   OPENING_Y,
   YANK,
   boxPlace,
+  easeIn,
+  easeOut,
   inHit,
   pastMachine,
 } from './layout'
@@ -160,8 +162,8 @@ export function roll(state: number): { state: number, value: number } {
 export function leverCurve(t: number): number {
   const u = t / YANK
   if (u <= 0) return 0
-  if (u < 0.3) return u / 0.3
-  if (u < 1) return Math.max(0, 1 - (u - 0.3) / 0.7)
+  if (u < 0.3) return easeOut(u / 0.3)
+  if (u < 1) return 1 - easeIn((u - 0.3) / 0.7)
   return 0
 }
 

@@ -232,29 +232,89 @@ export function bodyCenterLocal(eyeX, eyeY) {
   return { x: BODY_CENTER.x - eyeX, y: BODY_CENTER.y - eyeY }
 }
 
+function easeInCubic(t) {
+  const u = clamp01(t)
+  return u * u * u
+}
+
+/** Ease-out with a small overshoot, then a settle at 1. */
+function easeOutBack(t) {
+  const u = clamp01(t)
+  const back = 1.15
+  const c3 = back + 1
+  return 1 + c3 * (u - 1) ** 3 + back * (u - 1) ** 2
+}
+
 /**
- * Incoming hat grows from the body center to the head.
- * Outgoing hat shrinks from the head into the body center.
- * `t` is 0 at the click and 1 when the swap has finished.
- * The hats move from 0.16 to 0.92 so the hand can arrive first.
+ * Bounds of the filled hat, in hat-local space. The center is where a
+ * swap scales, so a tall hat and a flat one each shrink into themselves.
+ * @param {string} id
+ */
+export function hatCenter(id) {
+  const shape = hatShape(id)
+  let x0 = Infinity
+  let y0 = Infinity
+  let x1 = -Infinity
+  let y1 = -Infinity
+  for (const part of shape.parts) {
+    if (part.role !== 'hat') continue
+    const box = partBox(part)
+    x0 = Math.min(x0, box.x0)
+    y0 = Math.min(y0, box.y0)
+    x1 = Math.max(x1, box.x1)
+    y1 = Math.max(y1, box.y1)
+  }
+  if (!Number.isFinite(x0)) throw new Error(`hat ${id} has no silhouette`)
+  return { x: (x0 + x1) / 2, y: (y0 + y1) / 2 }
+}
+
+/** @param {MarkPart} part */
+function partBox(part) {
+  if (part.kind === 'ellipse' || part.kind === 'circle') {
+    const rx = part.kind === 'circle' ? part.r : part.rx
+    const ry = part.kind === 'circle' ? part.r : part.ry
+    return { x0: part.cx - rx, y0: part.cy - ry, x1: part.cx + rx, y1: part.cy + ry }
+  }
+  if (part.kind === 'rect') return { x0: part.x, y0: part.y, x1: part.x + part.w, y1: part.y + part.h }
+  if (part.kind === 'path') {
+    const nums = part.d.match(/-?\d*\.?\d+/g)
+    if (!nums || nums.length < 2) throw new Error('hat path has no points')
+    let x0 = Infinity
+    let y0 = Infinity
+    let x1 = -Infinity
+    let y1 = -Infinity
+    for (let i = 0; i + 1 < nums.length; i += 2) {
+      const x = Number(nums[i])
+      const y = Number(nums[i + 1])
+      x0 = Math.min(x0, x)
+      y0 = Math.min(y0, y)
+      x1 = Math.max(x1, x)
+      y1 = Math.max(y1, y)
+    }
+    return { x0, y0, x1, y1 }
+  }
+  throw new Error(`hat part ${part.kind} has no box`)
+}
+
+/**
+ * Both hats stay on the head. The old one scales out in place. The new one
+ * scales in in place, with a small overshoot. `t` is 0 at the click and 1
+ * when the swap has finished. `eyeX` and `eyeY` stay in the signature so a
+ * caller can name the head the hats are pinned to.
  * @param {number} t
  * @param {number} eyeX
  * @param {number} eyeY
  */
 export function hatSwapFrame(t, eyeX, eyeY) {
-  const eased = swapArrive(t)
-  const center = bodyCenterLocal(eyeX, eyeY)
+  if (!Number.isFinite(eyeX) || !Number.isFinite(eyeY)) {
+    throw new Error(`hat swap needs a finite head, got ${eyeX}, ${eyeY}`)
+  }
+  const u = clamp01(t)
+  const leave = clamp01((u - 0.04) / 0.58)
+  const arrive = clamp01((u - 0.32) / 0.68)
   return {
-    incoming: {
-      x: center.x * (1 - eased),
-      y: center.y * (1 - eased),
-      scale: eased,
-    },
-    outgoing: {
-      x: center.x * eased,
-      y: center.y * eased,
-      scale: 1 - eased,
-    },
+    incoming: { x: 0, y: 0, scale: easeOutBack(arrive) },
+    outgoing: { x: 0, y: 0, scale: 1 - easeInCubic(leave) },
   }
 }
 
@@ -273,10 +333,9 @@ export function swapArrive(t) {
  */
 export function hatTiltAt(restTilt, t, reduced) {
   if (!Number.isFinite(restTilt)) throw new Error(`hat tilt must be finite, got ${restTilt}`)
-  if (reduced) return restTilt
-  const arrive = swapArrive(t)
-  const wobble = Math.sin(arrive * Math.PI * 3) * (1 - arrive) * 4.5
-  return restTilt * arrive + wobble
+  if (!Number.isFinite(t)) throw new Error(`hat tilt time must be finite, got ${t}`)
+  if (typeof reduced !== 'boolean') throw new Error('reduced must be a boolean')
+  return restTilt
 }
 
 /**
@@ -286,9 +345,10 @@ export function hatTiltAt(restTilt, t, reduced) {
  * @param {boolean} reduced
  */
 export function hatOffsetAt(offset, t, reduced) {
-  if (reduced) return { x: offset.x, y: offset.y }
-  const arrive = swapArrive(t)
-  return { x: offset.x * arrive, y: offset.y * arrive }
+  if (!Number.isFinite(offset.x) || !Number.isFinite(offset.y)) throw new Error('hat offset must be finite')
+  if (!Number.isFinite(t)) throw new Error(`hat offset time must be finite, got ${t}`)
+  if (typeof reduced !== 'boolean') throw new Error('reduced must be a boolean')
+  return { x: offset.x, y: offset.y }
 }
 
 /**
@@ -308,14 +368,10 @@ function lerpPoint(a, b, t) {
  */
 export function pullHand(t, rest) {
   const u = clamp01(t)
-  const center = { x: BODY_CENTER.x, y: BODY_CENTER.y }
-  if (u <= 0.22) return lerpPoint(rest, center, smooth(u / 0.22))
-  const frame = hatSwapFrame(u, 0, MARK.eyeDy)
-  const anchor = { x: frame.incoming.x, y: MARK.eyeDy + frame.incoming.y }
-  if (u <= 0.68) return anchor
-  const releaseFrame = hatSwapFrame(0.68, 0, MARK.eyeDy)
-  const release = { x: releaseFrame.incoming.x, y: MARK.eyeDy + releaseFrame.incoming.y }
-  return lerpPoint(release, rest, smooth((u - 0.68) / 0.32))
+  const brim = { x: rest.x * 0.2, y: MARK.eyeDy + 14 }
+  if (u <= 0.32) return lerpPoint(rest, brim, smooth(u / 0.32))
+  if (u <= 0.68) return brim
+  return lerpPoint(brim, rest, smooth((u - 0.68) / 0.32))
 }
 
 /**

@@ -61,10 +61,14 @@ bindMascot()
   }
 }
 
+/* Close eases in over 70ms, holds 30ms, then eases out over 130ms.
+   The samples are the curve. The timing function only walks those samples. */
 @keyframes rex-blink {
   0% { transform: scaleY(1); }
+  15.2% { transform: scaleY(0.892); }
   30.43% { transform: scaleY(0.14); }
   43.48% { transform: scaleY(0.14); }
+  71.7% { transform: scaleY(0.892); }
   100% { transform: scaleY(1); }
 }
 </style>

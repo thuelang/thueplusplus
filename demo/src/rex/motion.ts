@@ -136,7 +136,7 @@ class Track {
   keys: Key[]
 
   constructor(t: number, v: Pt) {
-    this.keys = [{ t, v, ex: 'linear', ey: 'linear', arc: 0, back: 1.7 }]
+    this.keys = [{ t, v, ex: 'inOut', ey: 'inOut', arc: 0, back: 1.7 }]
   }
 
   last(): Pt {
@@ -155,7 +155,7 @@ class Track {
     const lt = this.lastT()
     if (t0 < lt - 1e-3) throw new Error(`track keys out of order: ${t0} < ${lt}`)
     if (t0 > lt + 1e-4) {
-      this.keys.push({ t: t0, v: this.last(), ex: 'linear', ey: 'linear', arc: 0, back })
+      this.keys.push({ t: t0, v: this.last(), ex: 'inOut', ey: 'inOut', arc: 0, back })
     }
     if (!(t1 > t0)) throw new Error(`track segment must advance: ${t0} -> ${t1}`)
     this.keys.push({ t: t1, v, ex, ey, arc, back })
@@ -228,7 +228,7 @@ export function buildWalk(distance: number): { duration: number, at: (t: number)
       const max = fl + STANCE + STRIDE
       const target = Math.min(fr + (first ? STRIDE : 2 * STRIDE), max, finalFr)
       if (target > fr + 0.5) {
-        footR.mv2(t, t + dur, footOn(target), 'step', 'linear', STEP_LIFT)
+        footR.mv2(t, t + dur, footOn(target), 'step', 'out', STEP_LIFT)
         fr = target
       }
       swing = 1
@@ -236,7 +236,7 @@ export function buildWalk(distance: number): { duration: number, at: (t: number)
       const max = fr - STANCE + STRIDE
       const target = Math.min(fl + 2 * STRIDE, max, finalFl)
       if (target > fl + 0.5) {
-        footL.mv2(t, t + dur, footOn(target), 'step', 'linear', STEP_LIFT)
+        footL.mv2(t, t + dur, footOn(target), 'step', 'out', STEP_LIFT)
         fl = target
       }
       swing = -1

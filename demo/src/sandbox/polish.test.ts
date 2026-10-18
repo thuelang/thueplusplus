@@ -7,6 +7,7 @@ import {
   BOX_REACH,
   GROUND,
   MACHINE_GROW,
+  MACHINE_SQUEEZE,
   MACHINE_X,
   OPENING_Y,
   REX_LEVER,
@@ -23,6 +24,7 @@ import {
   inHit,
   leverKnob,
   machineScale,
+  machineSqueeze,
 } from './layout'
 
 describe('hero polish', () => {
@@ -58,9 +60,13 @@ describe('hero polish', () => {
     }
     expect(scene).toContain('Rex at the machine.')
     expect(scene).toContain('data-test="scene-status"')
-    expect(scene).toContain('data-test="miss"')
-    expect(scene).toContain('>yeah</text>')
-    expect(scene).toContain('>not yet</text>')
+    expect(scene).toContain("status.value = 'Miss.'")
+    expect(scene).not.toContain('>miss</text>')
+    expect(scene).not.toContain('>yeah</text>')
+    expect(scene).not.toContain('>not yet</text>')
+    expect(scene).not.toContain('data-test="miss"')
+    expect(scene).not.toContain('data-test="cheer"')
+    expect(scene).not.toContain('data-test="not-yet"')
   })
 
   it('draws no curtains and no cage stack', () => {
@@ -106,6 +112,28 @@ describe('hero polish', () => {
     expect(scene).toContain('drawnBoxes')
     expect(scene).toContain('boxInFrame')
     expect(scene).not.toContain('v-for="box in game.boxes"')
+  })
+
+  it('squeezes the machine down on a miss and recovers', () => {
+    expect(machineSqueeze(0, false)).toBe(1)
+    expect(machineSqueeze(1, false)).toBe(1)
+    expect(machineSqueeze(0.55, true)).toBe(1)
+    const deep = machineSqueeze(0.55, false)
+    expect(deep).toBeCloseTo(1 - MACHINE_SQUEEZE, 5)
+    expect(1 - deep).toBeGreaterThan(MACHINE_GROW)
+    expect(machineSqueeze(0.2, false)).toBeGreaterThan(deep)
+    expect(machineSqueeze(0.9, false)).toBeGreaterThan(deep)
+    expect(() => machineSqueeze(1.2, false)).toThrow(/miss/)
+    expect(() => machineSqueeze(0, 'no' as unknown as boolean)).toThrow(/boolean/)
+    const grown = machineScale(1)
+    const width = grown
+    const height = grown * deep
+    expect(width).toBeGreaterThan(1)
+    expect(height).toBeLessThan(1)
+    const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
+    expect(scene).toContain('scale(${scale} ${height})')
+    expect(scene).toContain('translate(${MACHINE_X} ${GROUND})')
+    expect(scene).toContain('data-squeeze')
   })
 
   it('machine grows while a box is in range', () => {
