@@ -2,7 +2,7 @@ import { nextTick } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SandboxScene from '@/components/SandboxScene.vue'
-import { BELT_TOP, VIEW_W, beltPoint, scannerAperture, walkDistance } from './layout'
+import { TUNNEL_BOTTOM, beltPoint, scannerAperture, walkDistance } from './layout'
 import { difficulty } from './game'
 import { WALK_DURATION, blinkCurve, framePose, settledSpring, stepSpring } from './motion'
 import { inZone, type Game } from './game'
@@ -79,16 +79,15 @@ describe('rex sandbox scene', () => {
     expect(wrapper.find('[data-test="hard-hat"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="rex-mark"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="lever"]').exists()).toBe(true)
-    expect(wrapper.get('[data-test="belt"]').attributes('data-running')).toBe('yes')
+    expect(wrapper.find('[data-test="belt"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="scanner-flap"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="cage"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="scanner"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="capture-zone"]').exists()).toBe(true)
-    expect(wrapper.findAll('[data-test="scanner-flap"]')).toHaveLength(3)
-    expect(wrapper.find('[data-test="jail"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="speech-text"]').text()).toBe('i guess we')
     expect(wrapper.find('[data-test="floor"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="machine"]').exists()).toBe(true)
-    expect(wrapper.get('[data-test="start-hint"]').text()).toBe('your turn')
-    expect(wrapper.emitted('offer')?.[0]).toEqual([true])
+    expect(wrapper.find('[data-test="start-hint"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="score"]').text()).toBe('0')
     expect(wrapper.find('video').exists()).toBe(false)
     expect(wrapper.find('[data-kind]').exists()).toBe(false)
@@ -98,8 +97,8 @@ describe('rex sandbox scene', () => {
     const rex = wrapper.get('[data-test="rex"]')
     expect(rex.element.tagName).toBe('BUTTON')
     expect(rex.attributes('type')).toBe('button')
-    expect(rex.attributes('aria-label')).toBe('Your turn. Take over the lever.')
-    expect(wrapper.get('[data-test="lever-hit"]').attributes('aria-label')).toBe('Your turn. Take over the lever.')
+    expect(rex.attributes('aria-label')).toBe('Rex.')
+    expect(wrapper.get('[data-test="lever-hit"]').attributes('aria-label')).toBe('Rex.')
     const scene = wrapper.get('[data-test="sandbox-scene"]')
     expect(scene.attributes('data-belt')).toBe('on')
     expect(scene.attributes('data-phase')).toBe('playing')
@@ -116,7 +115,6 @@ describe('rex sandbox scene', () => {
     expect(click.get('[data-test="sandbox-scene"]').attributes('data-phase')).toBe('playing')
     expect(click.get('[data-test="sandbox-scene"]').attributes('data-control')).toBe('player')
     expect(click.get('[data-test="lever"]').attributes('data-on')).toBe('yes')
-    expect(click.emitted('offer')?.at(-1)).toEqual([false])
     expect(click.get('[data-test="start-hint"]').text()).toBe('pull the lever')
     expect(click.get('[data-test="scanner"]').attributes('transform')).toBe('translate(0 0)')
     click.unmount()
@@ -130,8 +128,7 @@ describe('rex sandbox scene', () => {
     const spaced = mountScene()
     document.body.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }))
     await nextTick()
-    expect(spaced.get('[data-test="sandbox-scene"]').attributes('data-control')).toBe('player')
-    expect(exposed(spaced).game.score).toBe(0)
+    expect(spaced.get('[data-test="sandbox-scene"]').attributes('data-control')).toBe('auto')
     spaced.unmount()
 
     const touched = mountScene()
@@ -180,7 +177,7 @@ describe('rex sandbox scene', () => {
     expect(api.game.control).toBe('player')
     expect(api.game.jolt).toBeGreaterThan(0)
     await nextTick()
-    expect(scene.find('[data-test="cage"]').exists()).toBe(true)
+    expect(scene.find('[data-test="cage"]').exists()).toBe(false)
     expect(scene.get('[data-test="score"]').text()).toBe('1')
     scene.unmount()
   })
@@ -288,15 +285,12 @@ describe('rex sandbox scene', () => {
 
   it('gate side', async () => {
     const wrapper = mountScene()
-    const belt = wrapper.get('[data-test="belt"]')
-    expect(belt.attributes('data-span')).toBe('full')
-    const surface = belt.get('[data-test="belt-surface"]')
-    expect(surface.attributes('x')).toBe('0')
-    expect(surface.attributes('width')).toBe(String(VIEW_W))
+    expect(wrapper.find('[data-test="belt"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="floor"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="sandbox-scene"]').attributes('data-side')).toBe('yes')
     const html = wrapper.html()
-    expect(html.indexOf('data-test="rex-mark"')).toBeLessThan(html.indexOf('data-test="belt"'))
-    expect(html.indexOf('data-test="belt"')).toBeLessThan(html.indexOf('data-test="belt-blur"'))
+    expect(html).not.toContain('data-test="belt"')
+    expect(html.indexOf('data-test="floor"')).toBeLessThan(html.indexOf('data-test="rex-mark"'))
     await wrapper.get('[data-test="rex"]').trigger('click')
     const api = exposed(wrapper)
     let steps = 0
@@ -306,7 +300,7 @@ describe('rex sandbox scene', () => {
     }
     await nextTick()
     const box = wrapper.get('[data-test="box"]')
-    expect(box.attributes('transform')).toContain(String(BELT_TOP))
+    expect(box.attributes('transform')).toContain(String(TUNNEL_BOTTOM))
     expect(box.get('rect').attributes('y')).toBe('-36')
     wrapper.unmount()
   })
@@ -367,5 +361,70 @@ describe('rex sandbox scene', () => {
     const sprung = stepSpring(settledSpring(), { x: 10, y: 0 }, 0.016)
     expect(sprung.x).toBeGreaterThan(0)
     expect(sprung.x).toBeLessThan(4)
+  })
+
+  it('a click on the game area takes over', async () => {
+    const wrapper = mountScene()
+    const scene = wrapper.get('[data-test="sandbox-scene"]')
+    await scene.trigger('click')
+    expect(scene.attributes('data-control')).toBe('player')
+    expect(scene.attributes('data-presence')).toBe('pointer')
+    expect(scene.attributes('data-miss')).toBe('no')
+    wrapper.unmount()
+  })
+
+  it('hint stays hidden until the pointer is over the game', async () => {
+    const wrapper = mountScene()
+    const scene = wrapper.get('[data-test="sandbox-scene"]')
+    expect(wrapper.find('[data-test="start-hint"]').exists()).toBe(false)
+    await scene.trigger('pointerenter', { pointerType: 'mouse' })
+    expect(scene.attributes('data-control')).toBe('auto')
+    expect(wrapper.get('[data-test="start-hint"]').text()).toBe('your turn')
+    await wrapper.get('[data-test="lever-hit"]').trigger('click')
+    expect(scene.attributes('data-control')).toBe('player')
+    expect(wrapper.get('[data-test="start-hint"]').text()).toBe('pull the lever')
+    await scene.trigger('pointerleave', { pointerType: 'mouse' })
+    expect(scene.attributes('data-control')).toBe('auto')
+    expect(wrapper.find('[data-test="start-hint"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('hover hands the turn back before a box can break the page', async () => {
+    const wrapper = mountScene()
+    const scene = wrapper.get('[data-test="sandbox-scene"]')
+    await scene.trigger('pointerenter', { pointerType: 'mouse' })
+    expect(scene.attributes('data-control')).toBe('auto')
+    await wrapper.get('[data-test="rex"]').trigger('click')
+    expect(scene.attributes('data-control')).toBe('player')
+    const api = exposed(wrapper)
+    let guard = 0
+    while (!api.game.boxes.some(box => box.progress > 0.9) && guard < 4000) {
+      api.advance(1 / 30)
+      guard += 1
+    }
+    expect(api.game.boxes.some(box => box.progress > 0.9)).toBe(true)
+    await scene.trigger('pointerleave', { pointerType: 'mouse' })
+    expect(api.game.control).toBe('auto')
+    expect(api.game.phase).toBe('playing')
+    expect(api.game.boxes).toHaveLength(0)
+    api.advance(1)
+    expect(api.game.phase).not.toBe('broken')
+    wrapper.unmount()
+  })
+
+  it('keyboard focus takes over and blur hands back', async () => {
+    const wrapper = mountScene()
+    const scene = wrapper.get('[data-test="sandbox-scene"]')
+    const lever = wrapper.get('[data-test="lever-hit"]')
+    await lever.trigger('focusin')
+    expect(scene.attributes('data-presence')).toBe('keys')
+    expect(scene.attributes('data-control')).toBe('auto')
+    expect(wrapper.get('[data-test="start-hint"]').text()).toBe('your turn')
+    await lever.trigger('keydown', { key: 'Enter' })
+    expect(scene.attributes('data-control')).toBe('player')
+    await scene.trigger('focusout', { relatedTarget: document.body })
+    expect(scene.attributes('data-control')).toBe('auto')
+    expect(scene.attributes('data-presence')).toBe('away')
+    wrapper.unmount()
   })
 })

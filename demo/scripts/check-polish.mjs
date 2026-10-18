@@ -184,16 +184,22 @@ async function checkVeil() {
     if (!(style.fadeR >= 48)) fail(`right veil fade is ${style.fadeR}px`)
     if (!(style.fadeT >= 24)) fail(`top veil fade is ${style.fadeT}px`)
     if (!(style.fadeB >= 48)) fail(`bottom veil fade is ${style.fadeB}px`)
-    const belt = await page.locator('[data-test="belt-surface"]').boundingBox()
-    if (!belt) fail('belt surface is missing')
+    const floor = await page.evaluate(() => {
+      const line = document.querySelector('[data-test="floor"]')
+      if (!line) return null
+      const box = line.getBoundingClientRect()
+      return { x: box.x, y: box.y, width: box.width, height: box.height }
+    })
+    if (!floor || floor.width < 100) fail('ground line is missing')
     if (style.box.left < 8) fail(`veil fade is clipped by the viewport at x=${style.box.left}`)
     if (style.box.right > 1440 - 8) fail(`veil is clipped by the viewport at x=${style.box.right}`)
     const shot = decodePng(await page.screenshot({ type: 'png' }))
-    const y0 = belt.y + 3
-    const y1 = belt.y + Math.min(10, belt.height - 2)
+    const y = Math.max(0, Math.min(shot.height - 1, Math.round(floor.y + floor.height / 2)))
+    const y0 = y
+    const y1 = y
     function fadeRelease(samples, outside, opaque, label) {
       const range = Math.abs(outside - opaque)
-      if (range < 12) fail(`veil does not change the belt on the ${label} (opaque ${opaque.toFixed(1)}, outside ${outside.toFixed(1)})`)
+      if (range < 12) fail(`veil does not change the ground line on the ${label} (opaque ${opaque.toFixed(1)}, outside ${outside.toFixed(1)})`)
       let maxStep = 0
       for (let i = 1; i < samples.length; i++) maxStep = Math.max(maxStep, Math.abs(samples[i] - samples[i - 1]))
       const edge = label === 'left' ? samples[0] : samples[samples.length - 1]
@@ -202,7 +208,7 @@ async function checkVeil() {
         fail(`veil fade has a hard step of ${maxStep.toFixed(1)} on a ${range.toFixed(1)} swing (${label})`)
       }
       if (released > 0.4) {
-        fail(`veil still dims the belt at its ${label} edge (released ${released.toFixed(2)}, edge ${edge.toFixed(1)}, outside ${outside.toFixed(1)})`)
+        fail(`veil still dims the ground line at its ${label} edge (released ${released.toFixed(2)}, edge ${edge.toFixed(1)}, outside ${outside.toFixed(1)})`)
       }
     }
     const left = []
@@ -242,43 +248,36 @@ async function checkGround() {
         const box = dot.getBoundingClientRect()
         return { top: box.top, bottom: box.bottom }
       })
-      const belt = scene.querySelector('[data-test="belt"]').getBoundingClientRect()
-      const floor = scene.querySelector('[data-test="floor"]').getBoundingClientRect()
+      const belt = scene.querySelector('[data-test="belt"]')
+      const floorEl = scene.querySelector('[data-test="floor"]')
+      const floor = floorEl.getBoundingClientRect()
       const mark = scene.querySelector('[data-test="rex-mark"]')
-      const beltGroup = scene.querySelector('[data-test="belt"]')
       const svg = scene.querySelector('svg').getBoundingClientRect()
-      const order = mark.compareDocumentPosition(beltGroup)
+      const order = floorEl.compareDocumentPosition(mark)
       return {
+        hasBelt: Boolean(belt),
         dots,
-        belt: { top: belt.top, bottom: belt.bottom },
-        floor: { top: floor.top, bottom: floor.bottom },
+        floor: { top: floor.top, bottom: floor.bottom, height: floor.height },
         svgBottom: svg.bottom,
-        markBeforeBelt: (order & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+        floorBeforeRex: (order & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
       }
     })
-    if (!measured.markBeforeBelt) fail('belt is painted before Rex')
+    if (measured.hasBelt) fail('conveyor belt is still drawn')
+    if (!measured.floorBeforeRex) fail('ground line is painted over Rex')
+    if (measured.floor.height > 4) fail(`ground line is ${measured.floor.height.toFixed(1)}px tall`)
     if (measured.dots.length !== 4) fail(`expected 4 Rex dots, got ${measured.dots.length}`)
     const sorted = [...measured.dots].sort((a, b) => a.top - b.top)
     const feet = sorted.slice(2)
     for (const foot of feet) {
-      const gap = foot.top - measured.belt.bottom
-      const peek = foot.bottom - measured.belt.bottom
-      if (gap > 2) {
-        fail(`Rex foot starts ${gap.toFixed(1)}px below the belt, so it floats`)
-      }
-      if (peek < 6) {
-        fail(`Rex foot only peeks ${peek.toFixed(1)}px under the belt`)
-      }
-      if (peek > 22) {
-        fail(`Rex foot hangs ${peek.toFixed(1)}px under the belt`)
-      }
+      const height = foot.bottom - foot.top
+      if (height < 24) fail(`Rex foot is only ${height.toFixed(1)}px tall`)
+      const floatGap = measured.floor.top - foot.bottom
+      if (floatGap > 3) fail(`Rex foot floats ${floatGap.toFixed(1)}px above the ground line`)
+      const hang = foot.bottom - measured.floor.bottom
+      if (hang > 2) fail(`Rex foot hangs ${hang.toFixed(1)}px under the ground line`)
       if (foot.bottom > measured.svgBottom - 1) {
         fail(`Rex foot is clipped at ${foot.bottom.toFixed(1)} past the scene ${measured.svgBottom.toFixed(1)}`)
       }
-    }
-    const floorGap = measured.floor.top - measured.belt.bottom
-    if (floorGap < 4 || floorGap > 28) {
-      fail(`floor line is ${floorGap.toFixed(1)}px under the belt`)
     }
     console.log('rex grounded ok')
   } finally {
@@ -558,13 +557,25 @@ async function checkScorePlace() {
       const overlaps = (a, b) => a && b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
       return {
         opacity,
+        groupOpacity: Number(getComputedStyle(label.parentElement).opacity),
+        scoreHeight: scoreBox.height,
+        headlineHeight: document.querySelector('[data-test="page-hero"] h1 + p')?.getBoundingClientRect().height ?? 0,
+        yourTurn: Boolean(document.querySelector('[data-test="your-turn"]')),
+        install: document.querySelector('[data-test="hero-install"]')?.textContent ?? '',
         labelRight: labelBox.right,
         scoreRight: scoreBox.right,
         copyLeft: copy.left,
         hitsBubble: overlaps(scoreBox, bubble) || overlaps(labelBox, bubble),
       }
     })
-    if (placed.opacity < 0.95) fail(`score label opacity is ${placed.opacity}`)
+    if (placed.yourTurn) fail('your turn button is in the hero')
+    if (placed.install !== 'install') fail(`install button is ${placed.install}`)
+    if (placed.groupOpacity > 0.85 || placed.groupOpacity < 0.55) {
+      fail(`score opacity is ${placed.groupOpacity}`)
+    }
+    if (!(placed.headlineHeight > placed.scoreHeight * 1.6)) {
+      fail(`score is ${placed.scoreHeight.toFixed(1)}px against a ${placed.headlineHeight.toFixed(1)}px headline`)
+    }
     if (placed.scoreRight > placed.copyLeft - 16) {
       fail(`score reaches x=${placed.scoreRight.toFixed(0)} into the copy at ${placed.copyLeft.toFixed(0)}`)
     }
@@ -579,21 +590,21 @@ async function checkStray() {
   const { browser, page } = await open()
   try {
     await page.goto(`${DEV}/`, { waitUntil: 'domcontentloaded', timeout: 30000 })
-    await page.locator('[data-test="belt"]').waitFor()
+    await page.locator('[data-test="sandbox-scene"]').waitFor()
     const stray = await page.evaluate(() => {
       const scene = document.querySelector('[data-test="sandbox-scene"]')
-      const belt = scene.querySelector('[data-test="belt"]').getBoundingClientRect()
+      const floor = scene.querySelector('[data-test="floor"]').getBoundingClientRect()
       const found = []
       for (const rect of scene.querySelectorAll('rect')) {
         const box = rect.getBoundingClientRect()
         if (box.width < 8 || box.height < 4) continue
-        if (box.top > belt.bottom + 2) {
+        if (box.top > floor.bottom + 2) {
           found.push(`${Math.round(box.x)},${Math.round(box.y)} ${Math.round(box.width)}x${Math.round(box.height)}`)
         }
       }
       return found
     })
-    if (stray.length) fail(`stray rects under the belt: ${stray.join('; ')}`)
+    if (stray.length) fail(`stray rects under the ground line: ${stray.join('; ')}`)
     console.log('no stray rects')
   } finally {
     await browser.close()

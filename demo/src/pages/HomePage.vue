@@ -13,12 +13,6 @@ import { beginRubble, type Rubble } from '@/sandbox/rubble'
 const ready = registryHosts
 const soon = soonLanguages
 const rubble = ref<Rubble | null>(null)
-const offer = ref(true)
-const sandbox = ref<{ act: () => void } | null>(null)
-
-function onOffer(value: boolean): void {
-  offer.value = value
-}
 
 function onBreak(reduced: boolean): void {
   rubble.value?.restore(true)
@@ -41,7 +35,7 @@ onBeforeUnmount(() => {
     <div class="page-screen page-screen-bare">
       <section data-test="page-hero" class="page-hero px-4 sm:px-6 lg:px-14">
         <div class="rex-bleed" data-test="belt-bleed">
-          <SandboxScene ref="sandbox" @break="onBreak" @rebuilt="onRebuilt" @offer="onOffer" />
+          <SandboxScene @break="onBreak" @rebuilt="onRebuilt" />
         </div>
         <div class="pointer-events-none relative z-10 grid min-h-0 flex-1 items-start gap-4 pb-2 lg:grid-cols-[minmax(0,1fr)_minmax(280px,1fr)] lg:items-end lg:pb-16">
           <div class="hidden lg:block" aria-hidden="true" />
@@ -57,16 +51,10 @@ onBeforeUnmount(() => {
               </template><template v-if="soon.length">, and soon {{ soon.join(', ') }}</template>
             </p>
             <div class="mt-4 flex flex-wrap gap-2">
-              <Button
-                v-if="offer"
-                type="button"
-                size="lg"
-                data-shard
-                data-test="your-turn"
-                aria-label="Your turn. Take over the lever."
-                @click="sandbox?.act()"
-              >your turn</Button>
               <Button as-child size="lg" data-shard>
+                <RouterLink to="/install" data-test="hero-install">install</RouterLink>
+              </Button>
+              <Button as-child size="lg" variant="outline" data-shard>
                 <RouterLink to="/playground">playground</RouterLink>
               </Button>
               <Button as-child size="lg" variant="outline" data-shard>
