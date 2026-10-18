@@ -67,10 +67,11 @@ function faviconFile() {
   assert(svg.includes('color-scheme: light dark'), 'favicon.svg does not opt into both schemes')
   assert(svg.includes('@media (prefers-color-scheme: dark)'), 'favicon.svg has no dark scheme')
   assert(svg.includes(paint.iconInkLight.hex) && svg.includes(paint.iconInkDark.hex), 'favicon.svg misses a scheme ink')
-  assert(svg.includes(paint.hat.hex), 'favicon.svg misses the hat color')
-  assert(svg.includes(hat.crown), 'favicon.svg misses the shared crown')
+  assert(!svg.includes(paint.hat.hex), 'favicon.svg still paints the hat')
+  assert(!svg.includes(hat.crown), 'favicon.svg still draws the crown')
+  assert(!svg.includes('class="hat"'), 'favicon.svg still has a hat group')
   assert(!svg.includes(hat.shine), 'small favicon still draws the shine stroke')
-  console.log('favicon-svg: scheme-adaptive shared-geometry')
+  console.log('favicon-svg: no-hat scheme-adaptive')
 }
 
 function pngSize(path) {
@@ -87,7 +88,8 @@ function icons() {
   assert(icon192.width === 192 && icon192.height === 192, `icon-192 is ${icon192.width}`)
   assert(icon512.width === 512 && icon512.height === 512, `icon-512 is ${icon512.width}`)
   assert(apple.width === 180 && apple.height === 180, `apple touch is ${apple.width}`)
-  for (const [name, image] of [['favicon', favicon], ['192', icon192], ['512', icon512], ['apple', apple]]) {
+  assert(countOrange(favicon) === 0, 'favicon.png still has a hard hat')
+  for (const [name, image] of [['192', icon192], ['512', icon512], ['apple', apple]]) {
     assert(countOrange(image) > 20, `${name} has no hard hat`)
   }
   const manifest = read('demo/public/site.webmanifest')
@@ -115,13 +117,12 @@ function small() {
       for (const bar of bars) assert(bar.tall, `${size}px ${scheme} eye bar is not vertical`)
       const orange = countOrange(image)
       const ink = countInk(image, scheme)
-      assert(orange > 8, `${size}px ${scheme} has no hat`)
-      assert(ink > orange, `${size}px ${scheme} hat is larger than the body`)
+      assert(orange === 0, `${size}px ${scheme} still draws a hat`)
       assert(ink > size * size * 0.18, `${size}px ${scheme} body does not fill the icon`)
-      assert(hatAboveEyes(image, scheme), `${size}px ${scheme} hat is not above the eyes`)
+      assert(!hatAboveEyes(image, scheme), `${size}px ${scheme} still has a hat above the eyes`)
     }
   }
-  console.log('small-rex: 16-hat-eyes 32-hat-eyes')
+  console.log('small-rex: 16-no-hat 32-no-hat')
 }
 
 function source() {
@@ -147,7 +148,6 @@ function source() {
   hits.sort()
   const allowed = [
     'demo/public/brand/thue-mark.svg',
-    'demo/public/favicon.svg',
     'demo/src/rex/geometry.mjs',
   ]
   assert(JSON.stringify(hits) === JSON.stringify(allowed), `crown path lives in ${hits.join(', ')}`)

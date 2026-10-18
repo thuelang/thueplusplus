@@ -32,17 +32,18 @@ onBeforeUnmount(() => {
 <template>
   <div class="overflow-x-clip">
   <div class="mx-auto w-full max-w-[1320px]">
-    <div class="page-screen page-screen-bare">
-      <section data-test="page-hero" class="page-hero px-4 sm:px-6 lg:px-14">
+    <div class="page-screen page-screen-bare home-screen">
+      <section data-test="page-hero" class="page-hero home-hero px-4 sm:px-6 lg:px-14">
+        <div class="hero-stage">
         <div class="rex-bleed" data-test="belt-bleed">
           <SandboxScene @break="onBreak" @rebuilt="onRebuilt" />
         </div>
-        <div class="pointer-events-none relative z-10 grid min-h-0 flex-1 items-start gap-4 pb-2 lg:grid-cols-[minmax(0,1fr)_minmax(280px,1fr)] lg:items-end lg:pb-16">
+        <div class="hero-copy-wrap pointer-events-none z-10 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,1fr)] lg:items-center">
           <div class="hidden lg:block" aria-hidden="true" />
           <div class="hero-copy pointer-events-auto min-w-0 lg:justify-self-end">
             <div class="hero-veil" data-test="hero-veil" aria-hidden="true" />
             <h1 data-shard class="font-display text-[15px] font-semibold tracking-[-0.03em]">Thue++</h1>
-            <p data-shard class="font-display mt-3 text-[clamp(32px,5vw,64px)] leading-[1.02] font-extrabold tracking-[-0.05em]">The safest, smallest, sandbox.</p>
+            <p data-shard class="font-display mt-3 text-[clamp(32px,4.2vw,48px)] leading-[1.02] font-extrabold tracking-[-0.05em]">The safest, smallest, sandbox.</p>
             <p data-shard data-test="page-summary" class="text-ash mt-3 max-w-[640px] font-sans text-[15px] leading-snug">A program is rules and one string. The host decides what it can touch.</p>
             <p data-shard data-test="landing-languages" class="text-ash mt-3 max-w-[640px] font-sans text-[15px] leading-snug">
               Available in
@@ -62,6 +63,7 @@ onBeforeUnmount(() => {
               </Button>
             </div>
           </div>
+        </div>
         </div>
       </section>
       <div class="page-screen-gap" aria-hidden="true" />

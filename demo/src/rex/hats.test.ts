@@ -8,6 +8,7 @@ import {
   HAT_IDS,
   HAT_STORAGE_KEY,
   faviconSvg,
+  hat as markHat,
   hatShape,
   hatTiltAt,
   loadHat,
@@ -91,11 +92,11 @@ describe('rex hats', () => {
     expect(hatTiltAt(tilt, 0, false)).toBe(0)
   })
 
-  it('keeps the cocked hard hat on the favicon', () => {
-    const tilt = hatShape('hard').tilt
+  it('draws the favicon with no hat', () => {
     const svg = faviconSvg()
-    expect(svg).toContain(`rotate(${tilt})`)
-    expect(svg).toContain(`translate(${hatShape('hard').offset.x} ${hatShape('hard').offset.y})`)
+    expect(svg).not.toContain(markHat.crown)
+    expect(svg).not.toContain('class="hat"')
+    expect(svg).toContain('class="ink"')
     const party = hatShape('party').parts.find(part => part.kind === 'path' && part.role === 'hat')
     if (!party || party.kind !== 'path') throw new Error('party hat has no crown')
     expect(svg).not.toContain(party.d)

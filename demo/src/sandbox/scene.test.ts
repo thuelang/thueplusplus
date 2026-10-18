@@ -2,7 +2,7 @@ import { nextTick } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SandboxScene from '@/components/SandboxScene.vue'
-import { TUNNEL_BOTTOM, beltPoint, scannerAperture, walkDistance } from './layout'
+import { beltPoint, scannerAperture, walkDistance } from './layout'
 import { difficulty } from './game'
 import { WALK_DURATION, blinkCurve, framePose, settledSpring, stepSpring } from './motion'
 import { inZone, type Game } from './game'
@@ -162,8 +162,9 @@ describe('rex sandbox scene', () => {
     await missUntilZone(scene, api)
     await nextTick()
     expect(scene.get('[data-test="scanner"]').attributes('transform')).toBe('translate(0 0)')
-    expect(scene.find('[data-test="x-ray"]').exists()).toBe(true)
-    expect(scene.find('[data-test="scan-line"]').exists()).toBe(true)
+    expect(scene.find('[data-test="x-ray"]').exists()).toBe(false)
+    expect(scene.find('[data-test="scan-line"]').exists()).toBe(false)
+    expect(Number(scene.get('[data-test="machine"]').attributes('data-grown'))).toBeGreaterThan(0.9)
     const tunnel = scannerAperture(difficulty(api.game.score, true).span)
     const progress = Number(scene.get('[data-test="box"][data-zone="yes"]').attributes('data-progress'))
     const x = beltPoint(progress).x
@@ -294,14 +295,15 @@ describe('rex sandbox scene', () => {
     await wrapper.get('[data-test="rex"]').trigger('click')
     const api = exposed(wrapper)
     let steps = 0
-    while (api.game.boxes.length === 0 && steps < 200) {
+    while (!wrapper.find('[data-test="box"]').exists() && steps < 400) {
       api.advance(1 / 30)
+      await nextTick()
       steps += 1
     }
-    await nextTick()
     const box = wrapper.get('[data-test="box"]')
-    expect(box.attributes('transform')).toContain(String(TUNNEL_BOTTOM))
-    expect(box.get('rect').attributes('y')).toBe('-36')
+    expect(box.find('path').exists()).toBe(false)
+    expect(box.get('rect').attributes('width')).toBe('36')
+    expect(box.get('rect').attributes('height')).toBe('36')
     wrapper.unmount()
   })
 

@@ -17,7 +17,8 @@ import { BELT_ENTRANCE, BELT_MOUTH, BREAK_BEAT, CHEER, YANK } from './layout'
 import { WALK_DURATION } from './motion'
 
 export const GRACE = 0.8
-export const MISS_COOLDOWN = 0.42
+/** A miss locks the lever for one pull. The return animation is this long too. */
+export const MISS_COOLDOWN = YANK
 export const MILESTONE = 5
 export const DANGER = 0.84
 /**
@@ -41,8 +42,12 @@ const REDUCED = 0.55
 
 export interface Box {
   id: number
-  /** 0 at the belt entrance, 1 at the machine mouth. */
+  /** 0 just past the right edge, 1 at the machine. */
   progress: number
+  /** 0 to 1. Picks the drift height. */
+  lane: number
+  /** 0 to 1. Picks the gentle turn. */
+  spin: number
 }
 
 export interface Cage {
@@ -67,6 +72,8 @@ export interface Game {
   /** Seconds until the next box. */
   spawnIn: number
   cooldown: number
+  /** 1 after a pull that was still locked. 0 once the lever can be pulled. */
+  deny: number
   /** 0 is resting, 1 is yanked. */
   lever: number
   leverT: number
@@ -189,6 +196,13 @@ export function leverCurve(t: number): number {
   return 0
 }
 
+/** Height and turn. Visual only, so the gap stream stays the one the timing tests measure. */
+function driftOf(id: number): { lane: number, spin: number } {
+  const laneRoll = roll(Math.imul(id, 0x9e3779b1) >>> 0)
+  const spinRoll = roll(laneRoll.state)
+  return { lane: laneRoll.value, spin: spinRoll.value }
+}
+
 export function createGame(options: GameOptions): Game {
   if (!Number.isInteger(options.seed) || options.seed < 1 || options.seed > 0xffffffff) {
     throw new Error(`seed must be an integer from 1 to 4294967295, got ${options.seed}`)
@@ -208,6 +222,7 @@ export function createGame(options: GameOptions): Game {
     nextId: 1,
     spawnIn: 0,
     cooldown: 0,
+    deny: 0,
     lever: 0,
     leverT: 0,
     rex: 'idle',
@@ -257,9 +272,27 @@ export function beginAutoplay(game: Game): Game {
   return arm(game, 'auto')
 }
 
-/** The player takes the lever. The score resets. Their misses can break the page. */
+/**
+ * The player takes the lever. The score resets. Their misses can break the page.
+ * If Rex is already walking up or standing there, his pose stays. Only the control changes.
+ */
 export function beginPlayer(game: Game): Game {
-  return arm(game, 'player')
+  if (game.phase !== 'playing' || game.rex === 'idle') return arm(game, 'player')
+  return {
+    ...game,
+    control: 'player',
+    score: 0,
+    streak: 0,
+    miss: 0,
+    flash: 0,
+    jolt: 0,
+    pop: 0,
+    boxes: [],
+    cages: [],
+    cooldown: 0,
+    deny: 0,
+    idle: 0,
+  }
 }
 
 /**
@@ -304,6 +337,7 @@ function scoreHit(game: Game, hit: Box): Game {
     streak: game.streak + 1,
     miss: 0,
     cooldown: 0,
+    deny: 0,
     idle: 0,
     rex: milestone ? 'cheer' : 'yank',
     rexT: 0,
@@ -328,22 +362,31 @@ function autoCatch(game: Game): Game {
   return scoreHit(game, hit)
 }
 
+function leverLocked(game: Game): boolean {
+  return game.rex === 'to-lever' || game.rex === 'yank' || game.rex === 'cheer' || game.cooldown > 0
+}
+
+function notYet(game: Game): Game {
+  if (game.deny > 0) return game
+  return { ...game, deny: 1 }
+}
+
 export function pull(game: Game): Game {
   if (game.phase !== 'playing' || game.control !== 'player') return game
-  if (game.rex === 'to-lever' || game.rex === 'yank' || game.rex === 'cheer') return game
-  if (game.cooldown > 0) return game
+  if (leverLocked(game)) return notYet(game)
   const hit = hottest(game)
   if (!hit) {
     return {
       ...game,
       idle: 0,
       cooldown: MISS_COOLDOWN,
+      deny: 0,
       miss: 1,
       streak: 0,
       rex: 'yank',
       rexT: 0,
       lever: game.reduced ? 1 : 0,
-      leverT: game.reduced ? 0.12 : 0,
+      leverT: 0,
     }
   }
   return scoreHit(game, hit)
@@ -389,7 +432,7 @@ function advanceRex(game: Game, dt: number): Game {
   if (game.rex === 'yank' || game.rex === 'cheer') {
     const limit = game.rex === 'cheer' ? CHEER : YANK
     const t = game.rexT + dt
-    const lever = game.reduced ? (t < 0.12 ? 1 : 0) : (t < YANK ? leverCurve(t) : 0)
+    const lever = game.reduced ? (t < limit ? 1 : 0) : (t < limit ? leverCurve(t * (YANK / limit)) : 0)
     if (t < limit) return { ...game, rexT: t, lever, leverT: 0 }
     return settle({ ...game, rex: 'ready', rexT: 0, lever: 0, leverT: 0 })
   }
@@ -422,6 +465,7 @@ function advanceBoxes(game: Game, dt: number): Game {
     lever: 0,
     leverT: 0,
     cooldown: 0,
+    deny: 0,
   }
 }
 
@@ -433,12 +477,13 @@ function advanceSpawn(game: Game, dt: number): Game {
   const diff = difficulty(game.score, game.reduced)
   const rolled = roll(game.rng)
   const gap = diff.gapLo + rolled.value * (diff.gapHi - diff.gapLo)
+  const drift = driftOf(game.nextId)
   return {
     ...game,
     rng: rolled.state,
     spawnIn: gap,
     nextId: game.nextId + 1,
-    boxes: [...game.boxes, { id: game.nextId, progress: 0 }],
+    boxes: [...game.boxes, { id: game.nextId, progress: 0, lane: drift.lane, spin: drift.spin }],
   }
 }
 
@@ -453,7 +498,7 @@ function advanceBroken(game: Game, dt: number): Game {
 }
 
 function decay(game: Game, dt: number): Game {
-  return {
+  const next = {
     ...game,
     jolt: Math.max(0, game.jolt - dt / 0.4),
     flash: Math.max(0, game.flash - dt / 0.28),
@@ -461,6 +506,8 @@ function decay(game: Game, dt: number): Game {
     miss: Math.max(0, game.miss - dt / 0.5),
     cooldown: Math.max(0, game.cooldown - dt),
   }
+  if (next.deny > 0 && !leverLocked(next)) return { ...next, deny: 0 }
+  return next
 }
 
 function stepOnce(game: Game, dt: number): Game {

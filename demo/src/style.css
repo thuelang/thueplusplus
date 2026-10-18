@@ -362,7 +362,7 @@ html:not(.dark) {
   background: color-mix(in srgb, var(--void) 78%, transparent);
   position: absolute;
   z-index: -1;
-  --veil-fade-l: min(28vw, 240px);
+  --veil-fade-l: 100px;
   --veil-fade-r: min(6vw, 72px);
   --veil-fade-t: 64px;
   --veil-fade-b: min(22vw, 180px);
@@ -401,11 +401,18 @@ html:not(.dark) {
   touch-action: manipulation;
   min-width: 44px;
   min-height: 44px;
+  appearance: none;
+}
+
+/* A pointer click focuses the control in some browsers and would draw the
+   ring. Keep the ring for keyboard focus only, tight to the hit target. */
+.rex-hit:focus:not(:focus-visible) {
+  outline: none;
 }
 
 .rex-hit:focus-visible {
-  outline: 2px solid var(--signal);
-  outline-offset: 2px;
+  outline: 1px solid color-mix(in srgb, var(--signal) 55%, transparent);
+  outline-offset: 1px;
 }
 
 .rex-hit:disabled {
@@ -501,6 +508,72 @@ html.rex-shattered .rex-rubble [data-shard] {
 
 .page-screen-bare + .page-details {
   margin-top: calc((100svh - 52px) / -3);
+}
+
+.home-screen.page-screen {
+  display: block;
+  height: auto;
+}
+
+.home-screen.page-screen-bare + .page-details {
+  margin-top: 0;
+}
+
+.home-hero {
+  overflow: visible;
+  padding-top: 3.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.hero-stage {
+  position: relative;
+  display: grid;
+}
+
+.hero-stage > .rex-bleed,
+.hero-stage > .hero-copy-wrap {
+  grid-area: 1 / 1;
+}
+
+.home-hero .rex-bleed {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  height: auto;
+  max-height: none;
+  transform: translateX(-50%);
+}
+
+.hero-copy-wrap {
+  position: relative;
+  z-index: 1;
+  align-self: center;
+  width: 100%;
+}
+
+@media (min-width: 1024px) {
+  .hero-stage {
+    height: calc(100vw * 420 / 1440);
+  }
+}
+
+@media (max-width: 1023px) {
+  .hero-stage {
+    display: block;
+    height: auto;
+  }
+
+  .hero-copy-wrap {
+    margin-bottom: calc(100vw * 420 / 1440);
+  }
+
+  .home-hero .rex-bleed {
+    top: auto;
+    bottom: 0;
+    height: calc(100vw * 420 / 1440);
+  }
 }
 
 @media (min-width: 1024px) {

@@ -1,0 +1,212 @@
+import { expect, test, type Page } from '@playwright/test'
+
+const desktop = [1440, 1024, 768]
+const themes = ['dark', 'light'] as const
+
+type Box = { left: number, right: number, top: number, bottom: number }
+
+async function paint(page: Page, theme: 'dark' | 'light', width: number, height: number): Promise<void> {
+  await page.addInitScript((value) => {
+    localStorage.setItem('theme', value)
+  }, theme)
+  await page.emulateMedia({ colorScheme: theme })
+  await page.setViewportSize({ width, height })
+  await page.goto('/')
+  if (theme === 'dark') await expect(page.locator('html')).toHaveClass(/dark/)
+  else await expect(page.locator('html')).not.toHaveClass(/dark/)
+  await expect(page.getByTestId('machine')).toBeVisible()
+  await expect.poll(async () => (await page.getByTestId('score-label').boundingBox())?.width ?? 0).toBeGreaterThan(8)
+}
+
+async function readBox(page: Page, testId: string): Promise<Box> {
+  const box = await page.getByTestId(testId).evaluate((el) => {
+    const rect = el.getBoundingClientRect()
+    return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }
+  })
+  return box
+}
+
+function scoreBox(label: Box, number: Box): Box {
+  return {
+    left: Math.min(label.left, number.left),
+    right: Math.max(label.right, number.right),
+    top: Math.min(label.top, number.top),
+    bottom: Math.max(label.bottom, number.bottom),
+  }
+}
+
+function inside(box: Box, width: number, height: number, margin: number): void {
+  expect(box.left).toBeGreaterThanOrEqual(margin)
+  expect(box.right).toBeLessThanOrEqual(width - margin)
+  expect(box.top).toBeGreaterThanOrEqual(margin)
+  expect(box.bottom).toBeLessThanOrEqual(height - margin)
+}
+
+async function expectGrounded(page: Page): Promise<void> {
+  const machine = await readBox(page, 'machine')
+  const floor = await readBox(page, 'floor')
+  const gap = floor.top - machine.bottom
+  expect(gap).toBeGreaterThan(-4)
+  expect(gap).toBeLessThan(4)
+}
+
+for (const theme of themes) {
+  for (const width of desktop) {
+    const height = width === 1024 ? 768 : width === 768 ? 1024 : 900
+    test(`desktop ${width} ${theme} keeps the machine and the score inside`, async ({ page }) => {
+      await paint(page, theme, width, height)
+      const machine = await readBox(page, 'machine')
+      const score = scoreBox(await readBox(page, 'score-label'), await readBox(page, 'score'))
+      inside(machine, width, height, 32)
+      inside(score, width, height, 32)
+      await expect(page.getByTestId('score-label')).toHaveText('score')
+      await expectGrounded(page)
+    })
+  }
+
+  test(`390 ${theme} keeps the machine, the score, and every box inside`, async ({ page }) => {
+    const width = 390
+    const height = 844
+    await paint(page, theme, width, height)
+    const machine = await readBox(page, 'machine')
+    const score = scoreBox(await readBox(page, 'score-label'), await readBox(page, 'score'))
+    inside(machine, width, height, 8)
+    inside(score, width, height, 8)
+    await expectGrounded(page)
+    let seen = 0
+    const started = Date.now()
+    while (Date.now() - started < 2500) {
+      const boxes = await page.getByTestId('box').evaluateAll((els) => els.map((el) => {
+        const rect = el.getBoundingClientRect()
+        return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }
+      }))
+      seen += boxes.length
+      for (const box of boxes) {
+        expect(box.left).toBeGreaterThanOrEqual(-0.5)
+        expect(box.right).toBeLessThanOrEqual(width + 0.5)
+        expect(box.top).toBeGreaterThanOrEqual(-0.5)
+        expect(box.bottom).toBeLessThanOrEqual(height + 0.5)
+      }
+      await page.waitForTimeout(80)
+    }
+    expect(seen).toBeGreaterThan(0)
+  })
+}
+
+test('outline shows for Tab and stays off after a click', async ({ page }) => {
+  await paint(page, 'dark', 1440, 900)
+  const lever = page.getByTestId('lever-hit')
+  await lever.click()
+  await expect(page.getByTestId('sandbox-scene')).toHaveAttribute('data-control', 'player')
+  const clicked = await lever.evaluate((el) => {
+    const style = getComputedStyle(el)
+    return {
+      visible: el.matches(':focus-visible'),
+      style: style.outlineStyle,
+      width: style.outlineWidth,
+    }
+  })
+  expect(clicked.visible).toBe(false)
+  expect(clicked.style).toBe('none')
+
+  const scene = page.getByTestId('sandbox-scene')
+  const sceneBox = await scene.boundingBox()
+  if (!sceneBox) throw new Error('scene has no box')
+  await scene.click({ position: { x: Math.min(180, sceneBox.width / 2), y: Math.min(40, sceneBox.height / 2) } })
+  expect(await scene.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none')
+
+  let hit = false
+  for (let i = 0; i < 40; i += 1) {
+    await page.keyboard.press('Tab')
+    hit = await page.evaluate(() => {
+      const el = document.activeElement
+      return Boolean(el && el.classList.contains('rex-hit') && el.matches(':focus-visible'))
+    })
+    if (hit) break
+  }
+  expect(hit).toBe(true)
+  const ring = await page.evaluate(() => {
+    const el = document.activeElement
+    if (!(el instanceof HTMLElement)) throw new Error('nothing focused')
+    const style = getComputedStyle(el)
+    const box = el.getBoundingClientRect()
+    return {
+      style: style.outlineStyle,
+      width: Number.parseFloat(style.outlineWidth),
+      offset: Number.parseFloat(style.outlineOffset),
+      widthPx: box.width,
+      heightPx: box.height,
+    }
+  })
+  expect(ring.style).toBe('solid')
+  expect(ring.width).toBe(1)
+  expect(ring.offset).toBe(1)
+  expect(ring.widthPx).toBeGreaterThan(ring.offset * 2)
+  expect(ring.heightPx).toBeGreaterThan(ring.offset * 2)
+
+  const stray = await page.evaluate(() => {
+    const floor = document.querySelector('[data-test="floor"]')
+    if (!floor) throw new Error('missing floor')
+    const line = floor.getBoundingClientRect()
+    const vw = window.innerWidth
+    return [...document.querySelectorAll('[data-test="box"]')].filter((el) => {
+      const rect = el.getBoundingClientRect()
+      return rect.right > vw - 48 && Math.abs(rect.bottom - line.top) < 12
+    }).length
+  })
+  expect(stray).toBe(0)
+})
+
+test('fits the hero to its picture and its text', async ({ page }) => {
+  async function measure(): Promise<{
+    above: number
+    below: number
+    copyMid: number
+    bleedTop: number
+    bleedBottom: number
+    copyBottom: number
+    span: number
+    vh: number
+  }> {
+    return page.evaluate(() => {
+      const header = document.querySelector('[data-test="site-header"]')
+      const hero = document.querySelector('[data-test="page-hero"]')
+      const bleed = document.querySelector('[data-test="belt-bleed"]')
+      const copy = document.querySelector('.hero-copy')
+      const details = document.querySelector('[data-test="page-details"]')
+      if (!header || !hero || !bleed || !copy || !details) throw new Error('missing hero parts')
+      const h = header.getBoundingClientRect()
+      const heroBox = hero.getBoundingClientRect()
+      const b = bleed.getBoundingClientRect()
+      const c = copy.getBoundingClientRect()
+      const d = details.getBoundingClientRect()
+      return {
+        above: Math.min(b.top, c.top) - h.bottom,
+        below: d.top - heroBox.bottom,
+        copyMid: (c.top + c.bottom) / 2,
+        bleedTop: b.top,
+        bleedBottom: b.bottom,
+        copyBottom: c.bottom,
+        span: heroBox.bottom - Math.min(b.top, c.top),
+        vh: window.innerHeight,
+      }
+    })
+  }
+
+  await paint(page, 'dark', 1440, 900)
+  const desktop = await measure()
+  expect(desktop.above).toBeGreaterThanOrEqual(-1)
+  expect(desktop.above).toBeLessThan(80)
+  expect(Math.abs(desktop.below)).toBeLessThan(40)
+  expect(desktop.copyMid).toBeGreaterThan(desktop.bleedTop)
+  expect(desktop.copyMid).toBeLessThan(desktop.bleedBottom)
+  expect(desktop.span).toBeLessThan(desktop.vh * 0.75)
+
+  await paint(page, 'light', 390, 844)
+  const mobile = await measure()
+  expect(mobile.above).toBeGreaterThanOrEqual(-1)
+  expect(mobile.above).toBeLessThan(80)
+  expect(Math.abs(mobile.below)).toBeLessThan(40)
+  expect(mobile.copyBottom).toBeLessThanOrEqual(mobile.bleedTop + 32)
+  expect(mobile.span).toBeLessThan(mobile.vh * 0.85)
+})
