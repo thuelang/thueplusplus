@@ -149,6 +149,77 @@ test('outline shows for Tab and stays off after a click', async ({ page }) => {
   expect(stray).toBe(0)
 })
 
+test('a miss and a clear keep the machine inside', async ({ page }) => {
+  await page.clock.install()
+  await paint(page, 'dark', 1440, 900)
+  const lever = page.getByTestId('lever-hit')
+  await lever.click()
+  await expect(page.getByTestId('sandbox-scene')).toHaveAttribute('data-control', 'player')
+
+  async function readFrame(): Promise<{ left: number, top: number, right: number, bottom: number, shake: number, scale: number, rot: number }> {
+    return page.evaluate(() => {
+      const machine = document.querySelector('[data-test="machine"]')
+      const hero = document.querySelector('[data-test="page-hero"]')
+      if (!(machine instanceof SVGGraphicsElement) || !hero) throw new Error('missing machine')
+      const rect = machine.getBoundingClientRect()
+      const heroBox = hero.getBoundingClientRect()
+      return {
+        left: rect.left - heroBox.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        shake: Number(machine.getAttribute('data-shake-x')),
+        scale: Number(machine.getAttribute('data-tada-scale')),
+        rot: Number(machine.getAttribute('data-tada-rot')),
+      }
+    })
+  }
+
+  async function play(ms: number): Promise<{ left: number, top: number, right: number, bottom: number, shake: number, scale: number, rot: number }[]> {
+    const frames = []
+    for (let t = 0; t < ms; t += 40) {
+      await page.clock.fastForward(40)
+      frames.push(await readFrame())
+    }
+    return frames
+  }
+
+  function inside(frames: { left: number, top: number, right: number, bottom: number }[]): void {
+    for (const frame of frames) {
+      expect(frame.left).toBeGreaterThanOrEqual(48)
+      expect(frame.top).toBeGreaterThanOrEqual(32)
+      expect(frame.right).toBeLessThanOrEqual(1440 - 32)
+      expect(frame.bottom).toBeLessThanOrEqual(900 - 32)
+    }
+  }
+
+  let zoned = false
+  for (let i = 0; i < 350 && !zoned; i += 1) {
+    await page.clock.fastForward(40)
+    zoned = await page.locator('[data-zone="yes"]').count() > 0
+    expect(await page.getByTestId('sandbox-scene').getAttribute('data-broken')).toBe('no')
+  }
+  expect(zoned).toBe(true)
+  await lever.click()
+  const cheer = await play(1000)
+  inside(cheer)
+  expect(cheer.some(frame => frame.scale > 1.01)).toBe(true)
+  expect(cheer.some(frame => frame.rot > 0)).toBe(true)
+  expect(cheer.some(frame => frame.rot < 0)).toBe(true)
+
+  let clear = false
+  for (let i = 0; i < 20 && !clear; i += 1) {
+    await page.clock.fastForward(50)
+    clear = await page.locator('[data-zone="yes"]').count() === 0
+  }
+  expect(clear).toBe(true)
+  await lever.click()
+  const miss = await play(520)
+  inside(miss)
+  expect(miss.some(frame => frame.shake < -1)).toBe(true)
+  expect(miss.some(frame => frame.shake > 1)).toBe(true)
+})
+
 test('leaves breathing room above the game on a phone', async ({ page }) => {
   for (const theme of themes) {
     for (const width of [390, 768]) {

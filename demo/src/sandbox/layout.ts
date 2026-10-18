@@ -174,10 +174,49 @@ export function boxInFrame(progress: number, lane = 0.5, spin = 0): boolean {
 /** 1 at rest. A little over 1 while a box is in range. `grown` eases between them. */
 export const MACHINE_GROW = 0.055
 /**
- * Deepest vertical squeeze on a miss, as a fraction of height.
- * Larger than the in-range grow, and only on the vertical axis.
+ * Center of the machine base. Reactions pivot here so the feet stay put.
+ * The traced sketch is 345 units wide before MACHINE_S.
  */
-export const MACHINE_SQUEEZE = 0.16
+export const MACHINE_BASE = { x: MACHINE_X + (345 * MACHINE_S) / 2, y: GROUND }
+
+/**
+ * Animate.css tada, one second, sampled in our own loop.
+ * Scale and tilt are a fraction of the reference so the line drawing
+ * stays inside the hero inset while a box is also growing it.
+ */
+export const TADA_S = 1
+export const TADA_SCALE_TONE = 0.24
+export const TADA_ROT_TONE = 0.26
+export const TADA_KEYS = [
+  { t: 0, scale: 1, rot: 0 },
+  { t: 0.1, scale: 0.9, rot: -3 },
+  { t: 0.2, scale: 0.9, rot: -3 },
+  { t: 0.3, scale: 1.1, rot: 3 },
+  { t: 0.4, scale: 1.1, rot: -3 },
+  { t: 0.5, scale: 1.1, rot: 3 },
+  { t: 0.6, scale: 1.1, rot: -3 },
+  { t: 0.7, scale: 1.1, rot: 3 },
+  { t: 0.8, scale: 1.1, rot: -3 },
+  { t: 0.9, scale: 1.1, rot: 3 },
+  { t: 1, scale: 1, rot: 0 },
+] as const
+
+/**
+ * Animate.css headShake. The reference moves through the first half of
+ * a one-second animation and then holds. `miss` already lasts that half.
+ * translateX is in CSS pixels; rotateY is drawn as a flat tilt.
+ */
+export const HEAD_SHAKE_END = 0.5
+export const SHAKE_X_TONE = 3.5 / 6
+export const SHAKE_ROT_TONE = 1 / 9
+export const HEAD_SHAKE_KEYS = [
+  { t: 0, x: 0, rot: 0 },
+  { t: 0.065, x: -6, rot: -9 },
+  { t: 0.185, x: 5, rot: 7 },
+  { t: 0.315, x: -3, rot: -5 },
+  { t: 0.435, x: 2, rot: 3 },
+  { t: 0.5, x: 0, rot: 0 },
+] as const
 
 export function easeOut(t: number): number {
   const u = clamp(t, 0, 1)
@@ -189,6 +228,28 @@ export function easeIn(t: number): number {
   return u * u * u
 }
 
+function easeInOut(t: number): number {
+  const u = clamp(t, 0, 1)
+  return u < 0.5 ? 4 * u * u * u : 1 - ((-2 * u + 2) ** 3) / 2
+}
+
+function segmentU(t: number, keys: readonly { t: number }[]): { index: number, u: number } {
+  const last = keys.length - 1
+  if (t <= keys[0].t) return { index: 0, u: 0 }
+  if (t >= keys[last].t) return { index: last - 1, u: 1 }
+  for (let i = 0; i < last; i += 1) {
+    const start = keys[i].t
+    const end = keys[i + 1].t
+    if (t > end) continue
+    const span = end - start
+    if (span === 0) return { index: i, u: 1 }
+    const raw = (t - start) / span
+    if (raw === 0 || raw === 1) return { index: i, u: raw }
+    return { index: i, u: easeInOut(raw) }
+  }
+  return { index: last - 1, u: 1 }
+}
+
 export function machineScale(grown: number): number {
   if (!Number.isFinite(grown) || grown < 0 || grown > 1) {
     throw new Error(`grown must be from 0 to 1, got ${grown}`)
@@ -196,20 +257,68 @@ export function machineScale(grown: number): number {
   return 1 + MACHINE_GROW * grown
 }
 
+export interface Shake {
+  x: number
+  rot: number
+}
+
+export interface Tada {
+  scale: number
+  rot: number
+}
+
 /**
- * Vertical scale while the miss reaction is up. 1 at both ends of that
- * window, shorter in the middle. The caller anchors it at the machine base.
- * Reduced motion holds the machine at full height.
+ * headShake over the miss clock. `miss` is 1 at the pull and 0 when the
+ * reaction ends. Reduced motion stays still.
  */
-export function machineSqueeze(miss: number, reduced: boolean): number {
+export function machineHeadShake(miss: number, reduced: boolean): Shake {
   if (!Number.isFinite(miss) || miss < 0 || miss > 1) {
     throw new Error(`miss must be from 0 to 1, got ${miss}`)
   }
   if (typeof reduced !== 'boolean') throw new Error('reduced must be a boolean')
-  if (reduced || miss === 0) return 1
-  const u = 1 - miss
-  const down = u <= 0.45 ? easeOut(u / 0.45) : 1 - easeIn((u - 0.45) / 0.55)
-  return 1 - MACHINE_SQUEEZE * down
+  if (reduced || miss === 0 || miss === 1) return { x: 0, rot: 0 }
+  const { index, u } = segmentU((1 - miss) * HEAD_SHAKE_END, HEAD_SHAKE_KEYS)
+  const from = HEAD_SHAKE_KEYS[index]
+  const to = HEAD_SHAKE_KEYS[index + 1]
+  return {
+    x: (from.x + (to.x - from.x) * u) * SHAKE_X_TONE,
+    rot: (from.rot + (to.rot - from.rot) * u) * SHAKE_ROT_TONE,
+  }
+}
+
+/**
+ * tada over `t` from 0 at the clear to 1 when it has settled.
+ * Reduced motion stays at rest.
+ */
+export function machineTada(t: number, reduced: boolean): Tada {
+  if (!Number.isFinite(t) || t < 0 || t > 1) {
+    throw new Error(`tada must be from 0 to 1, got ${t}`)
+  }
+  if (typeof reduced !== 'boolean') throw new Error('reduced must be a boolean')
+  if (reduced || t === 0 || t === 1) return { scale: 1, rot: 0 }
+  const { index, u } = segmentU(t, TADA_KEYS)
+  const from = TADA_KEYS[index]
+  const to = TADA_KEYS[index + 1]
+  const scale = from.scale + (to.scale - from.scale) * u
+  const rot = from.rot + (to.rot - from.rot) * u
+  return {
+    scale: 1 + (scale - 1) * TADA_SCALE_TONE,
+    rot: rot * TADA_ROT_TONE,
+  }
+}
+
+/**
+ * Grow stays on the left of the base, as it did before the reactions.
+ * The shake and the tada then pivot on the base center. A rest reaction
+ * leaves the grow exactly where it was.
+ */
+export function machineTransform(grown: number, miss: number, tada: number, reduced: boolean): string {
+  const scale = machineScale(grown)
+  const shake = machineHeadShake(miss, reduced)
+  const hit = machineTada(tada, reduced)
+  const grow = `translate(${MACHINE_X} ${GROUND}) scale(${scale}) translate(${-MACHINE_X} ${-GROUND})`
+  const reaction = `translate(${MACHINE_BASE.x} ${MACHINE_BASE.y}) translate(${shake.x} 0) rotate(${shake.rot + hit.rot}) scale(${hit.scale}) translate(${-MACHINE_BASE.x} ${-MACHINE_BASE.y})`
+  return `${grow} ${reaction} translate(${MACHINE_X} ${MACHINE_Y}) scale(${MACHINE_S})`
 }
 
 /** Source-unit distance Rex walks between home and the lever. */

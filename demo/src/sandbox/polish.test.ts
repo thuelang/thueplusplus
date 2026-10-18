@@ -6,9 +6,16 @@ import { framePose, settledSpring } from './motion'
 import {
   BOX_REACH,
   GROUND,
+  HEAD_SHAKE_END,
+  HEAD_SHAKE_KEYS,
+  MACHINE_BASE,
   MACHINE_GROW,
-  MACHINE_SQUEEZE,
   MACHINE_X,
+  SHAKE_ROT_TONE,
+  SHAKE_X_TONE,
+  TADA_KEYS,
+  TADA_ROT_TONE,
+  TADA_SCALE_TONE,
   OPENING_Y,
   REX_LEVER,
   SCALE,
@@ -23,8 +30,10 @@ import {
   boxPlace,
   inHit,
   leverKnob,
+  machineHeadShake,
   machineScale,
-  machineSqueeze,
+  machineTada,
+  machineTransform,
 } from './layout'
 
 describe('hero polish', () => {
@@ -114,26 +123,61 @@ describe('hero polish', () => {
     expect(scene).not.toContain('v-for="box in game.boxes"')
   })
 
-  it('squeezes the machine down on a miss and recovers', () => {
-    expect(machineSqueeze(0, false)).toBe(1)
-    expect(machineSqueeze(1, false)).toBe(1)
-    expect(machineSqueeze(0.55, true)).toBe(1)
-    const deep = machineSqueeze(0.55, false)
-    expect(deep).toBeCloseTo(1 - MACHINE_SQUEEZE, 5)
-    expect(1 - deep).toBeGreaterThan(MACHINE_GROW)
-    expect(machineSqueeze(0.2, false)).toBeGreaterThan(deep)
-    expect(machineSqueeze(0.9, false)).toBeGreaterThan(deep)
-    expect(() => machineSqueeze(1.2, false)).toThrow(/miss/)
-    expect(() => machineSqueeze(0, 'no' as unknown as boolean)).toThrow(/boolean/)
-    const grown = machineScale(1)
-    const width = grown
-    const height = grown * deep
-    expect(width).toBeGreaterThan(1)
-    expect(height).toBeLessThan(1)
+  it('samples the headShake keyframes', () => {
+    expect(machineHeadShake(1, false)).toEqual({ x: 0, rot: 0 })
+    expect(machineHeadShake(0, false)).toEqual({ x: 0, rot: 0 })
+    expect(machineHeadShake(0.5, true)).toEqual({ x: 0, rot: 0 })
+    const peaks: number[] = []
+    for (const key of HEAD_SHAKE_KEYS) {
+      const pose = machineHeadShake(1 - key.t / HEAD_SHAKE_END, false)
+      expect(pose.x).toBeCloseTo(key.x * SHAKE_X_TONE, 5)
+      expect(pose.rot).toBeCloseTo(key.rot * SHAKE_ROT_TONE, 5)
+      if (key.x !== 0) peaks.push(Math.abs(pose.x))
+    }
+    expect(peaks).toEqual([...peaks].sort((a, b) => b - a))
+    expect(peaks[0]).toBeGreaterThan(peaks[peaks.length - 1])
+    const between = machineHeadShake(1 - (0.065 * 0.25) / HEAD_SHAKE_END, false)
+    const linearQuarter = HEAD_SHAKE_KEYS[1].x * SHAKE_X_TONE * 0.25
+    expect(Math.abs(between.x)).toBeLessThan(Math.abs(linearQuarter) * 0.5)
+    expect(() => machineHeadShake(1.2, false)).toThrow(/miss/)
+    expect(() => machineHeadShake(0, 'no' as unknown as boolean)).toThrow(/boolean/)
+  })
+
+  it('samples the tada keyframes', () => {
+    expect(machineTada(0, false)).toEqual({ scale: 1, rot: 0 })
+    expect(machineTada(1, false)).toEqual({ scale: 1, rot: 0 })
+    expect(machineTada(0.3, true)).toEqual({ scale: 1, rot: 0 })
+    for (const key of TADA_KEYS) {
+      const pose = machineTada(key.t, false)
+      expect(pose.scale).toBeCloseTo(1 + (key.scale - 1) * TADA_SCALE_TONE, 5)
+      expect(pose.rot).toBeCloseTo(key.rot * TADA_ROT_TONE, 5)
+    }
+    const dip = 1 + (0.9 - 1) * TADA_SCALE_TONE
+    const quarter = machineTada(0.025, false)
+    const linear = 1 + 0.25 * (dip - 1)
+    expect(quarter.scale).toBeGreaterThan(linear)
+    expect(quarter.scale).toBeLessThan(1)
+    const up = machineTada(0.3, false)
+    expect(up.scale).toBeGreaterThan(1)
+    expect(up.scale - 1).toBeLessThan(MACHINE_GROW)
+    expect(machineTada(0.4, false).rot).toBeLessThan(0)
+    expect(machineTada(0.5, false).rot).toBeGreaterThan(0)
+    const text = machineTransform(1, 0, 0.3, false)
+    expect(text).toContain(`scale(${machineScale(1)})`)
+    expect(text).toContain(`scale(${up.scale})`)
+    expect(text).toContain(`translate(${MACHINE_BASE.x} ${MACHINE_BASE.y})`)
+    expect(text).toContain(`rotate(${up.rot})`)
+    const still = machineTransform(0, 0, 1, false)
+    expect(still).toContain('translate(0 0) rotate(0) scale(1)')
+    expect(() => machineTada(-0.1, false)).toThrow(/tada/)
+    expect(() => machineTada(0, 'no' as unknown as boolean)).toThrow(/boolean/)
     const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
-    expect(scene).toContain('scale(${scale} ${height})')
-    expect(scene).toContain('translate(${MACHINE_X} ${GROUND})')
-    expect(scene).toContain('data-squeeze')
+    expect(scene).toContain('machineHeadShake')
+    expect(scene).toContain('machineTada')
+    expect(scene).toContain('data-shake-x')
+    expect(scene).toContain('data-tada-scale')
+    expect(scene).not.toContain('data-squeeze')
+    expect(scene).not.toContain('machineSqueeze')
   })
 
   it('machine grows while a box is in range', () => {
@@ -143,7 +187,7 @@ describe('hero polish', () => {
     expect(machineScale(1)).toBeLessThan(1.08)
     expect(() => machineScale(-0.1)).toThrow(/grown/)
     const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
-    expect(scene).toContain('machineScale')
+    expect(scene).toContain('placeMachine')
     expect(scene).toContain('data-grown')
     expect(scene).not.toContain('data-test="scan-line"')
   })
