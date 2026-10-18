@@ -434,7 +434,7 @@ defineExpose({ game, advance, act })
           <line data-test="lever-stick" :x1="LEVER_PIVOT.x" :y1="LEVER_PIVOT.y" :x2="LEVER_PIVOT.x" :y2="LEVER_PIVOT.y - LEVER_LEN" stroke="var(--ash)" :stroke-width="LEVER_STROKE" stroke-linecap="butt" />
           <circle data-test="lever-knob" :cx="LEVER_PIVOT.x" :cy="LEVER_PIVOT.y - LEVER_LEN" :r="KNOB_R" fill="var(--ash)" stroke="var(--ash)" :stroke-width="KNOB_STROKE" />
         </g>
-        <rect data-test="lever-base" :x="base.x" :y="base.y" :width="base.s" :height="base.s" fill="var(--ash)" />
+        <rect data-test="lever-base" :x="base.x" :y="base.y" :width="base.w" :height="base.h" fill="var(--ash)" />
       </g>
       <g
         v-for="box in drawnBoxes"
