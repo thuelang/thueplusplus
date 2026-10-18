@@ -3,14 +3,18 @@ import { describe, expect, it } from 'vitest'
 import { ease } from '@/rex/motion'
 import {
   PARALLAX_RATE,
+  POP_RISE,
   PORTABLE_OUTPUT,
+  SANDBOX_INSIDE_X,
+  SANDBOX_OUTSIDE_X,
+  SANDBOX_WALL_X,
   helloRules,
-  keyboardX,
   originFrame,
   parallaxShift,
   portableFrame,
   portableOutputVisible,
   sandboxFrame,
+  smashFrame,
   smallestFrame,
   span,
 } from './frames'
@@ -82,32 +86,44 @@ describe('explainer frames', () => {
     expect(smallestFrame(7.5, false).lines).toEqual(smallestFrame(0, false).lines)
   })
 
-  it('holds the origin cards on the rule and both strings when motion is reduced', () => {
+  it('shows both strings when motion is reduced and one string while it rewrites', () => {
     const held = originFrame(0, true)
     expect(held.mark).toBe(1)
     expect(held.swap).toBe(1)
     expect(held.showBefore).toBe(true)
     expect(held.showAfter).toBe(true)
-    expect(held.lhsY).toBeLessThan(100)
     const start = originFrame(0, false)
     expect(start.showBefore).toBe(false)
-    expect(start.lhsX).toBeLessThan(40)
     expect(start.swap).toBe(0)
     const mid = originFrame(3, false)
-    expect(mid.lhsX).toBe(held.lhsX)
     expect(mid.mark).toBe(1)
     expect(mid.swap).toBe(0)
     expect(mid.showBefore).toBe(true)
   })
 
-  it('opens stdout before it shows the missing socket', () => {
-    const early = sandboxFrame(1.1, false)
+  it('bumps the wall before the socket error lands in the string', () => {
+    const early = sandboxFrame(1.92, false)
     expect(early.out).toBeGreaterThan(0)
-    expect(early.socket).toBe(0)
-    const late = sandboxFrame(4.2, false)
-    expect(late.out).toBe(1)
-    expect(late.socket).toBe(1)
-    expect(sandboxFrame(0, true)).toEqual({ out: 1, socket: 1 })
+    expect(early.out).toBeLessThan(1)
+    expect(early.outX).toBeGreaterThan(SANDBOX_INSIDE_X)
+    expect(early.outX).toBeLessThan(SANDBOX_OUTSIDE_X)
+    expect(early.error).toBe(0)
+    expect(early.tokenShow).toBe(false)
+    const wall = sandboxFrame(4.48, false)
+    expect(wall.out).toBe(1)
+    expect(wall.outX).toBe(SANDBOX_OUTSIDE_X)
+    expect(wall.tokenShow).toBe(true)
+    expect(wall.tokenX).toBe(SANDBOX_WALL_X)
+    expect(wall.tokenX).toBeGreaterThan(SANDBOX_INSIDE_X)
+    expect(wall.error).toBe(0)
+    const landed = sandboxFrame(6.2, false)
+    expect(landed.out).toBe(1)
+    expect(landed.error).toBe(1)
+    expect(landed.tokenShow).toBe(false)
+    const held = sandboxFrame(0, true)
+    expect(held.outX).toBe(SANDBOX_OUTSIDE_X)
+    expect(held.error).toBe(1)
+    expect(held.tokenShow).toBe(false)
   })
 
   it('fills every host with one output, then walks them when motion is on', () => {
@@ -126,9 +142,40 @@ describe('explainer frames', () => {
     expect(() => portableFrame(0, false, 0)).toThrow(/host/)
   })
 
-  it('offers the keyboard and holds it there when motion is reduced', () => {
-    expect(keyboardX(0, false)).toBeLessThan(keyboardX(2, false))
-    expect(keyboardX(2, false)).toBe(400)
-    expect(keyboardX(0, true)).toBe(400)
+  it('pops letters out of the keyboard and holds them still when motion is reduced', () => {
+    const calm = smashFrame(0, true)
+    expect(calm.squash).toBe(1)
+    expect(calm.lift).toBe(0)
+    expect(calm.letters.map(letter => letter.char)).toEqual(['T', 'R', 'Y'])
+    for (const letter of calm.letters) {
+      expect(letter.opacity).toBe(1)
+      expect(letter.flip).toBe(1)
+      expect(letter.dy).toBe(0)
+    }
+    const idle = smashFrame(0, false)
+    expect(idle.squash).toBe(1)
+    expect(idle.lift).toBe(0)
+    expect(idle.letters.every(letter => letter.opacity === 0)).toBe(true)
+    const popping = smashFrame(0.72, false)
+    const first = popping.letters[0]
+    expect(first).toBeDefined()
+    if (!first || !popping.letters[1]) throw new Error('smash frame lost a letter')
+    expect(first.opacity).toBeGreaterThan(0)
+    expect(first.opacity).toBeLessThan(1)
+    expect(first.flip).toBeLessThan(1)
+    expect(first.dy).toBeLessThan(0)
+    expect(popping.letters[1].opacity).toBe(0)
+    const bounced = smashFrame(1.16, false)
+    const risen = bounced.letters[0]
+    if (!risen) throw new Error('smash frame lost the first letter')
+    expect(risen.dy).toBeCloseTo(-ease('outBack', 0.5) * POP_RISE)
+    expect(risen.dy).toBeLessThan(-POP_RISE)
+    const fading = smashFrame(1.58, false)
+    const leaving = fading.letters[0]
+    if (!leaving) throw new Error('smash frame lost the first letter')
+    expect(leaving.opacity).toBeGreaterThan(0)
+    expect(leaving.opacity).toBeLessThan(1)
+    expect(leaving.dy).toBeLessThan(0)
+    expect(smashFrame(4, false).letters.map(letter => letter.opacity)).toEqual(idle.letters.map(letter => letter.opacity))
   })
 })

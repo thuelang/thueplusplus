@@ -8,7 +8,8 @@ import helloSource from '../../../examples/hello/hello.thue?raw'
 import HomePage from '@/pages/HomePage.vue'
 import { registryHosts } from '@/hosts'
 import { routes } from '@/router'
-import { LHS_CAPTION, PORTABLE_OUTPUT, RHS_CAPTION } from './frames'
+import { actPose, settledSpring } from '@/rex/motion'
+import { HELD_CARD, LHS_CAPTION, PORTABLE_OUTPUT, RHS_CAPTION, SANDBOX_ERROR, SANDBOX_OUT_TEXT, heldCard } from './frames'
 
 function registryIds(): string[] {
   const parsed = parseToml(hostsToml) as { host?: { id?: unknown }[] }
@@ -53,14 +54,44 @@ describe('landing explainers', () => {
     wrapper.unmount()
   })
 
-  it('snaps each section to its center', () => {
+  it('gives each section three quarters of the viewport', () => {
     const css = readFileSync('src/style.css', 'utf8')
-    expect(css).toContain('scroll-snap-type: y mandatory')
-    expect(css).toContain('scroll-snap-align: center')
-    expect(css).toContain('height: 33vh')
-    expect(css).toContain('min-height: 33vh')
-    const phone = css.slice(css.indexOf('@media (max-width: 639px)'))
-    expect(phone).toContain('height: auto')
+    expect(css).not.toContain('scroll-snap')
+    expect(css).toContain('height: 75vh')
+    expect(css).toContain('min-height: 75vh')
+    expect(css).not.toContain('33vh')
+  })
+
+  it('pads each section above and below on a phone', () => {
+    const css = readFileSync('src/style.css', 'utf8')
+    const phoneStart = css.lastIndexOf('@media (max-width: 639px)')
+    const phone = css.slice(phoneStart, css.indexOf('@media (prefers-reduced-motion: reduce)', phoneStart))
+    const match = phone.match(/padding-block:\s*([0-9.]+)rem/)
+    if (!match?.[1]) throw new Error('phone sections have no vertical padding')
+    expect(Number(match[1])).toBeGreaterThan(0.75)
+    const body = css.slice(css.indexOf('.explainer-body {'), css.indexOf('.explainer-scene {'))
+    expect(body).not.toContain('padding-block')
+  })
+
+  it('ends the page at the footer', async () => {
+    const wrapper = await mountHome()
+    const column = wrapper.get('div.mx-auto')
+    const footer = column.get('[data-test="site-footer"]').element
+    const details = column.get('[data-test="page-details"]').element
+    expect(details.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(footer.nextElementSibling).toBeNull()
+    const css = readFileSync('src/style.css', 'utf8')
+    const track = css.slice(css.indexOf('.explainers {'), css.indexOf('.explainer-parallax {'))
+    const parallax = css.slice(css.indexOf('.explainer-parallax {'), css.indexOf('.explainer {'))
+    expect(track).toContain('overflow: hidden')
+    expect(parallax).toContain('position: absolute')
+    expect(parallax).toContain('top: 0')
+    expect(parallax).toContain('height: 100%')
+    expect(parallax).not.toContain('height: 200%')
+    expect(css).not.toContain('top: -50%')
+    const source = readFileSync('src/components/explainers/ExplainerTrack.vue', 'utf8')
+    expect(source).toContain('patternTransform')
+    wrapper.unmount()
   })
 
   it('alternates Rex and stacks him above the copy on a phone', async () => {
@@ -126,16 +157,45 @@ describe('landing explainers', () => {
     wrapper.unmount()
   })
 
-  it('gives the box stdin and stdout and no socket door', async () => {
+  it('puts the lhs and rhs cards in his hands', async () => {
     const wrapper = await mountHome()
-    const doors = wrapper.findAll('[data-test="sandbox-door"]')
-    expect(doors.map(door => door.attributes('data-resource'))).toEqual(['stdin', 'stdout'])
-    wrapper.get('[data-test="sandbox-box"]')
-    expect(wrapper.get('[data-test="sandbox-error"]').text()).toBe('ERR:resource:socket')
-    expect(wrapper.get('[data-test="sandbox-out"]').attributes('data-outside')).toBe('yes')
-    expect(wrapper.get('#sandbox').text()).toContain('stdin')
-    expect(wrapper.get('#sandbox').text()).toContain('stdout')
-    expect(wrapper.find('[data-resource="socket"][data-test="sandbox-door"]').exists()).toBe(false)
+    const pose = actPose({ mode: 'read', clock: 0, reduced: true, spring: settledSpring(), dt: 0 })
+    const origin = wrapper.get('#origin')
+    const rex = origin.get('[data-test="explainer-rex"]')
+    for (const side of ['left', 'right'] as const) {
+      const handX = side === 'left' ? pose.handLX : pose.handRX
+      const handY = side === 'left' ? pose.handLY : pose.handRY
+      const card = heldCard(handX, handY, side)
+      const node = rex.get(`[data-test="${side === 'left' ? 'lhs' : 'rhs'}-card"]`)
+      expect(node.attributes('transform')).toBe(`translate(${card.x} ${card.y})`)
+      expect(handX).toBeGreaterThan(card.x)
+      expect(handX).toBeLessThan(card.x + HELD_CARD.w)
+      expect(handY).toBeGreaterThan(card.y)
+      expect(handY).toBeLessThan(card.y + HELD_CARD.h)
+    }
+    wrapper.unmount()
+  })
+
+  it('sends hello out the stdout door and puts the socket error back in the string', async () => {
+    const wrapper = await mountHome()
+    const sandbox = wrapper.get('#sandbox')
+    const doors = sandbox.findAll('[data-test="sandbox-door"]')
+    expect(doors.map(door => door.attributes('data-resource'))).toEqual(['stdout'])
+    expect(sandbox.find('[data-resource="stdin"]').exists()).toBe(false)
+    expect(sandbox.find('[data-resource="socket"]').exists()).toBe(false)
+    sandbox.get('[data-test="sandbox-box"]')
+    const out = sandbox.get('[data-test="sandbox-out"]')
+    expect(out.text()).toBe(SANDBOX_OUT_TEXT)
+    expect(out.text()).not.toBe('in')
+    expect(out.attributes('data-outside')).toBe('yes')
+    const error = sandbox.get('[data-test="sandbox-error"]')
+    expect(error.text()).toBe(SANDBOX_ERROR)
+    expect(error.attributes('data-inside')).toBe('yes')
+    const labels = sandbox.findAll('text').map(node => node.text().trim())
+    expect(labels).not.toContain('in')
+    expect(labels).not.toContain('stdin')
+    expect(sandbox.text()).toContain('stdout')
+    expect(sandbox.text()).toContain(SANDBOX_ERROR)
     wrapper.unmount()
   })
 
@@ -160,6 +220,10 @@ describe('landing explainers', () => {
   it('hands the keyboard to the playground and the guides', async () => {
     const wrapper = await mountHome()
     wrapper.get('[data-test="try-keyboard"]')
+    const letters = wrapper.findAll('[data-test="try-letter"]')
+    expect(letters.map(letter => letter.text())).toEqual(['T', 'R', 'Y'])
+    expect(letters.map(letter => letter.attributes('data-dy'))).toEqual(['0', '0', '0'])
+    expect(letters.map(letter => letter.attributes('data-opacity'))).toEqual(['1', '1', '1'])
     expect(wrapper.get('[data-test="try-playground"]').attributes('href')).toBe('/playground')
     expect(wrapper.get('[data-test="try-guides"]').attributes('href')).toBe('/docs/guides')
     expect(wrapper.get('#try').text()).toContain('playground')

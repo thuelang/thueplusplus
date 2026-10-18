@@ -8,9 +8,15 @@ export const PORTABLE_OUTPUT = 'Hello, World!'
 export const PORTABLE_CARD = 'hello.thue'
 
 export const SANDBOX_RULES = [
-  '^start$ ::> stdout in\\n',
+  '^start$ ::> stdout hello\\n',
   '^$ ::> socket x\\n',
 ] as const
+
+export const SANDBOX_OUT_TEXT = 'hello'
+export const SANDBOX_ERROR = 'ERR:resource:socket'
+export const SANDBOX_INSIDE_X = 250
+export const SANDBOX_WALL_X = 458
+export const SANDBOX_OUTSIDE_X = 560
 
 export const ORIGIN = {
   ruleX: 210,
@@ -18,12 +24,13 @@ export const ORIGIN = {
   beforeY: 170,
   afterY: 208,
   charW: 13.2,
-  cardW: 64,
-  cardH: 32,
 } as const
 
-const LHS_REST = { x: 8, y: 168 }
-const RHS_REST = { x: 80, y: 176 }
+/** Card in Rex's local units. The hand sits inside the inner bottom corner. */
+export const HELD_CARD = { w: 58, h: 32 } as const
+
+export const TRY_LETTERS = ['T', 'R', 'Y'] as const
+export const POP_RISE = 78
 
 function assertReduced(reduced: boolean): void {
   if (typeof reduced !== 'boolean') throw new Error('reduced must be a boolean')
@@ -78,16 +85,25 @@ if (helloRules[1] !== 'hello ::> stdout Hello, World!\\n') throw new Error(`unre
 if (helloRules[2] !== 'done ::- 0') throw new Error(`unrecognized hello rule ${helloRules[2]}`)
 if (!helloSource.includes(`${PORTABLE_OUTPUT}\\n`)) throw new Error('hello.thue does not write Hello, World!')
 
-const ruleA = ORIGIN.ruleX
-const ruleO = ORIGIN.ruleX + 6 * ORIGIN.charW
-const LHS_RULE = { x: ruleA - ORIGIN.cardW / 2, y: 68 }
-const RHS_RULE = { x: ruleO - ORIGIN.cardW / 2, y: 68 }
+export interface HeldCard {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** Places a card so this hand pinches its inner bottom corner. */
+export function heldCard(handX: number, handY: number, side: 'left' | 'right'): HeldCard {
+  if (!Number.isFinite(handX) || !Number.isFinite(handY)) {
+    throw new Error(`hand must be finite, got ${handX}, ${handY}`)
+  }
+  if (side !== 'left' && side !== 'right') throw new Error(`card side must be left or right, got ${String(side)}`)
+  const x = side === 'left' ? handX - (HELD_CARD.w - 14) : handX - 14
+  const y = handY - (HELD_CARD.h - 10)
+  return { x, y, w: HELD_CARD.w, h: HELD_CARD.h }
+}
 
 export interface OriginFrame {
-  lhsX: number
-  lhsY: number
-  rhsX: number
-  rhsY: number
   mark: number
   swap: number
   showBefore: boolean
@@ -97,25 +113,9 @@ export interface OriginFrame {
 export function originFrame(t: number, reduced: boolean): OriginFrame {
   assertReduced(reduced)
   assertTime(t)
-  if (reduced) {
-    return {
-      lhsX: LHS_RULE.x,
-      lhsY: LHS_RULE.y,
-      rhsX: RHS_RULE.x,
-      rhsY: RHS_RULE.y,
-      mark: 1,
-      swap: 1,
-      showBefore: true,
-      showAfter: true,
-    }
-  }
+  if (reduced) return { mark: 1, swap: 1, showBefore: true, showAfter: true }
   const phase = phaseOf(t, 6)
-  const move = span(phase, 0.08, 0.3)
   return {
-    lhsX: lerp(LHS_REST.x, LHS_RULE.x, move),
-    lhsY: lerp(LHS_REST.y, LHS_RULE.y, move),
-    rhsX: lerp(RHS_REST.x, RHS_RULE.x, move),
-    rhsY: lerp(RHS_REST.y, RHS_RULE.y, move),
     mark: span(phase, 0.36, 0.5),
     swap: span(phase, 0.56, 0.74),
     showBefore: phase >= 0.34,
@@ -183,18 +183,46 @@ export function smallestFrame(t: number, reduced: boolean): SmallestFrame {
 }
 
 export interface SandboxFrame {
+  stdout: number
   out: number
+  outX: number
   socket: number
+  tokenX: number
+  tokenShow: boolean
+  error: number
 }
+
+const SANDBOX_PERIOD = 6.4
 
 export function sandboxFrame(t: number, reduced: boolean): SandboxFrame {
   assertReduced(reduced)
   assertTime(t)
-  if (reduced) return { out: 1, socket: 1 }
-  const phase = phaseOf(t, 5.5)
+  if (reduced) {
+    return {
+      stdout: 1,
+      out: 1,
+      outX: SANDBOX_OUTSIDE_X,
+      socket: 1,
+      tokenX: SANDBOX_INSIDE_X,
+      tokenShow: false,
+      error: 1,
+    }
+  }
+  const phase = phaseOf(t, SANDBOX_PERIOD)
+  const out = span(phase, 0.18, 0.4)
+  const approach = span(phase, 0.58, 0.7)
+  const retreat = span(phase, 0.72, 0.86)
+  const tokenX = approach < 1 && retreat === 0
+    ? lerp(SANDBOX_INSIDE_X, SANDBOX_WALL_X, approach)
+    : lerp(SANDBOX_WALL_X, SANDBOX_INSIDE_X, retreat)
   return {
-    out: span(phase, 0.12, 0.4),
-    socket: span(phase, 0.52, 0.74),
+    stdout: span(phase, 0.06, 0.16),
+    out,
+    outX: lerp(SANDBOX_INSIDE_X, SANDBOX_OUTSIDE_X, out),
+    socket: span(phase, 0.48, 0.58),
+    tokenX,
+    tokenShow: phase >= 0.56 && phase < 0.9,
+    error: span(phase, 0.86, 0.96),
   }
 }
 
@@ -234,9 +262,64 @@ export function cardX(travel: number): number {
   return lerp(12, 40, travel)
 }
 
-export function keyboardX(t: number, reduced: boolean): number {
+export interface PopLetter {
+  char: string
+  dy: number
+  opacity: number
+  flip: number
+}
+
+export interface SmashFrame {
+  squash: number
+  lift: number
+  letters: readonly PopLetter[]
+}
+
+const SMASH_PERIOD = 4
+
+function letterPop(phase: number, index: number): PopLetter {
+  const char = TRY_LETTERS[index]
+  if (char === undefined) throw new Error(`letter ${index} is not on the keyboard`)
+  const start = 0.14 + index * 0.08
+  const end = start + 0.3
+  if (phase < start || phase >= end) return { char, dy: 0, opacity: 0, flip: 1 }
+  const life = (phase - start) / (end - start)
+  const rise = ease('outBack', life)
+  const fadeIn = life < 0.22 ? ease('out', life / 0.22) : 1
+  const fadeOut = life > 0.68 ? 1 - ease('in', (life - 0.68) / 0.32) : 1
+  return {
+    char,
+    dy: -rise * POP_RISE,
+    opacity: Math.min(fadeIn, fadeOut),
+    flip: Math.abs(Math.cos(life * Math.PI * 2)),
+  }
+}
+
+/** Rex hits the keyboard from below. Letters fade in, flip, bounce up, and fade out. */
+export function smashFrame(t: number, reduced: boolean): SmashFrame {
   assertReduced(reduced)
   assertTime(t)
-  if (reduced) return 400
-  return lerp(148, 400, span(phaseOf(t, 4), 0.1, 0.48))
+  if (reduced) {
+    return {
+      squash: 1,
+      lift: 0,
+      letters: TRY_LETTERS.map(char => ({ char, dy: 0, opacity: 1, flip: 1 })),
+    }
+  }
+  const phase = phaseOf(t, SMASH_PERIOD)
+  const down = span(phase, 0.06, 0.14)
+  const up = span(phase, 0.14, 0.24)
+  const liftUp = span(phase, 0.14, 0.28)
+  const liftBack = span(phase, 0.28, 0.42)
+  let squash = 1
+  if (phase >= 0.06 && phase < 0.14) squash = lerp(1, 0.7, down)
+  else if (phase >= 0.14 && phase < 0.24) squash = lerp(0.7, 1, up)
+  let lift = 0
+  if (phase >= 0.14 && phase < 0.28) lift = lerp(0, -16, liftUp)
+  else if (phase >= 0.28 && phase < 0.42) lift = lerp(-16, 0, liftBack)
+  return {
+    squash,
+    lift,
+    letters: TRY_LETTERS.map((_, index) => letterPop(phase, index)),
+  }
 }
