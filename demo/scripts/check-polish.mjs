@@ -550,11 +550,9 @@ async function checkScorePlace() {
       const label = document.querySelector('[data-test="score-label"]')
       const score = document.querySelector('[data-test="score"]')
       const copy = document.querySelector('.hero-copy').getBoundingClientRect()
-      const bubble = document.querySelector('[data-test="speech"]')?.getBoundingClientRect()
       const labelBox = label.getBoundingClientRect()
       const scoreBox = score.getBoundingClientRect()
       const opacity = Number(getComputedStyle(label).opacity)
-      const overlaps = (a, b) => a && b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
       return {
         opacity,
         groupOpacity: Number(getComputedStyle(label.parentElement).opacity),
@@ -565,7 +563,6 @@ async function checkScorePlace() {
         labelRight: labelBox.right,
         scoreRight: scoreBox.right,
         copyLeft: copy.left,
-        hitsBubble: overlaps(scoreBox, bubble) || overlaps(labelBox, bubble),
       }
     })
     if (placed.yourTurn) fail('your turn button is in the hero')
@@ -579,7 +576,6 @@ async function checkScorePlace() {
     if (placed.scoreRight > placed.copyLeft - 16) {
       fail(`score reaches x=${placed.scoreRight.toFixed(0)} into the copy at ${placed.copyLeft.toFixed(0)}`)
     }
-    if (placed.hitsBubble) fail('score overlaps the speech bubble')
     console.log('score place ok')
   } finally {
     await browser.close()

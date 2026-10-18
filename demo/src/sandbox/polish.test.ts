@@ -6,11 +6,9 @@ import { framePose, settledSpring } from './motion'
 import {
   BOX_REACH,
   GROUND,
-  HINT_X,
   MACHINE_GROW,
   MACHINE_X,
   OPENING_Y,
-  REX_HOME,
   REX_LEVER,
   SCALE,
   SCAN_TOP,
@@ -19,18 +17,13 @@ import {
   TUNNEL_BOTTOM,
   VIEW_H,
   VIEW_W,
-  YANK,
   beltPoint,
   boxInFrame,
   boxPlace,
   inHit,
   leverKnob,
   machineScale,
-  rexHead,
-  speechTail,
 } from './layout'
-
-const hatRight = REX_LEVER + 24 * SCALE
 
 describe('hero polish', () => {
   it('stands on no drawn ground line and shows the whole foot', () => {
@@ -52,11 +45,22 @@ describe('hero polish', () => {
     expect(homeBorder).toContain('border-top-width: 0')
   })
 
-  it('keeps the hint off Rex', () => {
-    expect(HINT_X).toBeGreaterThan(hatRight + 12)
+  it('draws no hint and no speech', () => {
     const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
-    expect(scene).toContain(':x="HINT_X"')
-    expect(scene).toContain('text-anchor="start"')
+    const layout = readFileSync('src/sandbox/layout.ts', 'utf8')
+    for (const source of [scene, layout]) {
+      expect(source).not.toContain('start-hint')
+      expect(source).not.toContain('speech-bubble')
+      expect(source).not.toContain('speechTail')
+      expect(source).not.toContain('HINT_X')
+      expect(source).not.toContain('SPEECH_')
+      expect(source).not.toContain('sandboxin')
+    }
+    expect(scene).toContain('Rex at the machine.')
+    expect(scene).toContain('data-test="scene-status"')
+    expect(scene).toContain('data-test="miss"')
+    expect(scene).toContain('>yeah</text>')
+    expect(scene).toContain('>not yet</text>')
   })
 
   it('draws no curtains and no cage stack', () => {
@@ -196,35 +200,6 @@ describe('hero polish', () => {
         expect(spun).toBe(true)
       }
     }
-  })
-
-  it('tail aims at the head', () => {
-    const samples = [
-      { rootX: REX_LEVER, rootY: GROUND },
-      { rootX: REX_LEVER + 4, rootY: GROUND + 4 },
-      { rootX: REX_LEVER + 1.2, rootY: GROUND + 2 },
-      { rootX: REX_HOME, rootY: GROUND },
-    ]
-    for (const sample of samples) {
-      const head = rexHead(sample.rootX, sample.rootY)
-      const tail = speechTail(sample.rootX, sample.rootY)
-      const above = tail.tipY <= head.y + 1 && tail.tipX >= head.x - 8 && tail.tipX <= head.x + head.w + 8
-      const beside = (tail.tipX <= head.x + 2 || tail.tipX >= head.x + head.w - 2)
-        && tail.tipY >= head.y - 8
-        && tail.tipY <= head.y + head.h + 8
-      expect(above || beside).toBe(true)
-      const vx = tail.tipX - tail.attachX
-      const vy = tail.tipY - tail.attachY
-      const hx = head.x + head.w / 2 - tail.attachX
-      const hy = head.y + head.h / 2 - tail.attachY
-      const cos = (vx * hx + vy * hy) / (Math.hypot(vx, vy) * Math.hypot(hx, hy))
-      expect(cos).toBeGreaterThan(0.98)
-    }
-    const moved = speechTail(REX_LEVER, GROUND)
-    const yanked = speechTail(REX_LEVER + 6, GROUND + 8)
-    expect(yanked.tipX).not.toBe(moved.tipX)
-    expect(yanked.tipY).not.toBe(moved.tipY)
-    expect(YANK).toBeGreaterThan(0)
   })
 
   it('pauses animation frames while hidden', () => {

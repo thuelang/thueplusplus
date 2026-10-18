@@ -3,8 +3,6 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Rex from './Rex.vue'
 import {
   GROUND,
-  HINT_X,
-  HINT_Y,
   HIT_FRONT,
   LEVER_LEN,
   LEVER_PIVOT,
@@ -17,8 +15,6 @@ import {
   OPENING_Y,
   SCALE,
   SCAN_TOP,
-  SPEECH_X,
-  SPEECH_Y,
   TUNNEL_BOTTOM,
   VIEW_H,
   VIEW_W,
@@ -27,7 +23,6 @@ import {
   leverDegrees,
   leverKnob,
   machineScale,
-  speechTail,
 } from '@/sandbox/layout'
 import { MACHINE_D } from '@/sandbox/machine'
 import { framePose, settledSpring, type Pose, type Spring } from '@/sandbox/motion'
@@ -139,12 +134,7 @@ const rexLabel = computed(() => (
 const leverLabel = computed(() => (
   game.value.control === 'player' && game.value.phase === 'playing' ? 'Pull the lever.' : 'Rex.'
 ))
-const showHint = computed(() => game.value.presence !== 'away')
-const leverHint = computed(() => (
-  game.value.control === 'player' && game.value.phase === 'playing' ? 'pull the lever' : 'your turn'
-))
 const leverAngle = computed(() => leverDegrees(game.value.lever))
-const tail = computed(() => speechTail(pose.value.rootX, pose.value.rootY))
 const inRange = computed(() => game.value.boxes.some(box => inZone(box.progress, box.lane, box.spin)))
 const grown = ref(0)
 const scannerTransform = computed(() => {
@@ -373,55 +363,6 @@ defineExpose({ game, advance, act })
       preserveAspectRatio="none"
       aria-hidden="true"
     >
-      <g
-        v-if="game.control === 'auto' && game.rex !== 'cheer'"
-        data-test="speech"
-        :transform="`translate(${SPEECH_X} ${SPEECH_Y})`"
-      >
-        <path
-          data-test="speech-tail"
-          :d="tail.d"
-          :data-tip-x="tail.tipX.toFixed(1)"
-          :data-tip-y="tail.tipY.toFixed(1)"
-          fill="var(--surface)"
-          stroke="currentColor"
-          stroke-width="2.4"
-          stroke-linejoin="round"
-        />
-        <path
-          data-test="speech-bubble"
-          :d="`M0 18 C0 6 10 0 24 0 H188 C204 0 214 8 214 22 V58 C214 72 204 80 188 80 H24 C10 80 0 74 0 62 Z`"
-          fill="var(--surface)"
-          stroke="currentColor"
-          stroke-width="2.4"
-          stroke-linejoin="round"
-        />
-        <circle
-          data-test="speech-tail-tip"
-          :cx="tail.tipX - SPEECH_X"
-          :cy="tail.tipY - SPEECH_Y"
-          r="1.6"
-          fill="var(--surface)"
-        />
-        <text
-          data-test="speech-text"
-          x="107"
-          y="32"
-          fill="currentColor"
-          font-family="JetBrains Mono, ui-monospace, monospace"
-          font-size="15"
-          text-anchor="middle"
-        >i guess we</text>
-        <text
-          x="107"
-          y="54"
-          fill="currentColor"
-          font-family="JetBrains Mono, ui-monospace, monospace"
-          font-size="15"
-          text-anchor="middle"
-        >sandboxin' now</text>
-      </g>
-
       <g :transform="`translate(${pose.rootX} ${pose.rootY}) scale(${SCALE})`">
         <Rex :pose="pose" />
       </g>
@@ -443,17 +384,6 @@ defineExpose({ game, advance, act })
         text-anchor="middle"
       >not yet</text>
 
-      <text
-        v-if="showHint"
-        data-test="start-hint"
-        :x="HINT_X"
-        :y="HINT_Y"
-        text-anchor="start"
-        fill="currentColor"
-        font-family="JetBrains Mono, ui-monospace, monospace"
-        font-size="12"
-        opacity="0.55"
-      >{{ leverHint }}</text>
       <text
         v-if="game.miss > 0"
         data-test="miss"
