@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import RexFigure from '@/components/RexFigure.vue'
@@ -9,16 +10,22 @@ import {
   HAT_STORAGE_KEY,
   faviconSvg,
   hat as markHat,
+  hatCenter,
   hatShape,
+  hatSwapFrame,
   hatTiltAt,
   loadHat,
   nextHatId,
+  MARK,
   saveHat,
-  swapArrive,
 } from '@/rex/geometry.mjs'
-import { hat, resetMascot, swapHat } from '@/rex/mascot'
+import { hat, resetMascot, swap, swapHat, swapT } from '@/rex/mascot'
 
 const pose = () => actPose({ mode: 'read', clock: 0, reduced: true, spring: settledSpring(), dt: 0 })
+
+function translates(transform: string): number[][] {
+  return [...transform.matchAll(/translate\(([^)]+)\)/g)].map(match => match[1].split(/[\s,]+/).map(Number))
+}
 
 function memory() {
   const saved = new Map<string, string>()
@@ -71,7 +78,7 @@ describe('rex hats', () => {
     expect(() => saveHat(storage, 'cape')).toThrow(/unknown hat cape/)
   })
 
-  it('gives every hat its own cock and wobbles a fresh one into it', () => {
+  it('gives every hat its own cock and keeps that tilt', () => {
     const tilts = HAT_IDS.map(id => hatShape(id).tilt)
     const offsets = HAT_IDS.map(id => `${hatShape(id).offset.x},${hatShape(id).offset.y}`)
     expect(new Set(tilts).size).toBe(HAT_IDS.length)
@@ -83,13 +90,65 @@ describe('rex hats', () => {
       const shift = Math.hypot(shape.offset.x, shape.offset.y)
       expect(shift).toBeGreaterThanOrEqual(1)
       expect(shift).toBeLessThanOrEqual(5)
+      expect(hatTiltAt(shape.tilt, 0, false)).toBe(shape.tilt)
+      expect(hatTiltAt(shape.tilt, 0.55, false)).toBe(shape.tilt)
+      expect(hatTiltAt(shape.tilt, 1, true)).toBe(shape.tilt)
     }
-    const tilt = hatShape('hard').tilt
-    const arrive = swapArrive(0.55)
-    expect(hatTiltAt(tilt, 0.55, false)).not.toBeCloseTo(tilt * arrive)
-    expect(hatTiltAt(tilt, 0.55, true)).toBe(tilt)
-    expect(hatTiltAt(tilt, 1, false)).toBe(tilt)
-    expect(hatTiltAt(tilt, 0, false)).toBe(0)
+  })
+
+  it('scales each hat in place around its own center', async () => {
+    const rest = hatSwapFrame(0, 0, MARK.eyeDy)
+    const mid = hatSwapFrame(0.5, 0, MARK.eyeDy)
+    const done = hatSwapFrame(1, 0, MARK.eyeDy)
+    for (const frame of [rest, mid, done]) {
+      expect(frame.incoming.x).toBe(0)
+      expect(frame.incoming.y).toBe(0)
+      expect(frame.outgoing.x).toBe(0)
+      expect(frame.outgoing.y).toBe(0)
+    }
+    expect(rest.outgoing.scale).toBe(1)
+    expect(rest.incoming.scale).toBe(0)
+    expect(mid.outgoing.scale).toBeLessThan(0.85)
+    expect(mid.outgoing.scale).toBeGreaterThan(0.15)
+    expect(mid.incoming.scale).toBeGreaterThan(0.15)
+    expect(done.outgoing.scale).toBe(0)
+    expect(done.incoming.scale).toBeCloseTo(1, 5)
+    expect(hatCenter('wizard').y).toBeLessThan(hatCenter('hard').y - 2)
+    expect(() => hatSwapFrame(0.2, Number.NaN, 0)).toThrow(/finite/)
+
+    const previous = window.matchMedia
+    window.matchMedia = () => ({
+      matches: false,
+      media: '',
+      onchange: null,
+      addListener() {},
+      removeListener() {},
+      addEventListener() {},
+      removeEventListener() {},
+      dispatchEvent() { return false },
+    })
+    const wrapper = mount(RexFigure, { props: { pose: pose() } })
+    swap.value = { from: 'hard', to: 'top', side: 'right', started: 0 }
+    swapT.value = 0.55
+    await nextTick()
+    const hard = wrapper.get('[data-hat="hard"]')
+    const top = wrapper.get('[data-hat="top"]')
+    expect(Number(hard.attributes('data-tilt'))).toBe(hatShape('hard').tilt)
+    expect(Number(top.attributes('data-tilt'))).toBe(hatShape('top').tilt)
+    const hardCenter = hatCenter('hard')
+    const topCenter = hatCenter('top')
+    const hardPlace = translates(hard.attributes('transform') ?? '')
+    const topPlace = translates(top.attributes('transform') ?? '')
+    expect(hardPlace[0][1]).toBeCloseTo(MARK.eyeDy + hatShape('hard').offset.y, 3)
+    expect(topPlace[0][1]).toBeCloseTo(MARK.eyeDy + hatShape('top').offset.y, 3)
+    expect(hardPlace[1][0]).toBeCloseTo(hardCenter.x, 3)
+    expect(hardPlace[1][1]).toBeCloseTo(hardCenter.y, 3)
+    expect(hardPlace[2][0]).toBeCloseTo(-hardCenter.x, 3)
+    expect(hardPlace[2][1]).toBeCloseTo(-hardCenter.y, 3)
+    expect(topPlace[1][1]).toBeCloseTo(topCenter.y, 3)
+    expect(Math.abs(hardPlace[1][1] - topPlace[1][1])).toBeGreaterThan(0.5)
+    wrapper.unmount()
+    window.matchMedia = previous
   })
 
   it('draws the favicon with no hat', () => {

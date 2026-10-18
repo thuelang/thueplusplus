@@ -48,7 +48,7 @@ onBeforeUnmount(() => {
             <p data-shard data-test="landing-languages" class="text-ash mt-3 max-w-[640px] font-sans text-[15px] leading-snug">
               Available in
               <template v-for="(language, index) in ready" :key="language.id">
-                <span v-if="index > 0">, </span><RouterLink :to="language.href" class="text-bone hover:text-signal transition-colors duration-150">{{ language.landing }}</RouterLink>
+                <span v-if="index > 0">, </span><RouterLink :to="language.href" class="text-bone hover:text-signal transition-colors duration-150 ease-out">{{ language.landing }}</RouterLink>
               </template><template v-if="soon.length">, and soon {{ soon.join(', ') }}</template>
             </p>
             <div class="mt-4 flex flex-wrap gap-2">

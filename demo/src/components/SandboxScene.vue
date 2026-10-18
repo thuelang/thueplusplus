@@ -2,15 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Rex from './Rex.vue'
 import {
-  GROUND,
   HIT_FRONT,
   LEVER_LEN,
   LEVER_PIVOT,
-  MACHINE_S,
   MACHINE_X,
-  MACHINE_Y,
-  MISS_X,
-  MISS_Y,
   OPENING_X,
   OPENING_Y,
   SCALE,
@@ -18,11 +13,14 @@ import {
   TUNNEL_BOTTOM,
   VIEW_H,
   VIEW_W,
+  TADA_S,
   boxInFrame,
   boxPlace,
   leverDegrees,
   leverKnob,
-  machineScale,
+  machineHeadShake,
+  machineTada,
+  machineTransform as placeMachine,
 } from '@/sandbox/layout'
 import { MACHINE_D } from '@/sandbox/machine'
 import { framePose, settledSpring, type Pose, type Spring } from '@/sandbox/motion'
@@ -113,6 +111,13 @@ function commit(next: Game, dt: number): void {
   const before = game.value
   game.value = next
   syncPose(dt)
+  tadaFresh = false
+  if (!reduced.value && next.clears > before.clears) {
+    tadaT.value = 0
+    tadaFresh = true
+  } else if (before.miss === 0 && next.miss > 0) {
+    tadaT.value = 1
+  }
   if (next.phase === 'broken' && before.phase !== 'broken') {
     emit('break', next.reduced)
     note()
@@ -168,10 +173,16 @@ function pct(x: number, y: number, w: number, h: number): Record<string, string>
 }
 
 const drawnBoxes = computed(() => game.value.boxes.filter(box => boxInFrame(box.progress, box.lane, box.spin)))
-const machineTransform = computed(() => {
-  const scale = machineScale(grown.value)
-  return `translate(${MACHINE_X} ${GROUND}) scale(${scale}) translate(${-MACHINE_X} ${-GROUND}) translate(${MACHINE_X} ${MACHINE_Y}) scale(${MACHINE_S})`
-})
+const tadaT = ref(1)
+let tadaFresh = false
+const shake = computed(() => machineHeadShake(game.value.miss, reduced.value))
+const tada = computed(() => machineTada(tadaT.value, reduced.value))
+const machineTransform = computed(() => placeMachine(grown.value, game.value.miss, tadaT.value, reduced.value))
+
+function followReactions(dt: number): void {
+  if (reduced.value || tadaFresh || tadaT.value >= 1) return
+  tadaT.value = Math.min(1, tadaT.value + dt / TADA_S)
+}
 
 function easeGrown(dt: number): void {
   const target = inRange.value ? 1 : 0
@@ -267,6 +278,7 @@ function tick(now: number): void {
     const miss = game.value.miss
     commit(step(game.value, dt), dt)
     easeGrown(dt)
+    followReactions(dt)
     if (miss > 0 && game.value.miss === 0) note()
   }
   raf = requestAnimationFrame(tick)
@@ -300,6 +312,7 @@ function advance(dt: number): void {
   const miss = game.value.miss
   commit(step(game.value, dt), dt)
   easeGrown(dt)
+  followReactions(dt)
   if (miss > 0 && game.value.miss === 0) note()
 }
 
@@ -373,39 +386,6 @@ defineExpose({ game, advance, act })
           <circle :cx="LEVER_PIVOT.x" :cy="LEVER_PIVOT.y - LEVER_LEN" r="9" fill="var(--signal)" stroke="currentColor" stroke-width="2" />
         </g>
       </g>
-      <text
-        v-if="game.deny > 0"
-        data-test="not-yet"
-        :x="LEVER_PIVOT.x - 20"
-        :y="LEVER_PIVOT.y - 72"
-        fill="var(--signal)"
-        font-family="JetBrains Mono, ui-monospace, monospace"
-        font-size="12"
-        text-anchor="middle"
-      >not yet</text>
-
-      <text
-        v-if="game.miss > 0"
-        data-test="miss"
-        :x="MISS_X"
-        :y="MISS_Y"
-        fill="var(--signal)"
-        font-family="JetBrains Mono, ui-monospace, monospace"
-        font-size="18"
-        text-anchor="end"
-        :opacity="Math.min(1, game.miss + 0.25)"
-      >miss</text>
-      <text
-        v-if="game.rex === 'cheer'"
-        data-test="cheer"
-        :x="pose.rootX"
-        :y="pose.rootY - 278"
-        fill="var(--signal)"
-        font-family="JetBrains Mono, ui-monospace, monospace"
-        font-size="20"
-        text-anchor="middle"
-      >yeah</text>
-
       <g
         v-for="box in drawnBoxes"
         :key="box.id"
@@ -421,6 +401,10 @@ defineExpose({ game, advance, act })
         <g
           data-test="machine"
           :data-grown="grown.toFixed(2)"
+          :data-shake-x="shake.x.toFixed(3)"
+          :data-shake-rot="shake.rot.toFixed(3)"
+          :data-tada-scale="tada.scale.toFixed(3)"
+          :data-tada-rot="tada.rot.toFixed(3)"
           :transform="machineTransform"
           fill="currentColor"
         >

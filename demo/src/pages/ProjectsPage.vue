@@ -33,7 +33,7 @@ function improveHref(program: string): string {
         :key="project.id"
         data-test="project-card"
         :data-project="project.id"
-        class="hover:border-bone gap-0 py-8 transition-colors duration-150"
+        class="hover:border-bone gap-0 py-8 transition-colors duration-150 ease-out"
       >
         <CardHeader class="gap-3">
           <CardTitle class="font-display text-[28px] tracking-[-0.03em]">

@@ -321,6 +321,18 @@ html:not(.dark) {
   box-shadow: none !important;
 }
 
+html {
+  transition: background-color 180ms cubic-bezier(0, 0, 0.2, 1), color 180ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.animate-in {
+  animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+}
+
+.animate-out {
+  animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

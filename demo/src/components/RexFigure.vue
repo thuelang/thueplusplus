@@ -8,10 +8,9 @@ import {
   hat,
   hatFill,
   hatInk,
-  hatOffsetAt,
+  hatCenter,
   hatShape,
   hatSwapFrame,
-  hatTiltAt,
   shineFill,
 } from '@/rex/geometry.mjs'
 import { hat as wornHat, prefersReduced, swap, swapT } from '@/rex/mascot'
@@ -46,30 +45,28 @@ const layers = computed(() => {
   const reduced = prefersReduced()
   if (!motion || reduced) {
     const id = wornHat.value
-    return [placed(id, 0, 0, 1, false)]
+    return [placed(id, 1, id)]
   }
   const frame = hatSwapFrame(swapT.value, eyeX, eyeY)
   return [
-    placed(motion.from, frame.outgoing.x, frame.outgoing.y, frame.outgoing.scale, false),
-    placed(motion.to, frame.incoming.x, frame.incoming.y, frame.incoming.scale, true),
+    placed(motion.from, frame.outgoing.scale, `out-${motion.from}`),
+    placed(motion.to, frame.incoming.scale, `in-${motion.to}`),
   ].filter(layer => layer.scale > 0.012)
 })
 
-function placed(id: string, x: number, y: number, scale: number, incoming: boolean) {
+function placed(id: string, scale: number, key: string) {
   const shape = hatShape(id)
-  const reduced = prefersReduced()
-  const tilt = props.pose.hatRot + (incoming && !reduced ? hatTiltAt(shape.tilt, swapT.value, false) : shape.tilt)
-  const shift = incoming && !reduced
-    ? hatOffsetAt(shape.offset, swapT.value, false)
-    : { x: shape.offset.x * scale, y: shape.offset.y * scale }
+  const center = hatCenter(id)
+  const tilt = props.pose.hatRot + shape.tilt
+  const shift = shape.offset
   return {
-    key: `${incoming ? 'in' : 'out'}-${id}`,
+    key,
     id,
     scale,
     tilt,
     test: id === 'hard' ? 'hard-hat' : 'rex-hat',
     offsetX: shape.offset.x,
-    transform: `translate(${hatX.value + x + shift.x} ${hatY.value + y + shift.y}) rotate(${tilt}) scale(${scale})`,
+    transform: `translate(${hatX.value + shift.x} ${hatY.value + shift.y}) rotate(${tilt}) translate(${center.x} ${center.y}) scale(${scale}) translate(${-center.x} ${-center.y})`,
     parts: shape.parts,
   }
 }

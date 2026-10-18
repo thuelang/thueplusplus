@@ -531,8 +531,11 @@ describe('lever game', () => {
     expect(leverCurve(YANK - 1 / 60)).toBeGreaterThan(0)
     expect(leverCurve(YANK)).toBe(0)
     const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
-    expect(scene).toContain('data-test="not-yet"')
-    expect(scene).toContain('game.deny > 0')
+    expect(scene).not.toContain('data-test="not-yet"')
+    expect(scene).not.toContain('>miss</text>')
+    const mid = leverCurve(YANK * 0.15)
+    const straight = 0.15 / 0.3
+    expect(mid).toBeGreaterThan(straight + 0.15)
 
     const frame = 1 / 60
     const earlyFrames = Math.floor((YANK - 1e-6) / frame)
