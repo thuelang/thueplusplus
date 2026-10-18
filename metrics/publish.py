@@ -93,8 +93,23 @@ def committable(path: str) -> bool:
     )
 
 
-def apply_files(root: Path, solutions: list, runs: list, commit: str, machine: dict) -> list[str]:
-    """Write changed metric files. Does not archive and does not commit."""
+def apply_files(
+    root: Path,
+    solutions: list,
+    runs: list,
+    commit: str,
+    machine: dict,
+    *,
+    author: str | None = None,
+    timestamp: str | None = None,
+) -> list[str]:
+    """Write changed metric files. Does not archive and does not commit.
+
+    `author` and `timestamp` are the measured commit's git identity. They are
+    stored on `latest.json` so a later site build does not need that object.
+    """
+    if (author is None) != (timestamp is None):
+        raise PublishError("author and timestamp are stored together")
     written = _write_metrics(solutions, runs, commit, root=root)
     latest_path = root / historylib.LATEST_REL
     current = None
@@ -111,6 +126,15 @@ def apply_files(root: Path, solutions: list, runs: list, commit: str, machine: d
         "machine": machine,
         "runs": runs,
     }
+    if author is not None and timestamp is not None:
+        document = {
+            "schema_version": historylib.SCHEMA_VERSION,
+            "commit": commit,
+            "author": author,
+            "timestamp": timestamp,
+            "machine": machine,
+            "runs": runs,
+        }
     historylib.save_latest(root, document)
     written.append(historylib.LATEST_REL)
     return written

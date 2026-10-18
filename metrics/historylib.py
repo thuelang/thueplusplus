@@ -380,8 +380,21 @@ def validate_machine(machine, label: str, *, allow_null: bool) -> None:
 
 
 def _validate_runs_document(document: dict, keys: frozenset[str], label: str, *, bench: bool) -> None:
-    if not isinstance(document, dict) or set(document) != keys:
-        raise HistoryError(f"{label}: run document keys must be {', '.join(sorted(keys))}")
+    if not isinstance(document, dict):
+        raise HistoryError(f"{label}: run document must be an object")
+    present = set(document)
+    if bench:
+        if present != set(keys):
+            raise HistoryError(f"{label}: run document keys must be {', '.join(sorted(keys))}")
+    else:
+        stamps = present & {"author", "timestamp"}
+        if stamps not in (set(), {"author", "timestamp"}):
+            raise HistoryError(f"{label}: author and timestamp are stored together")
+        if present - {"author", "timestamp"} != set(keys):
+            raise HistoryError(f"{label}: run document keys must be {', '.join(sorted(keys))}")
+        if stamps:
+            _author(document["author"], str(document.get("commit", label)))
+            _timestamp(document["timestamp"], str(document.get("commit", label)))
     version = document["schema_version"]
     if version not in (4, 5):
         raise HistoryError(f"{label}: a runs document is schema 4 or 5")

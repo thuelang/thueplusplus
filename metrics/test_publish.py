@@ -276,6 +276,35 @@ class PublishTest(unittest.TestCase):
         self.assertEqual(workflow.count("timeout-minutes: 45"), 2)
         self.assertGreater(os.cpu_count() or 0, 0)
 
+    def test_a_changed_run_stores_the_measured_author(self) -> None:
+        with self.assertRaises(PublishError):
+            apply_files(Path("/tmp"), [], [], COMMIT_B, MACHINE_B, author="Ada <ada@example.com>")
+        stored = _runs("hello-world", 4)
+        measured = _runs("hello-world", 3)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init(root)
+            self._seed(root, {"hello-world": 4}, stored, COMMIT_A, MACHINE_A)
+            apply_files(
+                root,
+                [_solution("hello-world")],
+                measured,
+                COMMIT_B,
+                MACHINE_B,
+                author="Ada Lovelace <ada@example.com>",
+                timestamp="2026-10-17T14:09:55Z",
+            )
+            latest = json.loads((root / "metrics" / "latest.json").read_text(encoding="utf-8"))
+            self.assertEqual(latest["author"], "Ada Lovelace <ada@example.com>")
+            self.assertEqual(latest["timestamp"], "2026-10-17T14:09:55Z")
+            self.assertEqual(latest["commit"], COMMIT_B)
+            historylib.validate_latest(latest)
+            half = dict(latest)
+            del half["timestamp"]
+            with self.assertRaises(historylib.HistoryError) as caught:
+                historylib.validate_latest(half)
+            self.assertIn("stored together", str(caught.exception))
+
     def _seed(self, root: Path, costs: dict[str, int], runs: list[dict], commit: str, machine: dict) -> None:
         for problem, cost in costs.items():
             path = root / "problems" / problem / "solutions" / "direct" / "metric.json"

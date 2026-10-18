@@ -24,6 +24,9 @@ func spec() harness.Problem {
 			Name: fmt.Sprintf("seed-%d", seed), Seed: harness.Seed(seed), Reads: harness.Stdin(text(seed)),
 		})
 	}
+	// "in" was the read marker. A line of those two letters matched the read
+	// rule again and the next read hit EOF. "@" is outside the drawn alphabet.
+	cases = append(cases, harness.Case{Name: "in", Reads: harness.Stdin("in")})
 	return harness.Problem{
 		ID: "rot-13",
 		Resources: []harness.Resource{

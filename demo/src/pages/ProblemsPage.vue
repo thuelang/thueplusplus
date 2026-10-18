@@ -28,8 +28,10 @@ function versionOf(problem: CatalogProblem, id: string) {
 
 function solvedText(id: string, point: SeriesPoint): string {
   const row = catalog.rulesets.find(ruleset => ruleset.id === id)?.solved.find(item => item.commit === point.commit)
-  const added = row && row.added.length > 0 ? row.added.join(', ') : 'no new problem'
-  return `${point.commit.slice(0, 12)} · ${added}`
+  const short = point.commit.slice(0, 12)
+  if (!row || row.added == null) return `${short} · added problems unknown`
+  const added = row.added.length > 0 ? row.added.join(', ') : 'no new problem'
+  return `${short} · ${added}`
 }
 </script>
 
