@@ -517,6 +517,7 @@ html.rex-shattered .rex-rubble [data-shard] {
 
 .home-screen.page-screen-bare + .page-details {
   margin-top: 0;
+  border-top-width: 0;
 }
 
 .home-hero {
@@ -566,7 +567,7 @@ html.rex-shattered .rex-rubble [data-shard] {
   }
 
   .hero-copy-wrap {
-    margin-bottom: calc(100vw * 420 / 1440);
+    margin-bottom: calc(100vw * 420 / 1440 + 3rem);
   }
 
   .home-hero .rex-bleed {

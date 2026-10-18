@@ -6,17 +6,17 @@ export const VIEW_H = 420
 export const BELT_TOP = 292
 export const SCALE = 2.5
 /**
- * One thin ground line. Rex's feet stand on it, fully above it.
- * It sits just under the traced machine.
+ * Where Rex's feet and the machine base stand. Nothing is drawn there.
  */
 export const GROUND = 356
 
 /**
  * Left inset of the machine, in view units.
- * At 768px wide this is 38px of screen margin, and at 1440 it is 72px,
- * so the machine and the score clear the viewport edge.
+ * The hero column is centered in a 1320px frame, so a 72-unit inset sat
+ * on that column's left edge at 1440. 120 units is 48px inside the column
+ * there, and 64px from the viewport edge at 768.
  */
-export const SCENE_INSET = 72
+export const SCENE_INSET = 120
 
 /** A quiet tally in the corner. It does not compete with the headline. */
 export const SCORE_X = SCENE_INSET + 22
@@ -52,8 +52,8 @@ export function scoreFlashRadius(scale: number, flash: number): number {
 }
 
 /** Rex root (point between the feet) at rest, and where he stands to pull. He stands just right of the machine. */
-export const REX_HOME = 430
-export const REX_LEVER = 510
+export const REX_HOME = 454
+export const REX_LEVER = 534
 
 export const LEVER_PIVOT = { x: REX_LEVER - 52, y: GROUND - 46 }
 /**

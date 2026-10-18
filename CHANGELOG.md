@@ -7,6 +7,10 @@ Versions are the Thue++ spec versions in `SPEC_VERSION`.
 
 ## [Unreleased]
 
+### Changed
+
+- A handoff between Rex and the visitor changes only who pulls the lever. Boxes in flight keep their position, rotation, and speed. The score, the best score, and the belt speed stay one run. Only a break starts over. If the pointer leaves while a box is in range, Rex scores it when he still can. A box he cannot score in time passes with no break, and the other boxes stay. The machine and the score clear the hero column by at least 48px, including at 1440 where they used to touch the left edge. On a phone the speech bubble clears the buttons by at least 32px at 390 and 768. There is no drawn ground line: Rex's feet and the machine base carry the floor, and the home hero has no bottom rule.
+
 ### Added
 
 - A native JavaScript host in `js/`. The npm package stays `thuelang` and the command is `node js/src/cli.js`. The WebAssembly wrapper moved from `js/` to `wasm/` and publishes as `@thuelang/wasm` (`node wasm/src/cli.js`). The playground loads the native JavaScript host. The environment label is `js (node)`. `hosts.toml` registers `js` with `npm ci`. The metrics chart adds `--chart-9` for a ninth host series.

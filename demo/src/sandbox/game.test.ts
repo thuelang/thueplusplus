@@ -9,6 +9,7 @@ import {
   TOUCH_IDLE,
   beginAutoplay,
   beginPlayer,
+  handBack,
   boxesOverlap,
   createGame,
   demoRuns,
@@ -384,13 +385,19 @@ describe('lever game', () => {
     const playing = until(demo, current => current.score >= 1, 50)
     const taken = playerAct(playing)
     expect(taken.control).toBe('player')
-    expect(taken.score).toBe(0)
+    expect(taken.score).toBe(playing.score)
     expect(taken.best).toBe(4)
     expect(taken.phase).toBe('playing')
-    expect(taken.boxes).toHaveLength(0)
+    expect(taken.boxes).toEqual(playing.boxes)
+    expect(taken.spawnIn).toBe(playing.spawnIn)
+    expect(taken.rng).toBe(playing.rng)
 
-    const again = playerAct(taken)
-    expect(again.score).toBe(0)
+    const quiet = {
+      ...taken,
+      boxes: taken.boxes.filter(box => !inZone(box.progress, taken.score, taken.reduced)),
+    }
+    const again = playerAct(quiet)
+    expect(again.score).toBe(quiet.score)
     expect(again.control).toBe('player')
 
     let missed = started(7, true)
@@ -406,10 +413,17 @@ describe('lever game', () => {
     let touched = setPresence(started(7, true), 'touch')
     touched = step(touched, TOUCH_IDLE - 0.05)
     expect(touched.control).toBe('player')
-    touched = step(touched, 0.1)
+    let previous = touched
+    touched = step(touched, 1 / 30)
+    while (touched.control === 'player') {
+      previous = touched
+      touched = step(touched, 1 / 30)
+    }
     expect(touched.control).toBe('auto')
     expect(touched.phase).toBe('playing')
     expect(touched.presence).toBe('away')
+    expect(touched.score).toBe(previous.score)
+    expect(touched.boxes).toEqual(previous.boxes)
   })
 
   it('never stack caught boxes', () => {
@@ -427,19 +441,106 @@ describe('lever game', () => {
     expect(game.score).toBeGreaterThanOrEqual(12)
   })
 
-  it('handoff drops a box that would have escaped', () => {
+  it('handoff keeps a box in range and Rex scores it', () => {
     let game = setPresence(beginPlayer(createGame({ seed: 15, reduced: true, best: 1 })), 'pointer')
-    game = until(game, current => current.boxes.some(box => box.progress > 0.92), 30)
-    const escaping = game.boxes.find(box => box.progress > 0.92)
-    if (!escaping) throw new Error('no box near the exit')
+    game = until(game, current => current.boxes.some(box => inZone(box.progress, current.score, true)), 30)
+    const score = game.score
+    const boxes = game.boxes.map(box => ({ ...box }))
     const handed = setPresence(game, 'away')
     expect(handed.control).toBe('auto')
     expect(handed.phase).toBe('playing')
-    expect(handed.boxes).toHaveLength(0)
-    expect(handed.score).toBe(0)
-    const later = step(handed, 1)
+    expect(handed.boxes).toEqual(boxes)
+    expect(handed.score).toBe(score)
+    const later = step(handed, 2)
     expect(later.phase).not.toBe('broken')
     expect(later.control).toBe('auto')
+    expect(later.score).toBeGreaterThan(score)
+  })
+
+  it('a box Rex cannot score passes without a break or a clear', () => {
+    const riding = { id: 2, progress: 0.2, lane: 0.5, spin: 0.2 }
+    const gone = { id: 1, progress: 1, lane: 0.4, spin: 0.1 }
+    let game = beginPlayer(createGame({ seed: 4, reduced: false, best: 3 }))
+    game = {
+      ...game,
+      score: 5,
+      best: 5,
+      streak: 2,
+      spawnIn: 1.2,
+      boxes: [gone, riding],
+      rex: 'yank',
+      rexT: 0.02,
+      lever: leverCurve(0.02),
+    }
+    const handed = handBack(game)
+    expect(handed.control).toBe('auto')
+    expect(handed.score).toBe(5)
+    expect(handed.best).toBe(5)
+    expect(handed.boxes).toEqual([gone, riding])
+    expect(handed.streak).toBe(2)
+    expect(handed.spawnIn).toBe(1.2)
+    const later = step(handed, 1 / 60)
+    expect(later.phase).toBe('playing')
+    expect(later.score).toBe(5)
+    expect(later.boxes.some(box => box.id === 1)).toBe(false)
+    expect(later.boxes.some(box => box.id === 2)).toBe(true)
+  })
+
+  it('a mid-flight switch matches a run without the switch', () => {
+    const frame = 1 / 60
+    let origin = beginAutoplay(createGame({ seed: 9, reduced: false, best: 2 }))
+    origin = until(origin, current => (
+      current.score >= 1
+      && current.boxes.length >= 2
+      && current.boxes.some(box => inZone(box.progress, current.score, false))
+    ), 50)
+
+    const alreadyPlayer = { ...origin, control: 'player' as const, idle: 0 }
+    const switchedPlayer = beginPlayer(origin)
+    expect(switchedPlayer.control).toBe('player')
+    expect(switchedPlayer.score).toBe(alreadyPlayer.score)
+    expect(switchedPlayer.best).toBe(alreadyPlayer.best)
+    expect(switchedPlayer.boxes).toEqual(alreadyPlayer.boxes)
+    expect(switchedPlayer.spawnIn).toBe(alreadyPlayer.spawnIn)
+    expect(switchedPlayer.rng).toBe(alreadyPlayer.rng)
+    expect(difficulty(switchedPlayer.score, switchedPlayer.reduced).beltRate)
+      .toBe(difficulty(alreadyPlayer.score, alreadyPlayer.reduced).beltRate)
+
+    let stayedPlayer = alreadyPlayer
+    let becamePlayer = switchedPlayer
+    for (let i = 0; i < 90; i += 1) {
+      stayedPlayer = step(stayedPlayer, frame)
+      becamePlayer = step(becamePlayer, frame)
+      expect(becamePlayer.score).toBe(stayedPlayer.score)
+      expect(becamePlayer.best).toBe(stayedPlayer.best)
+      expect(becamePlayer.boxes).toEqual(stayedPlayer.boxes)
+      expect(becamePlayer.spawnIn).toBe(stayedPlayer.spawnIn)
+      expect(becamePlayer.rng).toBe(stayedPlayer.rng)
+      expect(becamePlayer.phase).toBe(stayedPlayer.phase)
+    }
+
+    const playerWorld = { ...origin, control: 'player' as const, presence: 'pointer' as const, idle: 0.2 }
+    const alreadyAuto = { ...playerWorld, control: 'auto' as const, presence: 'away' as const, idle: 0 }
+    const switchedAuto = handBack(playerWorld)
+    expect(switchedAuto.control).toBe('auto')
+    expect(switchedAuto.score).toBe(alreadyAuto.score)
+    expect(switchedAuto.boxes).toEqual(alreadyAuto.boxes)
+    expect(switchedAuto.spawnIn).toBe(alreadyAuto.spawnIn)
+    expect(switchedAuto.rng).toBe(alreadyAuto.rng)
+
+    let stayedAuto = alreadyAuto
+    let becameAuto = switchedAuto
+    for (let i = 0; i < 90; i += 1) {
+      stayedAuto = step(stayedAuto, frame)
+      becameAuto = step(becameAuto, frame)
+      expect(becameAuto.score).toBe(stayedAuto.score)
+      expect(becameAuto.best).toBe(stayedAuto.best)
+      expect(becameAuto.boxes).toEqual(stayedAuto.boxes)
+      expect(becameAuto.spawnIn).toBe(stayedAuto.spawnIn)
+      expect(becameAuto.rng).toBe(stayedAuto.rng)
+      expect(becameAuto.phase).toBe(stayedAuto.phase)
+      expect(difficulty(becameAuto.score, false).beltRate).toBe(difficulty(stayedAuto.score, false).beltRate)
+    }
   })
 
   it('gate demo', () => {
@@ -621,9 +722,9 @@ describe('lever game', () => {
     expect(taken.rex).toBe(auto.rex)
     expect(taken.rexT).toBe(auto.rexT)
     expect(taken.lever).toBe(auto.lever)
-    expect(taken.score).toBe(0)
+    expect(taken.score).toBe(auto.score)
     expect(taken.best).toBe(4)
-    expect(taken.boxes).toHaveLength(0)
+    expect(taken.boxes).toEqual(auto.boxes)
     expect(taken.seed).toBe(auto.seed)
     const jumped = grip(taken, 0.5)
     expect(jumped.rootX).toBe(before.rootX)
@@ -632,7 +733,7 @@ describe('lever game', () => {
     expect(jumped.handY).toBe(before.handY)
 
     const carried = step(taken, frame)
-    const untouched = step({ ...auto, boxes: [], score: 0, streak: 0 }, frame)
+    const untouched = step({ ...auto, control: 'player' }, frame)
     const nextTaken = grip(carried, 0.5 + frame)
     const nextAuto = grip(untouched, 0.5 + frame)
     expect(nextTaken.rootX).toBe(nextAuto.rootX)
@@ -655,8 +756,8 @@ describe('lever game', () => {
     expect(away.rex).toBe(playing.rex)
     expect(away.rexT).toBe(playing.rexT)
     expect(away.lever).toBe(playing.lever)
-    expect(away.score).toBe(0)
-    expect(away.boxes).toHaveLength(0)
+    expect(away.score).toBe(playing.score)
+    expect(away.boxes).toEqual(playing.boxes)
     expect(away.best).toBe(playing.best)
     expect(away.seed).toBe(playing.seed)
     const atLeave = grip(away, 0.8)
