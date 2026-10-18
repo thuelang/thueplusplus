@@ -52,6 +52,8 @@ Versions are the Thue++ spec versions in `SPEC_VERSION`.
 
 ### Changed
 
+- Home hero play. Autoplay and the visitor share one Rex and one lever pull. The hand is the lever knob in every frame. Taking over, or leaving the game, keeps that pose. The walk-over is gone.
+- Home hero favicon. The 16px head sits 1.5px above the hands, with a clear background row between them. The same gap holds at 32px in light and dark. The hand and foot dots are a hair smaller so they stay separate from those eye bars.
 - Home hero framing. The machine and the score sit in from the left edge, so the whole machine and the score word stay inside the viewport. A box is drawn only once its body is fully on screen, so one cannot sit half off the right edge of the ground line.
 - Home hero favicon. The 16px icon is Rex with no hat. The header Rex still wears the hard hat.
 - Home hero height. The hero is as tall as the picture and the text, and the text sits centered on the picture.

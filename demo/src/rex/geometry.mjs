@@ -464,13 +464,17 @@ export function markModel(detail) {
   return placeHardHat({ hatAt: { x: 0, y: eyeDy }, hatScale: 1, parts })
 }
 
-/** Bold 16-unit Rex, with no hat, filling the icon canvas. */
+/**
+ * Bold 16-unit Rex, with no hat, filling the icon canvas.
+ * The eyes used to sit on the hands at 16px. Their center is 1.5 units higher
+ * and their bottom ends on a pixel row, so one empty row separates the head.
+ */
 function iconModel() {
   const eyeW = 4.2
-  const eyeH = 7.4
-  const eyeY = 0.8
+  const eyeH = 6
+  const eyeY = 0
   const eyeRx = 1.2
-  const dotR = 2.05
+  const dotR = 1.9
   /** @type {MarkPart[]} */
   const parts = [
     { kind: 'rect', x: 2.4, y: eyeY, w: eyeW, h: eyeH, rx: eyeRx, role: 'eye', space: 'world' },
