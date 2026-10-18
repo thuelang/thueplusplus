@@ -32,18 +32,19 @@ export const LEVER_STROKE = 4
 export const KNOB_R = 9
 export const KNOB_STROKE = 2
 /**
- * Side of the switch base. The old plate was a semicircle of radius 22,
- * so 44 is that width. The square is centered on the pivot and covers the
- * stick's end.
+ * Switch base. The width matches the old semicircle's diameter. The height
+ * is half of that, so the plate stays on the pivot and clears Rex's feet.
  */
-export const SWITCH_SIDE = 44
+export const SWITCH_W = 44
+export const SWITCH_H = 22
 
-/** Axis-aligned square centered on the pivot. `x` and `y` are the top left. */
-export function switchSquare(): { x: number, y: number, s: number } {
+/** Axis-aligned plate centered on the pivot. `x` and `y` are the top left. */
+export function switchSquare(): { x: number, y: number, w: number, h: number } {
   return {
-    x: LEVER_PIVOT.x - SWITCH_SIDE / 2,
-    y: LEVER_PIVOT.y - SWITCH_SIDE / 2,
-    s: SWITCH_SIDE,
+    x: LEVER_PIVOT.x - SWITCH_W / 2,
+    y: LEVER_PIVOT.y - SWITCH_H / 2,
+    w: SWITCH_W,
+    h: SWITCH_H,
   }
 }
 
@@ -100,11 +101,11 @@ export function leverKnob(lever: number): Pt {
   }
 }
 
-function insideSquare(point: Pt, square: { x: number, y: number, s: number }): boolean {
-  return point.x >= square.x
-    && point.x <= square.x + square.s
-    && point.y >= square.y
-    && point.y <= square.y + square.s
+function insideSquare(point: Pt, plate: { x: number, y: number, w: number, h: number }): boolean {
+  return point.x >= plate.x
+    && point.x <= plate.x + plate.w
+    && point.y >= plate.y
+    && point.y <= plate.y + plate.h
 }
 
 /**

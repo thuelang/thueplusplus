@@ -296,12 +296,14 @@ describe('hero polish', () => {
 
   it('the lever is a switch square on the pivot', () => {
     const square = switchSquare()
-    expect(square.s).toBe(44)
-    expect(square.x + square.s / 2).toBe(LEVER_PIVOT.x)
-    expect(square.y + square.s / 2).toBe(LEVER_PIVOT.y)
-    expect(square.s).toBeGreaterThan(KNOB_R * 2)
-    expect(square.s).toBeLessThan(58)
-    const bottom = square.y + square.s
+    expect(square.w).toBe(44)
+    expect(square.h).toBe(22)
+    expect(square.x + square.w / 2).toBe(LEVER_PIVOT.x)
+    expect(square.y + square.h / 2).toBe(LEVER_PIVOT.y)
+    expect(square.w).toBeGreaterThan(KNOB_R * 2)
+    expect(square.h).toBeGreaterThan(LEVER_STROKE)
+    expect(square.h).toBe(square.w / 2)
+    const bottom = square.y + square.h
     for (const lever of [0, 1]) {
       const tip = leverKnob(lever)
       const dx = tip.x - LEVER_PIVOT.x
@@ -315,7 +317,7 @@ describe('hero polish', () => {
           y: LEVER_PIVOT.y + perp.y * (LEVER_STROKE / 2) * sign,
         }
         expect(corner.x).toBeGreaterThan(square.x + 1)
-        expect(corner.x).toBeLessThan(square.x + square.s - 1)
+        expect(corner.x).toBeLessThan(square.x + square.w - 1)
         expect(corner.y).toBeGreaterThan(square.y + 1)
         expect(corner.y).toBeLessThan(bottom - 1)
       }
@@ -337,13 +339,32 @@ describe('hero polish', () => {
     expect(scene.slice(knob, base)).toContain('</g>')
     expect(scene.slice(stick, base)).toContain('stroke="var(--ash)"')
     expect(scene.slice(stick, base)).toContain('stroke-linecap="butt"')
-    expect(scene.slice(base, base + 220)).toContain('fill="var(--ash)"')
+    expect(scene.slice(base, base + 280)).toContain(':width="base.w"')
+    expect(scene.slice(base, base + 280)).toContain(':height="base.h"')
+    expect(scene.slice(base, base + 280)).toContain('fill="var(--ash)"')
     expect(scene.slice(stick, base + 220)).not.toContain('var(--signal)')
     expect(scene).not.toContain('leverSwitchPath')
     expect(scene).not.toContain('stroke-linecap="round"')
     const figure = readFileSync('src/components/RexFigure.vue', 'utf8')
     expect(figure).toContain(':fill="markPaint"')
     expect(figure).not.toContain('var(--ash)')
+    const rest = framePose({ mode: 'ready', t: 0, clock: 0, lever: 0, reduced: true, spring: settledSpring(), dt: 0 })
+    const radius = DOT_R * SCALE
+    const feet = [
+      { x: rest.rootX + rest.footLX * SCALE, y: rest.rootY + rest.footLY * SCALE },
+      { x: rest.rootX + rest.footRX * SCALE, y: rest.rootY + rest.footRY * SCALE },
+    ]
+    const front = feet.reduce((a, b) => (a.x < b.x ? a : b))
+    const hits = (foot: { x: number, y: number }, plate: { x: number, y: number, w: number, h: number }) => {
+      const nx = Math.min(plate.x + plate.w, Math.max(plate.x, foot.x))
+      const ny = Math.min(plate.y + plate.h, Math.max(plate.y, foot.y))
+      const dx = foot.x - nx
+      const dy = foot.y - ny
+      return dx * dx + dy * dy < radius * radius
+    }
+    const tall = { x: square.x, y: LEVER_PIVOT.y - square.w / 2, w: square.w, h: square.w }
+    expect(hits(front, tall)).toBe(true)
+    expect(feet.some(foot => hits(foot, square))).toBe(false)
     for (const lever of [0, 0.35, 1]) {
       const at = leverKnob(lever)
       const pose = framePose({ mode: 'ready', t: 0, clock: 0, lever, reduced: true, spring: settledSpring(), dt: 0 })
