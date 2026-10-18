@@ -8,6 +8,7 @@ import {
   LEVER_STROKE,
   KNOB_R,
   KNOB_STROKE,
+  MACHINE_SKETCH_H,
   MACHINE_X,
   SCALE,
   SCAN_TOP,
@@ -18,6 +19,7 @@ import {
   boxInFrame,
   boxPlace,
   clearFlourish,
+  flourishPlace,
   flourishPose,
   leverDegrees,
   leverKnob,
@@ -153,7 +155,8 @@ function ageDepartures(dt: number): void {
 
 function clearTransform(item: Departure): string {
   const pose = flourishPose(item.rot, item.flourish, item.age, reduced.value)
-  return `translate(${item.x} ${item.y}) rotate(${pose.rot}) scale(${pose.sx} ${pose.sy})`
+  const at = flourishPlace({ x: item.x, y: item.y }, item.flourish, item.age, reduced.value)
+  return `translate(${at.x} ${at.y}) rotate(${pose.rot}) scale(${pose.sx} ${pose.sy})`
 }
 
 function clearOpacity(item: Departure): number {
@@ -446,17 +449,6 @@ defineExpose({ game, advance, act })
       >
         <rect x="-18" y="-18" width="36" height="36" fill="var(--surface)" stroke="currentColor" stroke-width="2.4" />
       </g>
-      <g
-        v-for="item in departures"
-        :key="`clear-${item.id}`"
-        data-test="clearing"
-        :data-id="item.id"
-        :opacity="clearOpacity(item)"
-        :transform="clearTransform(item)"
-      >
-        <rect x="-18" y="-18" width="36" height="36" fill="var(--surface)" stroke="currentColor" stroke-width="2.4" />
-      </g>
-
       <g data-test="scanner" data-test-machine="sketch">
         <g
           data-test="machine"
@@ -468,7 +460,7 @@ defineExpose({ game, advance, act })
           :transform="machineTransform"
           fill="currentColor"
         >
-          <g transform="translate(0 500) scale(0.1 -0.1)">
+          <g :transform="`translate(0 ${MACHINE_SKETCH_H}) scale(0.1 -0.1)`">
             <path :d="MACHINE_D" />
           </g>
         </g>
@@ -480,6 +472,16 @@ defineExpose({ game, advance, act })
           :height="TUNNEL_BOTTOM - SCAN_TOP"
           fill="none"
         />
+      </g>
+      <g
+        v-for="item in departures"
+        :key="`clear-${item.id}`"
+        data-test="clearing"
+        :data-id="item.id"
+        :opacity="clearOpacity(item)"
+        :transform="clearTransform(item)"
+      >
+        <rect x="-18" y="-18" width="36" height="36" fill="var(--surface)" stroke="currentColor" stroke-width="2.4" />
       </g>
 
       <g v-if="game.phase === 'broken'" data-test="scene-cracks" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
