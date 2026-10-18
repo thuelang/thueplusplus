@@ -15,6 +15,7 @@ const transform = computed(() => (
 
 <template>
   <g :transform="transform" data-test="explainer-rex">
+    <slot :pose="pose" />
     <Rex :pose="pose" />
   </g>
 </template>

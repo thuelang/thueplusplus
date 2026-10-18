@@ -39,11 +39,16 @@ watch(reduced, () => onScroll())
       class="explainer-parallax"
       data-test="explainer-parallax"
       aria-hidden="true"
-      :style="reduced ? undefined : { transform: `translate3d(0, ${shift}px, 0)` }"
     >
       <svg class="h-full w-full" preserveAspectRatio="none">
         <defs>
-          <pattern id="explainer-rewrite" width="88" height="56" patternUnits="userSpaceOnUse">
+          <pattern
+          id="explainer-rewrite"
+          width="88"
+          height="56"
+          patternUnits="userSpaceOnUse"
+          :patternTransform="reduced ? undefined : `translate(0 ${shift})`"
+        >
             <text x="0" y="28" fill="currentColor" font-family="JetBrains Mono, ui-monospace, monospace" font-size="16">::=</text>
           </pattern>
         </defs>
@@ -69,7 +74,7 @@ watch(reduced, () => onScroll())
       <template #scene>
         <SandboxExplainer :t="t" :reduced="reduced" />
       </template>
-      <p>The program sits in a box. The host decides which doors it gets. This host gives it stdin and stdout. Anything it is not given does not exist for it.</p>
+      <p>The program sits in a box. The host decides which doors it gets. This host gives it stdout. A stdout rule sends hello out that door. A socket rule finds no door, bumps the wall, and ERR:resource:socket lands back in the string.</p>
     </ExplainerSection>
 
     <ExplainerSection id="portable" title="Portable" rex="right">
