@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { BELT_ENTRANCE, BELT_MOUTH, BELT_X0, BREAK_BEAT, YANK, beltPoint } from './layout'
-import { WALK_DURATION } from './motion'
+import { BELT_ENTRANCE, BELT_MOUTH, BELT_X0, BREAK_BEAT, SCALE, YANK, beltPoint, leverKnob } from './layout'
+import { framePose, settledSpring } from './motion'
 import {
   GRACE,
   MISS_COOLDOWN,
@@ -42,7 +42,7 @@ function started(seed: number, reduced: boolean, best = 0): Game {
 }
 
 function canPull(game: Game): boolean {
-  return game.phase === 'playing' && game.rex !== 'to-lever' && game.rex !== 'yank' && game.rex !== 'cheer' && game.cooldown === 0
+  return game.phase === 'playing' && game.rex !== 'yank' && game.rex !== 'cheer' && game.cooldown === 0
 }
 
 function fumbleUntilBroken(game: Game, limit = 40): Game {
@@ -131,12 +131,11 @@ describe('lever game', () => {
     expect(step(reduced, GRACE + 0.05).boxes).toHaveLength(1)
 
     const full = started(1, false)
-    expect(full.rex).toBe('to-lever')
+    expect(full.rex).toBe('ready')
+    expect(full.lever).toBe(0)
     expect(full.beltOn).toBe(true)
-    const before = step(full, WALK_DURATION + GRACE - 0.05)
-    expect(before.boxes).toHaveLength(0)
-    expect(before.rex).toBe('ready')
-    expect(step(full, WALK_DURATION + GRACE + 0.05).boxes).toHaveLength(1)
+    expect(step(full, GRACE - 0.05).boxes).toHaveLength(0)
+    expect(step(full, GRACE + 0.05).boxes).toHaveLength(1)
 
     expect(() => step(reduced, -0.1)).toThrow(/dt/)
     expect(() => step(reduced, Number.NaN)).toThrow(/dt/)
@@ -311,10 +310,10 @@ describe('lever game', () => {
   it('gate input', () => {
     const full = started(1, false)
     const reduced = started(1, true)
-    expect(full.rex).toBe('to-lever')
+    expect(full.rex).toBe('ready')
     expect(full.lever).toBe(0)
     expect(reduced.rex).toBe('ready')
-    expect(reduced.lever).toBe(1)
+    expect(reduced.lever).toBe(0)
     expect(reduced.beltOn).toBe(true)
 
     let fullBox = until(full, current => current.boxes.length > 0)
@@ -466,7 +465,6 @@ describe('lever game', () => {
     const earlyFrames = Math.floor((YANK - 1e-6) / frame)
     for (const reduced of [false, true]) {
       let game = beginPlayer(createGame({ seed: 1, reduced, best: 0 }))
-      game = step(game, (reduced ? 0 : WALK_DURATION) + 0.05)
       game = {
         ...game,
         boxes: [],
@@ -506,5 +504,187 @@ describe('lever game', () => {
       expect(again.cooldown).toBe(YANK)
       expect(again.deny).toBe(0)
     }
+  })
+
+  function grip(game: Game, clock: number): { gap: number, rootX: number, rootY: number, handX: number, handY: number } {
+    const pose = framePose({
+      mode: game.rex,
+      t: game.rexT,
+      clock,
+      lever: game.lever,
+      reduced: game.reduced,
+      spring: settledSpring(),
+      dt: 1 / 60,
+    })
+    const knob = leverKnob(game.lever)
+    const handX = pose.rootX + pose.handLX * SCALE
+    const handY = pose.rootY + pose.handLY * SCALE
+    return {
+      gap: Math.hypot(handX - knob.x, handY - knob.y),
+      rootX: pose.rootX,
+      rootY: pose.rootY,
+      handX,
+      handY,
+    }
+  }
+
+  it('hand and lever coincide for both triggers', () => {
+    const frame = 1 / 60
+    const watch = (game: Game, clock0: number) => {
+      let current = game
+      let clock = clock0
+      let frames = 0
+      expect(current.rex === 'yank' || current.rex === 'cheer').toBe(true)
+      while (current.rex === 'yank' || current.rex === 'cheer') {
+        expect(grip(current, clock).gap).toBeLessThanOrEqual(1)
+        current = step(current, frame)
+        clock += frame
+        frames += 1
+        if (frames > 80) throw new Error('pull did not finish')
+      }
+      expect(frames).toBeGreaterThan(10)
+      expect(grip(current, clock).gap).toBeLessThanOrEqual(1)
+    }
+
+    let visitor = beginPlayer(createGame({ seed: 1, reduced: false, best: 0 }))
+    visitor = {
+      ...visitor,
+      boxes: [],
+      spawnIn: 30,
+      rex: 'ready',
+      rexT: 0,
+      lever: 0,
+      leverT: 0,
+      cooldown: 0,
+      deny: 0,
+    }
+    watch(pull(visitor), 0.4)
+
+    let cheer = { ...visitor, score: 4, boxes: [{ id: 7, progress: 0.2, lane: 0.4, spin: 0.2 }] }
+    cheer = until(cheer, current => current.boxes.some(box => inZone(box.progress, current.score, false)))
+    watch(pull(cheer), 1.7)
+
+    for (const lever of [0, 0.35, 1]) {
+      const held = grip({ ...visitor, rex: 'ready', lever, rexT: 0.2 }, 1.2)
+      expect(held.gap).toBeLessThanOrEqual(1)
+    }
+
+    let auto = beginAutoplay(createGame({ seed: 4, reduced: false, best: 0 }))
+    auto = {
+      ...auto,
+      rex: 'ready',
+      rexT: 0,
+      lever: 0,
+      leverT: 0,
+      cooldown: 0,
+      deny: 0,
+      score: 0,
+      spawnIn: 40,
+      boxes: [{ id: 3, progress: 0.97, lane: 0.4, spin: 0.3 }],
+    }
+    let clock = 0.9
+    let frames = 0
+    let startedPull = false
+    for (let i = 0; i < 40; i += 1) {
+      auto = step(auto, frame)
+      clock += frame
+      if (auto.rex === 'yank' || auto.rex === 'cheer') {
+        startedPull = true
+        expect(grip(auto, clock).gap).toBeLessThanOrEqual(1)
+        frames += 1
+      } else if (startedPull) {
+        expect(grip(auto, clock).gap).toBeLessThanOrEqual(1)
+        break
+      }
+    }
+    expect(startedPull).toBe(true)
+    expect(frames).toBeGreaterThan(8)
+  })
+
+  it('pose stays continuous when the trigger source switches', () => {
+    const frame = 1 / 60
+    let auto = beginAutoplay(createGame({ seed: 3, reduced: false, best: 4 }))
+    auto = {
+      ...auto,
+      rex: 'yank',
+      rexT: 0.08,
+      lever: leverCurve(0.08),
+      leverT: 0,
+      score: 3,
+      streak: 3,
+      spawnIn: 10,
+      boxes: [{ id: 4, progress: 0.4, lane: 0.2, spin: 0.5 }],
+    }
+    const before = grip(auto, 0.5)
+    const taken = beginPlayer(auto)
+    expect(taken.control).toBe('player')
+    expect(taken.rex).toBe(auto.rex)
+    expect(taken.rexT).toBe(auto.rexT)
+    expect(taken.lever).toBe(auto.lever)
+    expect(taken.score).toBe(0)
+    expect(taken.best).toBe(4)
+    expect(taken.boxes).toHaveLength(0)
+    expect(taken.seed).toBe(auto.seed)
+    const jumped = grip(taken, 0.5)
+    expect(jumped.rootX).toBe(before.rootX)
+    expect(jumped.rootY).toBe(before.rootY)
+    expect(jumped.handX).toBe(before.handX)
+    expect(jumped.handY).toBe(before.handY)
+
+    const carried = step(taken, frame)
+    const untouched = step({ ...auto, boxes: [], score: 0, streak: 0 }, frame)
+    const nextTaken = grip(carried, 0.5 + frame)
+    const nextAuto = grip(untouched, 0.5 + frame)
+    expect(nextTaken.rootX).toBe(nextAuto.rootX)
+    expect(nextTaken.rootY).toBe(nextAuto.rootY)
+    expect(nextTaken.handX).toBe(nextAuto.handX)
+    expect(nextTaken.handY).toBe(nextAuto.handY)
+    expect(Math.hypot(nextTaken.rootX - before.rootX, nextTaken.rootY - before.rootY)).toBeLessThan(5)
+
+    const playing = {
+      ...taken,
+      score: 2,
+      boxes: [{ id: 8, progress: 0.55, lane: 0.3, spin: 0.1 }],
+      rex: 'yank' as const,
+      rexT: 0.1,
+      lever: leverCurve(0.1),
+    }
+    const away = setPresence(playing, 'away')
+    expect(away.control).toBe('auto')
+    expect(away.presence).toBe('away')
+    expect(away.rex).toBe(playing.rex)
+    expect(away.rexT).toBe(playing.rexT)
+    expect(away.lever).toBe(playing.lever)
+    expect(away.score).toBe(0)
+    expect(away.boxes).toHaveLength(0)
+    expect(away.best).toBe(playing.best)
+    expect(away.seed).toBe(playing.seed)
+    const atLeave = grip(away, 0.8)
+    const atPlay = grip(playing, 0.8)
+    expect(atLeave.rootX).toBe(atPlay.rootX)
+    expect(atLeave.handX).toBe(atPlay.handX)
+    expect(atLeave.handY).toBe(atPlay.handY)
+    const left = grip(step(away, frame), 0.8 + frame)
+    const stayed = grip(step(playing, frame), 0.8 + frame)
+    expect(left.rootX).toBe(stayed.rootX)
+    expect(left.rootY).toBe(stayed.rootY)
+    expect(left.handX).toBe(stayed.handX)
+    expect(left.handY).toBe(stayed.handY)
+  })
+
+  it('one motion system serves both triggers', () => {
+    const motion = readFileSync('src/sandbox/motion.ts', 'utf8')
+    const source = readFileSync('src/sandbox/game.ts', 'utf8')
+    expect(motion.includes('to-lever')).toBe(false)
+    expect(motion.includes('control')).toBe(false)
+    const advance = source.slice(source.indexOf('function advanceRex'), source.indexOf('function advanceBoxes'))
+    const pose = motion.slice(motion.indexOf('export function framePose'))
+    expect(advance.includes('control')).toBe(false)
+    expect(advance.includes('to-lever')).toBe(false)
+    expect(pose.includes('control')).toBe(false)
+    const auto = source.slice(source.indexOf('function autoCatch'), source.indexOf('function leverLocked'))
+    const pullSource = source.slice(source.indexOf('export function pull'), source.indexOf('export function demoRuns'))
+    expect(auto.includes("control !== 'auto'")).toBe(true)
+    expect(pullSource.includes("control !== 'player'")).toBe(true)
   })
 })

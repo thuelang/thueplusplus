@@ -2,9 +2,9 @@ import { nextTick } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SandboxScene from '@/components/SandboxScene.vue'
-import { beltPoint, scannerAperture, walkDistance } from './layout'
+import { SCALE, YANK, beltPoint, leverKnob, scannerAperture, walkDistance } from './layout'
 import { difficulty } from './game'
-import { WALK_DURATION, blinkCurve, framePose, settledSpring, stepSpring } from './motion'
+import { blinkCurve, framePose, settledSpring, stepSpring } from './motion'
 import { inZone, type Game } from './game'
 
 interface Exposed {
@@ -21,7 +21,7 @@ function mountScene(): VueWrapper {
 }
 
 function canAct(game: Game): boolean {
-  return game.cooldown === 0 && game.rex !== 'yank' && game.rex !== 'cheer' && game.rex !== 'to-lever'
+  return game.cooldown === 0 && game.rex !== 'yank' && game.rex !== 'cheer'
 }
 
 async function scoreZoned(wrapper: VueWrapper, api: Exposed): Promise<void> {
@@ -114,7 +114,7 @@ describe('rex sandbox scene', () => {
     expect(click.get('[data-test="sandbox-scene"]').attributes('data-belt')).toBe('on')
     expect(click.get('[data-test="sandbox-scene"]').attributes('data-phase')).toBe('playing')
     expect(click.get('[data-test="sandbox-scene"]').attributes('data-control')).toBe('player')
-    expect(click.get('[data-test="lever"]').attributes('data-on')).toBe('yes')
+    expect(click.get('[data-test="lever"]').attributes('data-on')).toBe('no')
     expect(click.get('[data-test="start-hint"]').text()).toBe('pull the lever')
     expect(click.get('[data-test="scanner"]').attributes('transform')).toBe('translate(0 0)')
     click.unmount()
@@ -324,35 +324,27 @@ describe('rex sandbox scene', () => {
     expect(rest.handLX).toBeCloseTo(-18)
     expect(rest.footLY).toBeCloseTo(-7)
 
-    let lifted = false
-    for (let i = 1; i < 12; i += 1) {
-      const pose = framePose({
-        mode: 'to-lever',
-        t: WALK_DURATION * (i / 12),
-        clock: 0,
-        lever: 0,
-        reduced: false,
-        spring: settledSpring(),
-        dt: 0,
-      })
-      if (pose.footLY < rest.footLY - 2 || pose.footRY < rest.footRY - 2) lifted = true
-    }
-    expect(lifted).toBe(true)
-    expect(WALK_DURATION).toBeGreaterThan(0.7)
-    expect(WALK_DURATION).toBeLessThan(2.6)
-
-    const arrived = framePose({
-      mode: 'to-lever',
-      t: WALK_DURATION,
-      clock: 0,
-      lever: 0,
-      reduced: false,
-      spring: settledSpring(),
-      dt: 0,
-    })
-    expect(arrived.travel).toBeGreaterThan(0.95)
-
     const caught = { x: walkDistance(), y: 0, vx: 0, vy: 0 }
+    let crouched = false
+    for (let i = 0; i <= 12; i += 1) {
+      const t = (YANK * i) / 12
+      const lever = Math.min(1, t / (YANK * 0.3))
+      const pose = framePose({
+        mode: 'yank',
+        t,
+        clock: 1.25,
+        lever,
+        reduced: false,
+        spring: caught,
+        dt: 1 / 60,
+      })
+      const knob = leverKnob(lever)
+      const gap = Math.hypot(pose.rootX + pose.handLX * SCALE - knob.x, pose.rootY + pose.handLY * SCALE - knob.y)
+      expect(gap).toBeLessThanOrEqual(1)
+      if (pose.rootY > rest.rootY + 1) crouched = true
+    }
+    expect(crouched).toBe(true)
+
     const ready = framePose({ mode: 'ready', t: 0, clock: 0, lever: 0, reduced: false, spring: caught, dt: 0 })
     expect(ready.rootX).toBeGreaterThan(rest.rootX + 40)
     const cheer = framePose({ mode: 'cheer', t: 0.2, clock: 0, lever: 0, reduced: false, spring: caught, dt: 0 })

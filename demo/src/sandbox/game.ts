@@ -6,15 +6,14 @@
  * focused, hands him the lever and starts a fresh score. The visitor keeps
  * that turn only while the pointer stays over the game, the last touch is
  * still recent, or the game stays focused. Leaving, a short touch idle, or
- * blur starts a fresh autoplay, so a box in flight cannot break the page
- * during the handoff. Only a miss while the visitor still has the turn
+ * blur hands the same pose back to autoplay and drops every box in flight,
+ * so the handoff cannot break the page. Only a miss while the visitor still has the turn
  * breaks the run. Caught boxes are removed. They are not kept, so they
  * cannot pile up.
  * Nothing here reads the clock, the DOM, or storage.
  */
 
 import { BELT_ENTRANCE, BELT_MOUTH, BREAK_BEAT, CHEER, YANK } from './layout'
-import { WALK_DURATION } from './motion'
 
 export const GRACE = 0.8
 /** A miss locks the lever for one pull. The return animation is this long too. */
@@ -58,7 +57,7 @@ export type Phase = 'waiting' | 'playing' | 'broken'
 export type Control = 'auto' | 'player'
 /** Who is present. `away` is Rex's demo. A touch idle is the only timer. */
 export type Presence = 'away' | 'pointer' | 'touch' | 'keys'
-export type RexMode = 'idle' | 'to-lever' | 'ready' | 'yank' | 'cheer' | 'nervous' | 'startled'
+export type RexMode = 'idle' | 'ready' | 'yank' | 'cheer' | 'nervous' | 'startled'
 
 export interface Game {
   phase: Phase
@@ -242,10 +241,6 @@ export function createGame(options: GameOptions): Game {
   }
 }
 
-function openingDelay(reduced: boolean): number {
-  return reduced ? GRACE : WALK_DURATION + GRACE
-}
-
 function nextSeed(seed: number): number {
   return seed === 0xffffffff ? 1 : seed + 1
 }
@@ -258,11 +253,11 @@ function arm(game: Game, control: Control): Game {
     presence: game.presence,
     phase: 'playing',
     beltOn: true,
-    rex: reduced ? 'ready' : 'to-lever',
+    rex: 'ready',
     rexT: 0,
-    spawnIn: openingDelay(reduced),
-    lever: reduced ? 1 : 0,
-    leverT: reduced ? 0.12 : 0,
+    spawnIn: GRACE,
+    lever: 0,
+    leverT: 0,
     idle: 0,
   }
 }
@@ -273,8 +268,8 @@ export function beginAutoplay(game: Game): Game {
 }
 
 /**
- * The player takes the lever. The score resets. Their misses can break the page.
- * If Rex is already walking up or standing there, his pose stays. Only the control changes.
+ * The player takes the lever. The score resets and boxes in flight are dropped.
+ * The best score stays. Pose, lever, and the pull already in motion stay.
  */
 export function beginPlayer(game: Game): Game {
   if (game.phase !== 'playing' || game.rex === 'idle') return arm(game, 'player')
@@ -283,26 +278,33 @@ export function beginPlayer(game: Game): Game {
     control: 'player',
     score: 0,
     streak: 0,
-    miss: 0,
-    flash: 0,
-    jolt: 0,
-    pop: 0,
     boxes: [],
     cages: [],
-    cooldown: 0,
-    deny: 0,
     idle: 0,
   }
 }
 
 /**
  * The pointer left, the touch went idle, or focus left the game.
- * A fresh autoplay drops every box in flight, so the handoff cannot break the page.
- * The score starts again. The best score stays.
+ * A playing turn hands the same pose back to autoplay, drops every box in
+ * flight, and starts the score again. The best score stays. A break or a
+ * game that has not started yet begins a fresh run, already at the lever.
  */
 export function handBack(game: Game): Game {
   if (game.control === 'auto' && game.phase !== 'broken') {
     return game.presence === 'away' ? game : { ...game, presence: 'away', idle: 0 }
+  }
+  if (game.phase === 'playing') {
+    return {
+      ...game,
+      control: 'auto',
+      presence: 'away',
+      idle: 0,
+      score: 0,
+      streak: 0,
+      boxes: [],
+      cages: [],
+    }
   }
   return beginAutoplay({ ...game, presence: 'away' })
 }
@@ -363,7 +365,7 @@ function autoCatch(game: Game): Game {
 }
 
 function leverLocked(game: Game): boolean {
-  return game.rex === 'to-lever' || game.rex === 'yank' || game.rex === 'cheer' || game.cooldown > 0
+  return game.rex === 'yank' || game.rex === 'cheer' || game.cooldown > 0
 }
 
 function notYet(game: Game): Game {
@@ -412,7 +414,7 @@ export function rebuild(game: Game): Game {
 
 function settle(game: Game): Game {
   if (game.phase !== 'playing') return game
-  if (game.rex === 'yank' || game.rex === 'cheer' || game.rex === 'to-lever') return game
+  if (game.rex === 'yank' || game.rex === 'cheer') return game
   if (game.reduced) return game.rex === 'ready' ? game : { ...game, rex: 'ready', rexT: 0 }
   const danger = game.boxes.some(box => box.progress >= DANGER)
   const rex = danger ? 'nervous' : 'ready'
@@ -423,11 +425,6 @@ function settle(game: Game): Game {
 function advanceRex(game: Game, dt: number): Game {
   if (game.phase === 'broken') {
     return { ...game, rex: 'startled', rexT: game.rexT + dt, lever: 0, leverT: 0 }
-  }
-  if (game.rex === 'to-lever') {
-    const t = game.rexT + dt
-    if (t < WALK_DURATION) return { ...game, rexT: t }
-    return { ...game, rex: 'yank', rexT: 0, lever: 0 }
   }
   if (game.rex === 'yank' || game.rex === 'cheer') {
     const limit = game.rex === 'cheer' ? CHEER : YANK
@@ -520,7 +517,7 @@ function stepOnce(game: Game, dt: number): Game {
   let next = game
   if (next.control === 'player' && next.presence === 'touch') {
     const idle = next.idle + dt
-    if (idle >= TOUCH_IDLE) return beginAutoplay({ ...next, presence: 'away', idle })
+    if (idle >= TOUCH_IDLE) return handBack(next)
     next = { ...next, idle }
   }
   if (next.control === 'auto') next = autoCatch(next)

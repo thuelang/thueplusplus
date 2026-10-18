@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EYE_H, actPose, settledSpring, type PoseMode } from './motion'
-import { REX_HOME } from '@/sandbox/layout'
+import { REX_HOME, REX_LEVER, SCALE, leverKnob } from '@/sandbox/layout'
 import { POSE_MODES, framePose } from '@/sandbox/motion'
 
 const modes: PoseMode[] = ['cheer', 'facepalm', 'duck', 'offer', 'search', 'read']
@@ -28,12 +28,19 @@ describe('page acts', () => {
     expect(() => actPose({ mode: 'leap' as PoseMode, clock: 0, reduced: true, spring: settledSpring(), dt: 0 })).toThrow(/unknown pose mode/)
   })
 
-  it('keeps the home poster still for every sandbox mode', () => {
+  it('keeps reduced sandbox poses still, with the lever poses already at the lever', () => {
+    const knob = leverKnob(0.8)
     for (const mode of POSE_MODES) {
       const pose = framePose({ mode, t: 0.4, clock: 2, lever: 0.8, reduced: true, spring: settledSpring(), dt: 0.016 })
-      expect(pose.rootX).toBe(REX_HOME)
       expect(pose.eyeH).toBe(EYE_H)
       expect(pose.hatRot).toBe(0)
+      if (mode === 'idle') {
+        expect(pose.rootX).toBe(REX_HOME)
+      } else {
+        expect(pose.rootX).toBe(REX_LEVER)
+        expect(pose.rootX + pose.handLX * SCALE).toBeCloseTo(knob.x, 4)
+        expect(pose.rootY + pose.handLY * SCALE).toBeCloseTo(knob.y, 4)
+      }
     }
   })
 })

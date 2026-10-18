@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { DOT_R } from '@/rex/motion'
 import { beginAutoplay, beginPlayer, createGame, difficulty, scoreJump, step } from './game'
-import { WALK_DURATION, framePose, settledSpring } from './motion'
+import { framePose, settledSpring } from './motion'
 import {
   BOX_REACH,
   DRIFT_BOTTOM,
@@ -142,8 +142,8 @@ describe('hero polish', () => {
     const knob = leverKnob(0)
     expect(knob.x).toBeLessThan(REX_LEVER - 8)
     const ready = framePose({ mode: 'ready', t: 0, clock: 0, lever: 0, reduced: false, spring: settledSpring(), dt: 0 })
-    const handX = REX_LEVER + ready.handLX * SCALE
-    const handY = GROUND + ready.handLY * SCALE
+    const handX = ready.rootX + ready.handLX * SCALE
+    const handY = ready.rootY + ready.handLY * SCALE
     expect(handX).toBeCloseTo(knob.x, 0)
     expect(handY).toBeCloseTo(knob.y, 0)
     expect(ready.handLX).toBeLessThan(0)
@@ -153,8 +153,8 @@ describe('hero polish', () => {
 
   it('seamless takeover keeps Rex where he is', () => {
     let game = beginAutoplay(createGame({ seed: 3, reduced: false, best: 4 }))
-    game = step(game, WALK_DURATION + 0.3)
-    expect(game.rex === 'idle' || game.rex === 'to-lever').toBe(false)
+    game = step(game, 0.3)
+    expect(game.rex).not.toBe('idle')
     const taken = beginPlayer(game)
     expect(taken.control).toBe('player')
     expect(taken.rex).toBe(game.rex)

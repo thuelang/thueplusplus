@@ -99,7 +99,40 @@ function icons() {
   console.log('icons: png-32 png-192 png-512 apple-180 manifest')
 }
 
+/** A pixel is background when it is transparent. Partial coverage is not a gap. */
+function rowClear(image, y) {
+  for (let x = 0; x < image.width; x += 1) {
+    if (image.pixels[(y * image.width + x) * 4 + 3] >= 12) return false
+  }
+  return true
+}
+
+/**
+ * The first fully background row after the head and before the hands.
+ * A gap that only separates the hands from the feet sits too low to count.
+ * @returns {number} row index, or -1
+ */
+function headHandGap(image) {
+  const limit = Math.floor(image.height * 0.55)
+  const belowEnd = Math.min(image.height, Math.floor(image.height * 0.75))
+  for (let y = 1; y < limit; y += 1) {
+    if (!rowClear(image, y)) continue
+    let above = false
+    for (let row = 0; row < y; row += 1) {
+      if (!rowClear(image, row)) above = true
+    }
+    let below = false
+    for (let row = y + 1; row < belowEnd; row += 1) {
+      if (!rowClear(image, row)) below = true
+    }
+    if (above && below) return y
+  }
+  return -1
+}
+
 function small() {
+  /** @type {string[]} */
+  const gaps = []
   for (const size of [16, 32]) {
     for (const scheme of ['light', 'dark']) {
       const image = decodePng(rasterize({
@@ -120,9 +153,12 @@ function small() {
       assert(orange === 0, `${size}px ${scheme} still draws a hat`)
       assert(ink > size * size * 0.18, `${size}px ${scheme} body does not fill the icon`)
       assert(!hatAboveEyes(image, scheme), `${size}px ${scheme} still has a hat above the eyes`)
+      const gap = headHandGap(image)
+      assert(gap >= 0, `${size}px ${scheme} head touches the hands`)
+      gaps.push(`${size}-${scheme}:${gap}`)
     }
   }
-  console.log('small-rex: 16-no-hat 32-no-hat')
+  console.log(`small-rex: 16-no-hat 32-no-hat head-gap ${gaps.join(' ')}`)
 }
 
 function source() {

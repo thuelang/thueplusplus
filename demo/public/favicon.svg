@@ -8,11 +8,11 @@
     }
   </style>
   <g class="ink">
-    <rect x="2.4" y="0.8" width="4.2" height="7.4" rx="1.2"/>
-    <rect x="9.4" y="0.8" width="4.2" height="7.4" rx="1.2"/>
-    <circle cx="2.3" cy="9.8" r="2.05"/>
-    <circle cx="13.7" cy="9.8" r="2.05"/>
-    <circle cx="5.2" cy="13.7" r="2.05"/>
-    <circle cx="10.8" cy="13.7" r="2.05"/>
+    <rect x="2.4" y="0" width="4.2" height="6" rx="1.2"/>
+    <rect x="9.4" y="0" width="4.2" height="6" rx="1.2"/>
+    <circle cx="2.3" cy="9.8" r="1.9"/>
+    <circle cx="13.7" cy="9.8" r="1.9"/>
+    <circle cx="5.2" cy="13.7" r="1.9"/>
+    <circle cx="10.8" cy="13.7" r="1.9"/>
   </g>
 </svg>
