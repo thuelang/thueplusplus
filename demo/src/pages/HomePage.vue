@@ -2,9 +2,7 @@
 import { onBeforeUnmount, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { Button } from '@/components/ui/button'
-import HostsPillar from '@/components/landing/HostsPillar.vue'
-import PortablePillar from '@/components/landing/PortablePillar.vue'
-import SandboxPillar from '@/components/landing/SandboxPillar.vue'
+import ExplainerTrack from '@/components/explainers/ExplainerTrack.vue'
 import SandboxScene from '@/components/SandboxScene.vue'
 import SiteFooter from '@/components/SiteFooter.vue'
 import { registryHosts, soonLanguages } from '@/hosts'
@@ -69,11 +67,7 @@ onBeforeUnmount(() => {
       <div class="page-screen-gap" aria-hidden="true" />
     </div>
 
-    <section data-test="page-details" class="page-details border-line bg-void grid max-w-none border-t lg:grid-cols-3">
-      <PortablePillar />
-      <SandboxPillar />
-      <HostsPillar />
-    </section>
+    <ExplainerTrack />
 
     <SiteFooter data-shard class="px-4 sm:px-6 lg:px-14" />
   </div>
