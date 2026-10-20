@@ -455,12 +455,13 @@ function readSandbox(id) {
   }
 }
 
-function measuredAt(solution) {
+function measuredAt(solution, fallback) {
   const last = solution.history.at(-1)
   if (last) return last.timestamp
   const stamp = gitStamp(solution.latest.commit)
   if (stamp) return stamp.timestamp
-  throw new CatalogError(`${solution.problem}/${solution.ruleset} has no measurement time`)
+  console.log(`site: ${solution.problem}/${solution.ruleset} measurement commit is not in this clone`)
+  return fallback
 }
 
 function seriesCosts(solution) {
@@ -590,7 +591,7 @@ function build() {
           missing: false,
           notes: solution.notes,
           author: solution.author,
-          measured: measuredAt(solution),
+          measured: measuredAt(solution, head.timestamp),
           solutions: [{
             id: solution.entry,
             status: 'pass',

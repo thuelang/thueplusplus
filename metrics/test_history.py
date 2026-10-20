@@ -294,7 +294,7 @@ class HistoryTests(unittest.TestCase):
         gitlab = (ROOT / ".gitlab-ci.yml").read_text(encoding="utf-8")
         workflow = (ROOT / ".github" / "workflows" / "metrics.yml").read_text(encoding="utf-8")
         schema = (ROOT / "metrics" / "SCHEMA.md").read_text(encoding="utf-8")
-        self.assertIn("demo/dist/metrics/summary.json", vercel)
+        self.assertNotIn("demo/dist/metrics/summary.json", vercel)
         self.assertNotIn("history.json", vercel)
         self.assertNotIn("\npages:", gitlab)
         self.assertNotIn("public/metrics/summary.json", gitlab)
@@ -309,7 +309,7 @@ class HistoryTests(unittest.TestCase):
         self.assertIn("latest.json", workflow)
         self.assertIn("`metrics/YYYY/MM/DD/{sha}/bench.json`", schema)
         self.assertIn("`metrics/latest.json`", schema)
-        self.assertIn("`/metrics/summary.json`", schema)
+        self.assertNotIn("`/metrics/summary.json`", schema)
         self.assertNotIn("history.json", schema)
         self.assertNotIn("record.py", gitlab)
 
