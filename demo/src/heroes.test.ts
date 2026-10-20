@@ -7,6 +7,11 @@ import { siteHosts } from './hosts'
 import { routes } from './router'
 import { pages } from './site'
 
+const playgroundModules = import.meta.glob('./PlaygroundSurface.vue', { eager: true }) as Record<string, { default: object }>
+const playgroundModule = playgroundModules['./PlaygroundSurface.vue']
+if (!playgroundModule) throw new Error('playground surface missing from the test bundle')
+;(globalThis as unknown as { __testModules: Map<string, { default: object }> }).__testModules.set('src/PlaygroundSurface.vue', playgroundModule)
+
 vi.mock('./RulesMonacoEditor.vue', async () => {
   const { defineComponent, h } = await import('vue')
   return {
@@ -31,7 +36,7 @@ async function mountPath(path: string) {
   const component = router.currentRoute.value.matched[0]?.components?.default
   if (!component) throw new Error(`no component for ${path}`)
   const wrapper = mount(component, { global: { plugins: [router] } })
-  await flushPromises()
+  for (let attempt = 0; attempt < 4; attempt += 1) await flushPromises()
   return wrapper
 }
 

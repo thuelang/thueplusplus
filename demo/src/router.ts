@@ -1,4 +1,7 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { nextTick, type Component } from 'vue'
+import { createRouter, createWebHistory, isNavigationFailure, type RouteRecordRaw } from 'vue-router'
+import { abortNavigation, beginNavigation, sealNavigation } from './navProgress'
+import { trackedImport } from './trackedImport'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -10,18 +13,23 @@ declare module 'vue-router' {
   }
 }
 import { problemRouteMeta, sandboxById } from './catalog'
-import DocsPage from './pages/DocsPage.vue'
-import EmbedPage from './pages/EmbedPage.vue'
-import HomePage from './pages/HomePage.vue'
-import HostDocPage from './pages/HostDocPage.vue'
-import InstallPage from './pages/InstallPage.vue'
-import NotFoundPage from './pages/NotFoundPage.vue'
-import ProblemPage from './pages/ProblemPage.vue'
-import ProblemsPage from './pages/ProblemsPage.vue'
-import SandboxPage from './pages/SandboxPage.vue'
-import SandboxesPage from './pages/SandboxesPage.vue'
 import { siteHosts } from './hosts'
 import { pages } from './site'
+
+function lazy(id: string, loader: () => Promise<{ default: Component }>) {
+  return () => trackedImport(id, loader)
+}
+
+const HomePage = lazy('src/pages/HomePage.vue', () => import('./pages/HomePage.vue'))
+const SandboxesPage = lazy('src/pages/SandboxesPage.vue', () => import('./pages/SandboxesPage.vue'))
+const ProblemsPage = lazy('src/pages/ProblemsPage.vue', () => import('./pages/ProblemsPage.vue'))
+const InstallPage = lazy('src/pages/InstallPage.vue', () => import('./pages/InstallPage.vue'))
+const DocsPage = lazy('src/pages/DocsPage.vue', () => import('./pages/DocsPage.vue'))
+const EmbedPage = lazy('src/pages/EmbedPage.vue', () => import('./pages/EmbedPage.vue'))
+const SandboxPage = lazy('src/pages/SandboxPage.vue', () => import('./pages/SandboxPage.vue'))
+const ProblemPage = lazy('src/pages/ProblemPage.vue', () => import('./pages/ProblemPage.vue'))
+const HostDocPage = lazy('src/pages/HostDocPage.vue', () => import('./pages/HostDocPage.vue'))
+const NotFoundPage = lazy('src/pages/NotFoundPage.vue', () => import('./pages/NotFoundPage.vue'))
 
 const shell = [
   { page: pages.home, component: HomePage },
@@ -90,7 +98,7 @@ export function createAppRouter() {
       return { top: 0 }
     },
   })
-  router.beforeEach((to) => {
+  router.beforeEach((to, from) => {
     const problemId = to.params.problemId
     if (typeof problemId === 'string') {
       const meta = problemRouteMeta(problemId)
@@ -128,6 +136,21 @@ export function createAppRouter() {
     if (to.path.length > 1 && to.path.endsWith('/')) {
       return { path: to.path.replace(/\/+$/, ''), query: to.query, hash: to.hash, replace: true }
     }
+    if (from.matched.length === 0 || to.fullPath !== from.fullPath) beginNavigation()
+  })
+  router.afterEach((_to, _from, failure) => {
+    if (isNavigationFailure(failure)) {
+      abortNavigation()
+      return
+    }
+    void (async () => {
+      await nextTick()
+      await nextTick()
+      sealNavigation()
+    })()
+  })
+  router.onError(() => {
+    abortNavigation()
   })
   return router
 }

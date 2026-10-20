@@ -2,10 +2,11 @@ import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath, URL } from 'node:url'
+import { assetSizesPlugin } from './asset-sizes-plugin'
 
 export default defineConfig({
   base: '/',
-  plugins: [vue(), tailwindcss()],
+  plugins: [vue(), tailwindcss(), assetSizesPlugin()],
   publicDir: 'public',
   build: {
     assetsInlineLimit: 0,

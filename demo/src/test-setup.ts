@@ -1,3 +1,36 @@
+import { defineComponent, h, type Component } from 'vue'
+
+const eager = import.meta.glob([
+  './pages/*.vue',
+  './components/CostChart.vue',
+  './components/SandboxScene.vue',
+], { eager: true }) as Record<string, { default: Component }>
+
+const registry = new Map<string, { default: Component }>()
+for (const [key, mod] of Object.entries(eager)) {
+  registry.set(`src/${key.replace(/^\.\//, '')}`, mod)
+}
+const monaco = {
+  __esModule: true as const,
+  default: defineComponent({
+    props: { modelValue: { type: String, default: '' }, highlightLine: { type: Number, default: undefined } },
+    emits: ['update:modelValue', 'paste'],
+    setup(props, { emit, attrs }) {
+      return () => h('textarea', {
+        ...attrs,
+        'data-current-match-line': props.highlightLine || undefined,
+        value: props.modelValue,
+        spellcheck: 'false',
+        wrap: 'off',
+        onInput: (event: Event) => emit('update:modelValue', (event.target as HTMLTextAreaElement).value),
+        onPaste: (event: Event) => emit('paste', (event.target as HTMLTextAreaElement).value),
+      })
+    },
+  }),
+}
+registry.set('src/RulesMonacoEditor.vue', monaco)
+;(globalThis as { __testModules?: typeof registry }).__testModules = registry
+
 if (typeof window !== 'undefined') {
   window.matchMedia = (query: string): MediaQueryList => ({
     matches: query.includes('prefers-reduced-motion'),
