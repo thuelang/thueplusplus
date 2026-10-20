@@ -1,6 +1,5 @@
 ---
 ruleset: forth
-entry: solution.fth
 author: Cursor Agent <cursoragent@cursor.com>
 ---
 

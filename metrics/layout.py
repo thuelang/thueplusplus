@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from frontmatter import FrontmatterError, parse_frontmatter, require_fields
+from versions import VersionError, current_version, versions_in
 
 ROOT = Path(__file__).resolve().parents[1]
 LIMITS_PATH = ROOT / "metrics" / "limits.toml"
@@ -69,6 +70,8 @@ class Solution:
     program: str
     state: str
     direct: bool
+    hash: str = ""
+    timestamp: str = ""
 
 
 def load_limits(path: Path = LIMITS_PATH) -> Limits:
@@ -200,48 +203,52 @@ def _read_solution(problem: str, directory: Path) -> Solution:
         raise LayoutError(f"{problem}/solutions/{ruleset}: ruleset must be a slug")
     readme = directory / "README.md"
     fields, notes = _frontmatter(readme)
-    require_fields(fields, ("ruleset", "entry", "author"), _rel(readme))
+    require_fields(fields, ("ruleset", "author"), _rel(readme))
     if fields["ruleset"] != ruleset:
         raise LayoutError(f"{_rel(readme)}: ruleset {fields['ruleset']} does not match the directory")
-    entry = fields["entry"]
-    if "/" in entry or entry in {"README.md", "metric.json"}:
-        raise LayoutError(f"{_rel(readme)}: entry {entry} is not a solution file")
-    entry_path = directory / entry
-    if not entry_path.is_file():
-        raise LayoutError(f"{_rel(readme)}: entry {entry} is missing")
-    allowed = {"README.md", entry, "metric.json"}
-    extra = sorted(path.name for path in directory.iterdir() if path.name not in allowed)
+    try:
+        versions = versions_in(ROOT, problem, directory)
+    except VersionError as exc:
+        raise LayoutError(str(exc)) from exc
+    if not versions:
+        raise LayoutError(f"{_rel(directory)} has no solution versions")
+    current = current_version(versions)
+    entry = current.name
+    entry_file = ROOT / current.rel
+    extra = sorted(path.name for path in directory.iterdir() if path.name != "README.md" and not path.is_dir())
     if extra:
         raise LayoutError(f"{_rel(directory)}: unexpected {', '.join(extra)}")
     direct = ruleset == "direct"
     if direct:
-        if entry != "solution.thue":
-            raise LayoutError(f"{_rel(readme)}: a direct entry is solution.thue")
-        program = f"problems/{problem}/solutions/direct/solution.thue"
-        state = _program_state(entry_path)
+        if current.extension != "thue":
+            raise LayoutError(f"{current.rel}: a direct solution is a .thue file")
+        program = current.rel
+        state = _program_state(entry_file)
     else:
         lang_readme = ROOT / "langs" / ruleset / "README.md"
         lang_fields, _body = _frontmatter(lang_readme)
         require_fields(lang_fields, ("name", "description", "extension"), _rel(lang_readme))
-        if not entry.endswith("." + lang_fields["extension"]):
-            raise LayoutError(f"{_rel(readme)}: entry must use .{lang_fields['extension']}")
+        if current.extension != lang_fields["extension"]:
+            raise LayoutError(f"{current.rel}: extension must be .{lang_fields['extension']}")
         interpreter = ROOT / "langs" / ruleset / f"{ruleset}.thue"
         if not interpreter.is_file():
             raise LayoutError(f"langs/{ruleset}/{ruleset}.thue is missing")
         program = f"langs/{ruleset}/{ruleset}.thue"
-        state = _script_state(entry_path)
+        state = _script_state(entry_file)
     if not notes.strip():
         raise LayoutError(f"{_rel(readme)}: approach notes are empty")
     return Solution(
         problem=problem,
         ruleset=ruleset,
         entry=entry,
-        entry_path=f"problems/{problem}/solutions/{ruleset}/{entry}",
+        entry_path=current.rel,
         author=fields["author"],
         notes=notes.strip(),
         program=program,
         state=state,
         direct=direct,
+        hash=current.hash,
+        timestamp=current.timestamp,
     )
 
 

@@ -711,7 +711,7 @@ Import `thuelang` in Python, `github.com/thuelang/thueplusplus/go/thuelang` in G
 Copy-pasteable agent prompt:
 
 ```text
-Implement Thue++ in this project. Use this repository as the reference. Preserve .thue semantics, especially ordered rewrites, template captures, explicit resources, exact-rational numeric builtins with no decimal/binary floats, execution limits, and fail-loud errors. Port only what the project needs, but verify it against equivalent examples/manifests from examples/**/tests/*.toml. Do not silently degrade unsupported behavior. Rank a solution by Go cost: each regex eval adds the UTF-8 length of the state plus the pattern source, and each applied step adds the UTF-8 length of the replacement source. A new file must pass. A strictly lower Go cost than the committed metric.json is the goal. Do not commit metric.json or metrics/latest.json.
+Implement Thue++ in this project. Use this repository as the reference. Preserve .thue semantics, especially ordered rewrites, template captures, explicit resources, exact-rational numeric builtins with no decimal/binary floats, execution limits, and fail-loud errors. Port only what the project needs, but verify it against equivalent examples/manifests from examples/**/tests/*.toml. Do not silently degrade unsupported behavior. Rank a solution by Go cost: each regex eval adds the UTF-8 length of the state plus the pattern source, and each applied step adds the UTF-8 length of the replacement source. A new file must pass. A strictly lower Go cost than the current version is the goal. Add that version with scripts/add-solution. Do not commit metric.json, metrics/latest.json, or metrics/versions.json.
 ```
 
 To run this repository's current reference tooling locally:

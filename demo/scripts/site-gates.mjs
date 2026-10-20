@@ -341,7 +341,8 @@ function solutionsTable() {
   const problem = data.problems.find(item => item.id === 'factorial') ?? data.problems[0]
   const lisp = problem.versions.find(version => version.id === 'lisp') ?? problem.versions[0]
   const path = lisp.solutions[0]?.solutionPath
-  if (!path || !path.startsWith('problems/')) fail('solution path is not a repository file')
+  if (!path || !/^problems\/[^/]+\/solutions\/[^/]+\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\/[0-9a-f]{12}\.[a-z0-9]+$/.test(path)) fail(`solution path is not a version file: ${path}`)
+  if (lisp.solutions.length < 2) fail('factorial lisp does not list every version')
   console.log('solutions-table ok')
 }
 
@@ -507,7 +508,7 @@ function shots() {
 function pr() {
   const view = gh(['pr', 'view', '--json', 'body,mergeable,state,baseRefName'])
   const data = JSON.parse(view)
-  if (!/closes\s+#160/i.test(data.body ?? '')) fail('PR body does not close #160')
+  if (!/closes\s+#162/i.test(data.body ?? '')) fail('PR body does not close #162')
   if (data.baseRefName !== 'main') fail(`PR base is ${data.baseRefName}`)
   if (data.state !== 'MERGED' && data.mergeable !== 'MERGEABLE') fail(`PR mergeable is ${data.mergeable}`)
   console.log('pr ok')
@@ -561,11 +562,15 @@ async function live() {
     await page.goto('https://www.thuelang.org/', { waitUntil: 'networkidle', timeout: 60000 })
     await page.waitForSelector('[data-test="end-label"]', { timeout: 15000 })
     const labels = await page.locator('[data-test="end-label"]').allTextContents()
-    if (errors.length > 0) fail(errors.join('\n'))
     if (labels.length !== 3) fail(`home chart has ${labels.length} lines: ${labels.join(' | ')}`)
     for (const name of ['Forth', 'Lisp', 'BASIC']) {
       if (!labels.some(label => label.startsWith(`${name} `))) fail(`home chart is missing ${name}: ${labels.join(' | ')}`)
     }
+    await page.goto('https://www.thuelang.org/problems/factorial', { waitUntil: 'networkidle', timeout: 60000 })
+    await page.waitForSelector('[data-test="solution-link"]', { timeout: 15000 })
+    const links = await page.locator('[data-test="solution-link"]').count()
+    if (links < 1) fail('problem page has no solution links')
+    if (errors.length > 0) fail(errors.join('\n'))
     console.log('live ok')
   } finally {
     await browser.close()

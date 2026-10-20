@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Publish only real metric changes. No interpreters."""
 
+import hashlib
 import json
 import os
 import subprocess
@@ -39,17 +40,24 @@ MACHINE_A = {"os": "Linux", "release": "6.12.0", "arch": "x86_64", "cpu": "Examp
 MACHINE_B = {**MACHINE_A, "cpu": "Other CPU", "cpus": 4}
 
 
+def _hash(problem: str, ruleset: str = "direct") -> str:
+    return hashlib.sha256(f"{problem}/{ruleset}".encode()).hexdigest()[:12]
+
+
 def _solution(problem: str, ruleset: str = "direct") -> Solution:
+    digest = _hash(problem, ruleset)
     return Solution(
         problem=problem,
         ruleset=ruleset,
-        entry="solution.thue",
-        entry_path=f"problems/{problem}/solutions/{ruleset}/solution.thue",
+        entry=f"{digest}.thue",
+        entry_path=f"problems/{problem}/solutions/{ruleset}/2026-10-20_14-34-00/{digest}.thue",
         author="Ada <ada@example.com>",
         notes="Notes.",
-        program=f"problems/{problem}/solutions/{ruleset}/solution.thue",
+        program=f"problems/{problem}/solutions/{ruleset}/2026-10-20_14-34-00/{digest}.thue",
         state="x",
         direct=ruleset == "direct",
+        hash=digest,
+        timestamp="2026-10-20_14-34-00",
     )
 
 
@@ -141,7 +149,6 @@ class PublishTest(unittest.TestCase):
             root = Path(tmp)
             _init(root)
             self._seed(root, {"hello-world": 4, "factorial": 9}, stored, COMMIT_A, MACHINE_A)
-            hello = (root / "problems/hello-world/solutions/direct/metric.json").read_text(encoding="utf-8")
             paths = apply_files(
                 root,
                 [_solution("hello-world"), _solution("factorial")],
@@ -149,17 +156,15 @@ class PublishTest(unittest.TestCase):
                 COMMIT_B,
                 MACHINE_B,
             )
-            self.assertEqual(
-                paths,
-                ["problems/factorial/solutions/direct/metric.json", "metrics/latest.json"],
-            )
-            self.assertEqual((root / "problems/hello-world/solutions/direct/metric.json").read_text(encoding="utf-8"), hello)
+            self.assertEqual(paths, ["metrics/versions.json", "metrics/latest.json"])
+            versions = json.loads((root / "metrics" / "versions.json").read_text(encoding="utf-8"))
+            hello = versions["versions"][_hash("hello-world")]
+            self.assertEqual(hello["cost"], 4)
+            self.assertEqual(hello["commit"], COMMIT_A)
+            self.assertTrue(hello["current"])
             self.assertTrue(commit_paths(root, paths))
             names = _git(["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"], root).splitlines()
-            self.assertEqual(names, [
-                "metrics/latest.json",
-                "problems/factorial/solutions/direct/metric.json",
-            ])
+            self.assertEqual(names, ["metrics/latest.json", "metrics/versions.json"])
             self.assertEqual(list(root.rglob("bench.json")), [])
             latest = json.loads((root / "metrics" / "latest.json").read_text(encoding="utf-8"))
             self.assertEqual(latest["commit"], COMMIT_B)
@@ -167,25 +172,38 @@ class PublishTest(unittest.TestCase):
             factorial = next(row for row in latest["runs"] if row["problem"] == "factorial" and row["host"] == "go")
             self.assertEqual(factorial["cost"], 8)
             self.assertEqual(factorial["duration_ms"], 40)
-            metric = json.loads((root / "problems/factorial/solutions/direct/metric.json").read_text(encoding="utf-8"))
-            self.assertEqual(metric["cost"], 8)
-            self.assertEqual(metric["commit"], COMMIT_B)
+            recorded = versions["versions"][_hash("factorial")]
+            self.assertEqual(recorded["cost"], 8)
+            self.assertEqual(recorded["commit"], COMMIT_B)
 
     def test_metric_json_ignores_commit_and_writes_diagnostics(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            path = root / "problems/hello-world/solutions/direct/metric.json"
+            hello = _solution("hello-world")
+            document = {
+                "schema_version": 1,
+                "versions": {
+                    hello.hash: {
+                        **_metric(4, COMMIT_A),
+                        "problem": "hello-world",
+                        "ruleset": "direct",
+                        "timestamp": hello.timestamp,
+                        "current": True,
+                    }
+                },
+            }
+            path = root / "metrics" / "versions.json"
             path.parent.mkdir(parents=True)
-            path.write_text(json.dumps(_metric(4, COMMIT_A)) + "\n", encoding="utf-8")
-            same = _write_metrics([_solution("hello-world")], _runs("hello-world", 4), COMMIT_B, root=root)
+            path.write_text(json.dumps(document) + "\n", encoding="utf-8")
+            same = _write_metrics([hello], _runs("hello-world", 4), COMMIT_B, root=root)
             self.assertEqual(same, [])
-            self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["commit"], COMMIT_A)
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["versions"][hello.hash]["commit"], COMMIT_A)
             changed = _runs("hello-world", 4)
             for row in changed:
                 row["regex_evals"] = 9
-            wrote = _write_metrics([_solution("hello-world")], changed, COMMIT_B, root=root)
-            self.assertEqual(wrote, ["problems/hello-world/solutions/direct/metric.json"])
-            data = json.loads(path.read_text(encoding="utf-8"))
+            wrote = _write_metrics([hello], changed, COMMIT_B, root=root)
+            self.assertEqual(wrote, ["metrics/versions.json"])
+            data = json.loads(path.read_text(encoding="utf-8"))["versions"][hello.hash]
             self.assertEqual(data["regex_evals"], 9)
             self.assertEqual(data["cost"], 4)
             self.assertIn("regex_evals", METRIC_FIELDS)
@@ -194,13 +212,10 @@ class PublishTest(unittest.TestCase):
                 if row["host"] == "go":
                     row["pass"] = False
                     row["cost"] = None
-            factorial = root / "problems/factorial/solutions/direct/metric.json"
-            factorial.parent.mkdir(parents=True)
-            factorial.write_text(json.dumps(_metric(1)) + "\n", encoding="utf-8")
-            before = factorial.read_text(encoding="utf-8")
+            before = path.read_text(encoding="utf-8")
             with self.assertRaises(RunError):
-                _write_metrics([_solution("hello-world"), _solution("factorial")], _runs("hello-world", 4) + failed, COMMIT_B, root=root)
-            self.assertEqual(factorial.read_text(encoding="utf-8"), before)
+                _write_metrics([hello, _solution("factorial")], _runs("hello-world", 4) + failed, COMMIT_B, root=root)
+            self.assertEqual(path.read_text(encoding="utf-8"), before)
 
     def test_publish_refuses_a_bench_archive(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -306,10 +321,19 @@ class PublishTest(unittest.TestCase):
             self.assertIn("stored together", str(caught.exception))
 
     def _seed(self, root: Path, costs: dict[str, int], runs: list[dict], commit: str, machine: dict) -> None:
+        versions = {"schema_version": 1, "versions": {}}
         for problem, cost in costs.items():
-            path = root / "problems" / problem / "solutions" / "direct" / "metric.json"
-            path.parent.mkdir(parents=True)
-            path.write_text(json.dumps(_metric(cost, commit)) + "\n", encoding="utf-8")
+            solution = _solution(problem)
+            versions["versions"][solution.hash] = {
+                **_metric(cost, commit),
+                "problem": problem,
+                "ruleset": "direct",
+                "timestamp": solution.timestamp,
+                "current": True,
+            }
+        path = root / "metrics" / "versions.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(versions) + "\n", encoding="utf-8")
         latest = {"schema_version": historylib.SCHEMA_VERSION, "commit": commit, "machine": machine, "runs": runs}
         historylib.save_latest(root, latest)
         subprocess.run(["git", "add", "."], cwd=root, check=True)

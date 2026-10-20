@@ -88,6 +88,7 @@ test-static:
 	uv run python tools/test_release_workflow.py
 	uv run python metrics/test_frontmatter.py
 	uv run python metrics/test_accept.py
+	uv run python metrics/test_versions.py
 	uv run python metrics/check_layout.py
 	uv run python metrics/test_runs.py
 	uv run python metrics/test_publish.py

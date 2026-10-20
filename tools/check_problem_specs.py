@@ -55,7 +55,9 @@ def main() -> int:
         failed = True
 
     guess_test = (PROBLEMS / "guess-the-number" / "problem_test.go").read_text(encoding="utf-8")
-    guess_program = (PROBLEMS / "guess-the-number" / "solutions" / "direct" / "solution.thue").read_text(encoding="utf-8")
+    guess_dir = PROBLEMS / "guess-the-number" / "solutions" / "direct"
+    guess_files = sorted(guess_dir.glob("*/*.thue"))
+    guess_program = guess_files[-1].read_text(encoding="utf-8") if guess_files else ""
     if 'Name: "random"' in guess_test and "Read: true" in guess_test and "random" in guess_program:
         print("guess random: yes")
     else:

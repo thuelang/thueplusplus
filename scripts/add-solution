@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""Add one solution file as a new version directory.
+
+Usage: scripts/add-solution <slug> <sandbox> <file>
+
+The directory name is the current UTC time, YYYY-MM-DD_HH-MM-SS. The file name
+is the first 12 hex characters of the SHA-256 of the file bytes. An existing
+hash or timestamp is an error. Older versions are left as they are.
+"""
+
+from __future__ import annotations
+
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "metrics"))
+
+from versions import VersionError, file_hash, format_timestamp, versions_in  # noqa: E402
+
+
+def main() -> int:
+    if len(sys.argv) != 4:
+        print("usage: scripts/add-solution <slug> <sandbox> <file>", file=sys.stderr)
+        return 2
+    slug, sandbox, source = sys.argv[1:]
+    try:
+        relative = add_solution(ROOT, slug, sandbox, Path(source))
+    except (VersionError, OSError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    print(relative)
+    return 0
+
+
+def add_solution(root: Path, slug: str, sandbox: str, source: Path) -> str:
+    if not source.is_file():
+        raise VersionError(f"{source} is not a file")
+    ruleset = root / "problems" / slug / "solutions" / sandbox
+    if not ruleset.is_dir():
+        raise VersionError(f"problems/{slug}/solutions/{sandbox} is missing")
+    data = source.read_bytes()
+    digest = file_hash(data)
+    extension = source.suffix[1:]
+    if not extension:
+        raise VersionError(f"{source} needs an extension")
+    existing = versions_in(root, slug, ruleset)
+    if any(item.hash == digest for item in existing):
+        raise VersionError(f"problems/{slug}/solutions/{sandbox} already has {digest}")
+    stamp = format_timestamp(datetime.now(timezone.utc))
+    if any(item.timestamp == stamp for item in existing):
+        raise VersionError(f"problems/{slug}/solutions/{sandbox}/{stamp} already exists")
+    folder = ruleset / stamp
+    folder.mkdir()
+    target = folder / f"{digest}.{extension}"
+    target.write_bytes(data)
+    return target.relative_to(root).as_posix()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

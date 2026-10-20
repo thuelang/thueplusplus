@@ -6,19 +6,26 @@
 
 - `README.md` states the contract. Metadata is YAML frontmatter. `title` is required. The body links the Rosetta task and credits that task under the GNU Free Documentation License 1.3.
 - `cases/` holds the committed cases, one `NN-name.json` per case. Each file is `name`, `reads`, `writes`, and `exit_code`. `problem_test.go` is the spec those files must match.
-- `solutions/<ruleset>/` is one solution. `direct` is Thue++. Any other ruleset is an interpreter in `langs/<ruleset>/`. The folder holds the solution file, `metric.json`, and `README.md`.
+- `solutions/<ruleset>/` is one sandbox. `direct` is Thue++. Any other ruleset is an interpreter in `langs/<ruleset>/`. The folder holds `README.md` and one directory per solution version.
+
+A version is `solutions/<ruleset>/<timestamp>/<hash>.<ext>`. The timestamp is UTC `YYYY-MM-DD_HH-MM-SS`, for example `2026-10-20_14-34-00`. The hash is the first 12 hex characters of the SHA-256 of the file. An optional `<hash>.md` sits beside that file. The newest timestamp is the current solution. A timestamp tie is an error. Old version directories are not edited and not deleted. Metrics are not stored next to the solution. CI records them in `metrics/versions.json`.
+
+```text
+problems/greatest-common-divisor/solutions/lisp/2026-10-20_14-34-00/3f2a9c1e04b7.lisp
+```
+
+Add a version with `scripts/add-solution <slug> <sandbox> <file>`. The script hashes the bytes, names the directory with the current UTC time, and refuses a hash or timestamp that is already there.
 
 A solution `README.md` starts with frontmatter:
 
 ```yaml
 ---
 ruleset: direct
-entry: solution.thue
 author: Name <email>
 ---
 ```
 
-The body is the approach notes. `ruleset` matches the directory. `entry` is the solution file (`solution.thue` for direct, or the script named by the language's extension). `author` is required. A `limits` key, or any limit key, fails the check. Limits are not per solution.
+The body is the approach notes. `ruleset` matches the directory. `author` is required. A `limits` key, or any limit key, fails the check. Limits are not per solution.
 
 `langs/<ruleset>/README.md` frontmatter is `name`, `description`, and `extension`. The body is the language notes.
 
@@ -56,7 +63,7 @@ Fixed cases are the edge cases plus the fixed seeds. Commit them. `THUEPP_DUMP_C
 
 When a rapid check fails, the library shrinks the reads. Paste that shrunk case into `Cases` as a fixed regression, dump the cases, and commit it. Do not leave the failure as a generator-only check.
 
-A direct solution is `solutions/direct/solution.thue`. The rapid check runs that file. Other rulesets are replayed on the committed cases by `make metrics`. Limits live only in `metrics/limits.toml`.
+A direct solution is the newest `solutions/direct/<timestamp>/<hash>.thue`. The rapid check runs that file. Other rulesets are replayed on the committed cases by `make metrics`. Limits live only in `metrics/limits.toml`.
 
 ## Limits
 
@@ -94,13 +101,13 @@ for each applied step: cost += len(rhs)
 
 Rule count and rule chars come from the `.thue` source. The Go engine counts them when it parses the file.
 
-A solution's `metric.json` sums the Go case costs. State peak is the maximum. Rule count and rule chars are the program that ran. `commit` in that file stays when a rerun produces the same counters.
+`metrics/versions.json` sums the Go case costs for each solution hash. State peak is the maximum. Rule count and rule chars are the program that ran. `commit` on that entry stays when a rerun produces the same counters. The entry for the current hash is marked `current`.
 
 A ruleset's cost is the sum of its passing solution costs on the common problems: the problems every ruleset with at least one passing solution also passes. Coverage is how many problems that ruleset passes. The common set can change as solutions are added. The sum is the aggregate because it moves only when a cost moves.
 
 ## Acceptance
 
-A changed solution must still pass. The goal is a Go cost strictly lower than the committed `metric.json` on main. An equal or higher cost is a warning on the pull request, and the check stays green. A maintainer decides whether a worse solution is worth merging. A new ruleset folder must pass. That cost comparison stops when `problem_test.go` or a file in `cases/` changed in the same diff: the contract moved, the solution must still pass, and the new cost replaces the old one.
+A changed solution must still pass. The goal is a Go cost strictly lower than the current hash recorded in `metrics/versions.json` on main. An equal or higher cost is a warning on the pull request, and the check stays green. A maintainer decides whether a worse solution is worth merging. A new ruleset folder must pass. That cost comparison stops when `problem_test.go` or a file in `cases/` changed in the same diff: the contract moved, the solution must still pass, and the new cost replaces the old one.
 
 A change to an interpreter `langs/<ruleset>/*.thue` is re-measured. It must still pass every problem it passed on the previous common set. A higher sum of those costs is a warning. Stopping passing is a failure.
 
@@ -108,21 +115,21 @@ Pull request CI runs the suite. Go is the ranking host. A host whose pass or cos
 
 `metrics/check_solutions.py` reruns every case on every host and fails when a solution does not pass or a host disagrees with Go. It does not fail on cost drift.
 
-Do not commit `metric.json`, `metrics/latest.json`, or `metrics/YYYY/MM/DD/<sha>/bench.json`.
+Do not commit `metric.json`, `metrics/latest.json`, `metrics/versions.json`, or `metrics/YYYY/MM/DD/<sha>/bench.json`.
 
 Autoresearch prompt:
 
 ```text
-Lower the Go cost of one solution. Cost is UTF-8 bytes: each regex eval adds len(state)+len(lhs), and each applied step adds len(rhs). A literal-prefix miss is not an eval. An exit rule is not an applied step. A direct entry is solution.thue. Edit problems/<slug>/solutions/<ruleset>/. Run make problems or make langs, then metrics/check_solutions.py. Keep the edit when the tests pass. A strictly lower Go cost is the goal. A higher cost is a warning, and a maintainer decides. Do not change the reference output. Do not commit metric.json or metrics/latest.json. Do not put limits in the README. Limits live in metrics/limits.toml.
+Lower the Go cost of one solution. Cost is UTF-8 bytes: each regex eval adds len(state)+len(lhs), and each applied step adds len(rhs). A literal-prefix miss is not an eval. An exit rule is not an applied step. Add a new version with scripts/add-solution <slug> <sandbox> <file>. The newest timestamp is the current solution. Do not edit an older version directory. Run make problems or make langs, then metrics/check_solutions.py. Keep the edit when the tests pass. A strictly lower Go cost is the goal. A higher cost is a warning, and a maintainer decides. Do not change the reference output. Do not commit metric.json, metrics/latest.json, or metrics/versions.json. Do not put limits in the README. Limits live in metrics/limits.toml.
 ```
 
 ## Metrics
 
-`make metrics` is a local preview. It runs every committed solution case on every host and writes schema 5 `metrics/latest.json` as `{schema_version, commit, machine, runs}` when the run results changed. Each run is one program, one case, and one host, with `pass`, `cost`, the diagnostic counters, `reads`, and the global limits from `metrics/limits.toml`. Every run passes `--max-steps`, `--max-evals`, and `--max-state-bytes`, and `timeout(1)` enforces `timeout_seconds` and `memory_cap_bytes`. Pass and cost must match Go. Cost is the sum of those fixed cases. A solution `metric.json` is written only when pass, cost, or a diagnostic differs. `latest.json` is written only when a run result differs. A different commit hash, machine, duration, or resident memory is not a change. The preview does not commit and does not push.
+`make metrics` is a local preview. It runs every committed solution case on every host and writes schema 5 `metrics/latest.json` as `{schema_version, commit, machine, runs}` when the run results changed. Each run is one program, one case, and one host, with `pass`, `cost`, the diagnostic counters, `reads`, and the global limits from `metrics/limits.toml`. Every run passes `--max-steps`, `--max-evals`, and `--max-state-bytes`, and `timeout(1)` enforces `timeout_seconds` and `memory_cap_bytes`. Pass and cost must match Go. Cost is the sum of those fixed cases. `metrics/versions.json` is written only when the current version's pass, cost, or a diagnostic differs. `latest.json` is written only when a run result differs. A different commit hash, machine, duration, or resident memory is not a change. The preview does not commit and does not push.
 
 A push to `main` runs the same suite as `github-actions[bot]` with `contents: write`. It commits the files whose results changed. No change means no commit. The workflow skips a push whose actor or pusher is the bot. The job timeout is 45 minutes.
 
-The dated archives already in the tree stay. The recorder does not add a new bench. Problem charts read the git history of each `metric.json`, so a commit only when that file changed keeps one point per real change. Host charts read those archives plus the current `metrics/latest.json`. Schema 2 and 3 benches stay valid. A schema 4 bench without `runs` is the older problem and language record. A schema 4 runs document stores `stdin` and stays valid. The site reads `runs` and ignores the older keys.
+The dated archives already in the tree stay. The recorder does not add a new bench. Problem charts read the version directories. One point is one version, at that directory's timestamp, with the cost recorded for its hash. Host charts read those archives plus the current `metrics/latest.json`. Schema 2 and 3 benches stay valid. A schema 4 bench without `runs` is the older problem and language record. A schema 4 runs document stores `stdin` and stays valid. The site reads `runs` and ignores the older keys.
 
 ## Tests
 

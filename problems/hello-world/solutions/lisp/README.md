@@ -1,6 +1,5 @@
 ---
 ruleset: lisp
-entry: solution.lisp
 author: Cursor Agent <cursoragent@cursor.com>
 ---
 

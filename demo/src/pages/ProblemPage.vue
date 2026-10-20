@@ -6,7 +6,7 @@ import CostChart from '@/components/CostChart.vue'
 import MarkdownBody from '@/components/MarkdownBody.vue'
 import NotFoundPage from '@/pages/NotFoundPage.vue'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { authorName, problemById, sourceUrl, type CatalogVersion } from '@/catalog'
+import { authorName, catalog, problemById, sourceUrl, type CatalogSolution, type CatalogVersion } from '@/catalog'
 import { formatCost } from '@/charts/cost'
 import { problemSeries } from '@/charts/series'
 
@@ -28,34 +28,55 @@ function toggle(key: SortKey): void {
   }
 }
 
-function value(version: CatalogVersion, key: SortKey): string | number {
-  const solution = version.solutions[0]
-  if (!solution) throw new Error(`${version.id} has no solution`)
-  if (key === 'sandbox') return version.name
-  if (key === 'cost') return solution.cost ?? Number.POSITIVE_INFINITY
-  if (key === 'author') return authorName(version.author)
-  if (key === 'date') return version.measured
-  if (key === 'steps') return solution.steps ?? Number.POSITIVE_INFINITY
-  return solution.ruleCount ?? Number.POSITIVE_INFINITY
+type SolutionRow = {
+  key: string
+  version: CatalogVersion
+  solution: CatalogSolution
+  measured: string
+  current: boolean
+}
+
+function measuredAt(version: CatalogVersion, solution: CatalogSolution): string {
+  const point = version.series.find(item => item.solution === solution.id)
+  if (point) {
+    const commit = catalog.commits.find(item => item.commit === point.commit)
+    if (commit) return commit.timestamp
+  }
+  const match = solution.solutionPath.match(/(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})/)
+  if (!match) throw new Error(`${solution.solutionPath} has no version timestamp`)
+  return `${match[1]}T${match[2]}:${match[3]}:${match[4]}Z`
+}
+
+function value(row: SolutionRow, key: SortKey): string | number {
+  if (key === 'sandbox') return row.version.name
+  if (key === 'cost') return row.solution.cost ?? Number.POSITIVE_INFINITY
+  if (key === 'author') return authorName(row.version.author)
+  if (key === 'date') return row.measured
+  if (key === 'steps') return row.solution.steps ?? Number.POSITIVE_INFINITY
+  return row.solution.ruleCount ?? Number.POSITIVE_INFINITY
 }
 
 const rows = computed(() => {
   const current = problem.value
   if (!current) return []
-  const sorted = [...current.versions].sort((left, right) => {
+  const flat = current.versions.flatMap(version => version.solutions.map((solution, index) => ({
+    key: `${version.id}/${solution.solutionPath}`,
+    version,
+    solution,
+    measured: measuredAt(version, solution),
+    current: index === 0,
+  })))
+  const sorted = [...flat].sort((left, right) => {
     const a = value(left, sortKey.value)
     const b = value(right, sortKey.value)
-    const order = a < b ? -1 : a > b ? 1 : left.id < right.id ? -1 : left.id > right.id ? 1 : 0
+    const order = a < b ? -1 : a > b ? 1 : left.key < right.key ? -1 : left.key > right.key ? 1 : 0
     return sortAsc.value ? order : -order
   })
   return sorted
 })
 
-function requiredNumber(version: CatalogVersion, key: 'cost' | 'steps' | 'rules'): number {
-  const solution = version.solutions[0]
-  const value = key === 'cost' ? solution?.cost : key === 'steps' ? solution?.steps : solution?.ruleCount
-  if (value == null) throw new Error(`${version.id} ${key} is missing`)
-  return value
+function shown(value: number | null): string {
+  return value == null ? 'unmeasured' : formatCost(value)
 }
 
 function ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
@@ -89,16 +110,16 @@ function ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
           </TableRow>
         </TableHeader>
         <TableBody>
-          <TableRow v-for="version in rows" :key="version.id" data-test="solution-row" :data-sandbox="version.id">
+          <TableRow v-for="row in rows" :key="row.key" data-test="solution-row" :data-sandbox="row.version.id" :data-current="row.current ? 'true' : undefined" :data-hash="row.solution.id">
             <TableCell>
-              <span v-if="version.id !== 'direct'" data-test="sandbox-color" class="mr-2 inline-block size-2.5 align-middle" :style="{ background: version.color }" />
-              <a data-test="solution-link" class="underline underline-offset-4" :href="sourceUrl(version.solutions[0].solutionPath)" rel="noreferrer">{{ version.id === 'direct' ? 'Direct Thue' : version.name }}</a>
+              <span v-if="row.version.id !== 'direct'" data-test="sandbox-color" class="mr-2 inline-block size-2.5 align-middle" :style="{ background: row.version.color }" />
+              <a data-test="solution-link" class="underline underline-offset-4" :href="sourceUrl(row.solution.solutionPath)" rel="noreferrer">{{ row.version.id === 'direct' ? 'Direct Thue' : row.version.name }}</a>
             </TableCell>
-            <TableCell class="font-mono">{{ formatCost(requiredNumber(version, 'cost')) }}</TableCell>
-            <TableCell>{{ authorName(version.author) }}</TableCell>
-            <TableCell class="font-mono">{{ version.measured.slice(0, 10) }}</TableCell>
-            <TableCell class="font-mono">{{ formatCost(requiredNumber(version, 'steps')) }}</TableCell>
-            <TableCell class="font-mono">{{ formatCost(requiredNumber(version, 'rules')) }}</TableCell>
+            <TableCell class="font-mono">{{ shown(row.solution.cost) }}</TableCell>
+            <TableCell>{{ authorName(row.version.author) }}</TableCell>
+            <TableCell class="font-mono">{{ row.measured.slice(0, 10) }}</TableCell>
+            <TableCell class="font-mono">{{ shown(row.solution.steps) }}</TableCell>
+            <TableCell class="font-mono">{{ shown(row.solution.ruleCount) }}</TableCell>
           </TableRow>
         </TableBody>
       </Table>
