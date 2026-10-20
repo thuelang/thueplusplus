@@ -12,8 +12,10 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -788,8 +790,9 @@ public final class Interpreter {
             mids.add(parseMid(text, lineNumber));
         }
         Pattern pattern;
+        Rewritten rewritten = rewriteDuplicateGroups(lhs);
         try {
-            pattern = compilePattern(lhs);
+            pattern = compilePattern(rewritten.pattern());
         } catch (PatternSyntaxException exc) {
             throw new ThueException("Line " + lineNumber + ": Invalid regex '" + lhs + "': " + exc.getMessage());
         }
@@ -810,7 +813,7 @@ public final class Interpreter {
             builtinName = call.name;
             builtinArgs = call.args;
         }
-        return new Rule(lhs, pattern, Prefix.literalPrefix(lhs), mids, operator, rhs, lineNumber, sourcePath, trimmed, builtinName, builtinArgs);
+        return new Rule(lhs, pattern, Prefix.literalPrefix(lhs), mids, operator, rhs, lineNumber, sourcePath, trimmed, builtinName, builtinArgs, rewritten.aliases());
     }
 
     private static String parseMid(String text, int lineNumber) {
@@ -868,7 +871,7 @@ public final class Interpreter {
                     groups.put(entry.getKey(), value);
                 }
             }
-            return new Match(matcher.start(), matcher.end(), groups);
+            return new Match(matcher.start(), matcher.end(), foldAliases(groups, rule.groupAliases()));
         }
         return null;
     }
@@ -881,8 +884,9 @@ public final class Interpreter {
         for (String mid : rule.mids) {
             String expanded = expandMidPattern(mid, out, rule.lineNumber);
             Pattern pattern;
+            Rewritten rewritten = rewriteDuplicateGroups(expanded);
             try {
-                pattern = compilePattern(expanded);
+                pattern = compilePattern(rewritten.pattern());
             } catch (PatternSyntaxException exc) {
                 throw new ThueException("Line " + rule.lineNumber + ": Invalid ::| regex '" + expanded + "'");
             }
@@ -892,12 +896,14 @@ public final class Interpreter {
                 return new MidResult(out, false);
             }
             regexMatches++;
+            Map<String, String> found = new LinkedHashMap<>();
             for (Map.Entry<String, Integer> entry : pattern.namedGroups().entrySet()) {
                 String value = matcher.group(entry.getValue());
                 if (value != null) {
-                    out.put(entry.getKey(), value);
+                    found.put(entry.getKey(), value);
                 }
             }
+            out.putAll(foldAliases(found, rewritten.aliases()));
         }
         return new MidResult(out, true);
     }
@@ -1466,7 +1472,128 @@ public final class Interpreter {
             String sourcePath,
             String source,
             String builtinName,
-            List<String> builtinArgs) {}
+            List<String> builtinArgs,
+            List<Alias> groupAliases) {}
+
+    private record Alias(String synth, String original) {}
+
+    private record Rewritten(String pattern, List<Alias> aliases) {}
+
+    private static Rewritten rewriteDuplicateGroups(String pattern) {
+        List<int[]> spans = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        scanNamedGroups(pattern, spans, names);
+        Set<String> seen = new LinkedHashSet<>();
+        Set<String> taken = new LinkedHashSet<>(names);
+        List<Alias> aliases = new ArrayList<>();
+        StringBuilder out = new StringBuilder();
+        int cursor = 0;
+        int serial = 0;
+        for (int i = 0; i < names.size(); i++) {
+            String name = names.get(i);
+            if (seen.add(name)) {
+                continue;
+            }
+            String synth = "_d" + serial;
+            while (taken.contains(synth)) {
+                serial++;
+                synth = "_d" + serial;
+            }
+            serial++;
+            taken.add(synth);
+            aliases.add(new Alias(synth, name));
+            int nameStart = spans.get(i)[0];
+            int nameEnd = spans.get(i)[1];
+            out.append(pattern, cursor, nameStart);
+            out.append(synth);
+            cursor = nameEnd;
+        }
+        if (aliases.isEmpty()) {
+            return new Rewritten(pattern, List.of());
+        }
+        out.append(pattern, cursor, pattern.length());
+        return new Rewritten(out.toString(), List.copyOf(aliases));
+    }
+
+    private static Map<String, String> foldAliases(Map<String, String> groups, List<Alias> aliases) {
+        if (aliases.isEmpty()) {
+            return groups;
+        }
+        Map<String, String> folded = new LinkedHashMap<>(groups);
+        for (Alias alias : aliases) {
+            String value = folded.remove(alias.synth());
+            if (value != null) {
+                folded.put(alias.original(), value);
+            }
+        }
+        return folded;
+    }
+
+    private static void scanNamedGroups(String pattern, List<int[]> spans, List<String> names) {
+        int index = 0;
+        int length = pattern.length();
+        while (index < length) {
+            char ch = pattern.charAt(index);
+            if (ch == '\\') {
+                index += index + 1 < length ? 2 : 1;
+                continue;
+            }
+            if (ch == '[') {
+                index = skipCharClass(pattern, index);
+                continue;
+            }
+            int prefix = pattern.startsWith("(?P<", index) ? 4 : pattern.startsWith("(?<", index) ? 3 : 0;
+            if (prefix == 0) {
+                index++;
+                continue;
+            }
+            int nameStart = index + prefix;
+            int nameEnd = nameStart;
+            if (nameEnd < length && isNameStart(pattern.charAt(nameEnd))) {
+                nameEnd++;
+                while (nameEnd < length && isNameCont(pattern.charAt(nameEnd))) {
+                    nameEnd++;
+                }
+                if (nameEnd < length && pattern.charAt(nameEnd) == '>') {
+                    spans.add(new int[] {nameStart, nameEnd});
+                    names.add(pattern.substring(nameStart, nameEnd));
+                    index = nameEnd + 1;
+                    continue;
+                }
+            }
+            index++;
+        }
+    }
+
+    private static boolean isNameStart(char ch) {
+        return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || ch == '_';
+    }
+
+    private static boolean isNameCont(char ch) {
+        return isNameStart(ch) || (ch >= '0' && ch <= '9');
+    }
+
+    private static int skipCharClass(String pattern, int index) {
+        int cursor = index + 1;
+        int length = pattern.length();
+        if (cursor < length && pattern.charAt(cursor) == '^') {
+            cursor++;
+        }
+        if (cursor < length && pattern.charAt(cursor) == ']') {
+            cursor++;
+        }
+        while (cursor < length && pattern.charAt(cursor) != ']') {
+            if (pattern.charAt(cursor) == '\\' && cursor + 1 < length) {
+                cursor += 2;
+            } else {
+                cursor++;
+            }
+        }
+        if (cursor < length && pattern.charAt(cursor) == ']') {
+            cursor++;
+        }
+        return cursor;
+    }
 
     private record SourceRow(String text, String sourcePath, int sourceLine) {}
 
