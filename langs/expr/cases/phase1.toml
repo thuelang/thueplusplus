@@ -2304,3 +2304,168 @@ env = "{\"b\":[\"hi\"]}"
 exit_code = 2
 stdout = ""
 stderr = "invalid_json: strings inside arrays are unsupported"
+
+[[case]]
+name = "262 tiny exponent"
+
+[case.bindings.lines]
+expr = "1e-7"
+
+[case.expect]
+exit_code = 0
+stdout = "1e-7\n"
+stderr = ""
+
+[[case]]
+name = "263 fixed millionth"
+
+[case.bindings.lines]
+expr = "1e-6"
+
+[case.expect]
+exit_code = 0
+stdout = "0.000001\n"
+stderr = ""
+
+[[case]]
+name = "264 fixed 1e20"
+
+[case.bindings.lines]
+expr = "1e20"
+
+[case.expect]
+exit_code = 0
+stdout = "100000000000000000000\n"
+stderr = ""
+
+[[case]]
+name = "265 exponent 1e21"
+
+[case.bindings.lines]
+expr = "10**21"
+
+[case.expect]
+exit_code = 0
+stdout = "1e+21\n"
+stderr = ""
+
+[[case]]
+name = "266 float power"
+
+[case.bindings.lines]
+expr = "2.5**2"
+
+[case.expect]
+exit_code = 0
+stdout = "6.25\n"
+stderr = ""
+
+[[case]]
+name = "267 negative float power"
+
+[case.bindings.lines]
+expr = "-2.5**2"
+
+[case.expect]
+exit_code = 0
+stdout = "-6.25\n"
+stderr = ""
+
+[[case]]
+name = "268 float overflow"
+
+[case.bindings.lines]
+expr = "1e309"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_float: overflow"
+
+[[case]]
+name = "269 float underflow"
+
+[case.bindings.lines]
+expr = "1e-324"
+
+[case.expect]
+exit_code = 0
+stdout = "0\n"
+stderr = ""
+
+[[case]]
+name = "270 min subnormal"
+
+[case.bindings.lines]
+expr = "5e-324"
+
+[case.expect]
+exit_code = 0
+stdout = "5e-324\n"
+stderr = ""
+
+[[case]]
+name = "271 mantissa tie"
+
+[case.bindings.lines]
+expr = "9007199254740993.0"
+
+[case.expect]
+exit_code = 0
+stdout = "9007199254740992\n"
+stderr = ""
+
+[[case]]
+name = "273 float zero"
+
+[case.bindings.lines]
+expr = "0.0"
+
+[case.expect]
+exit_code = 0
+stdout = "0\n"
+stderr = ""
+
+[[case]]
+name = "274 round up subnormal"
+
+[case.bindings.lines]
+expr = "3/2**1076"
+
+[case.expect]
+exit_code = 0
+stdout = "5e-324\n"
+stderr = ""
+
+[[case]]
+name = "275 subnormal tie to normal"
+
+[case.bindings.lines]
+expr = "(2**53-1)/2**1075"
+
+[case.expect]
+exit_code = 0
+stdout = "2.2250738585072014e-308\n"
+stderr = ""
+
+[[case]]
+name = "276 renormalize overflow"
+
+[case.bindings.lines]
+expr = "(2**1024-2**970)/1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_float: overflow"
+
+[[case]]
+name = "272 odd tie up"
+
+[case.bindings.lines]
+expr = "9007199254740995.0"
+
+[case.expect]
+exit_code = 0
+stdout = "9007199254740996\n"
+stderr = ""

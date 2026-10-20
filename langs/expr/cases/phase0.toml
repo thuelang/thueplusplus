@@ -295,9 +295,9 @@ name = "027 1-3"
 expr = "1/3"
 
 [case.expect]
-exit_code = 2
-stdout = ""
-stderr = "unsupported_float: non-terminating decimal"
+exit_code = 0
+stdout = "0.3333333333333333\n"
+stderr = ""
 
 [[case]]
 name = "029 0"
@@ -638,4 +638,81 @@ expr = "1*2+3"
 [case.expect]
 exit_code = 0
 stdout = "5\n"
+stderr = ""
+
+[[case]]
+name = "261 two thirds"
+
+[case.bindings.lines]
+expr = "2/3"
+
+[case.expect]
+exit_code = 0
+stdout = "0.6666666666666666\n"
+stderr = ""
+
+[[case]]
+name = "262 ten thirds"
+
+[case.bindings.lines]
+expr = "10/3"
+
+[case.expect]
+exit_code = 0
+stdout = "3.3333333333333335\n"
+stderr = ""
+
+[[case]]
+name = "263 one seventh"
+
+[case.bindings.lines]
+expr = "1/7"
+
+[case.expect]
+exit_code = 0
+stdout = "0.14285714285714285\n"
+stderr = ""
+
+[[case]]
+name = "264 negative third"
+
+[case.bindings.lines]
+expr = "-1/3"
+
+[case.expect]
+exit_code = 0
+stdout = "-0.3333333333333333\n"
+stderr = ""
+
+[[case]]
+name = "265 negative two twenty-four"
+
+[case.bindings.lines]
+expr = "1/16777216"
+
+[case.expect]
+exit_code = 0
+stdout = "5.960464477539063e-8\n"
+stderr = ""
+
+[[case]]
+name = "266 negative power of two"
+
+[case.bindings.lines]
+expr = "-1/16777216"
+
+[case.expect]
+exit_code = 0
+stdout = "-5.960464477539063e-8\n"
+stderr = ""
+
+[[case]]
+name = "267 tie renormalize"
+
+[case.bindings.lines]
+expr = "18014398509481983/2"
+
+[case.expect]
+exit_code = 0
+stdout = "9007199254740992\n"
 stderr = ""
