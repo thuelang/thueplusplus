@@ -259,6 +259,19 @@ export function boxInFrame(progress: number, lane = 0.5, spin = 0): boolean {
     && place.y + BOX_REACH <= VIEW_H
 }
 
+/** Right edge of the 1320px page column, in view units. A full-width page uses the view. */
+export function columnEdge(viewportWidth: number): number {
+  if (!Number.isFinite(viewportWidth) || viewportWidth <= 0) return VIEW_W
+  const edge = viewportWidth <= 1320 ? viewportWidth : (viewportWidth + 1320) / 2
+  return VIEW_W * edge / viewportWidth
+}
+
+/** A box that is still past the page column draws as an empty square in the margin. */
+export function boxInColumn(progress: number, lane = 0.5, spin = 0, viewportWidth = VIEW_W): boolean {
+  if (!boxInFrame(progress, lane, spin)) return false
+  return boxPlace(progress, lane, spin).x + BOX_HALF <= columnEdge(viewportWidth) + 0.01
+}
+
 /** 1 at rest. A little over 1 while a box is in range. `grown` eases between them. */
 export const MACHINE_GROW = 0.055
 /**

@@ -199,35 +199,47 @@ export function summedCostSeries(perProblem, commits) {
   return points
 }
 
+function versionPoints(version, commitTime, fallbackTime) {
+  const points = []
+  for (const point of version?.series ?? []) {
+    const time = commitTime.get(point.commit)
+    if (time == null || !Number.isInteger(point.cost) || point.cost < 0) continue
+    points.push({ time, cost: point.cost })
+  }
+  if (points.length > 0 || fallbackTime == null) return points
+  const cost = version?.solutions?.[0]?.cost
+  if (!Number.isInteger(cost) || cost < 0) return []
+  return [{ time: fallbackTime, cost }]
+}
+
 export function sandboxSeriesFromCatalog(catalog) {
   const problems = catalog.sandboxCommon.map(id => {
     const problem = catalog.problems.find(item => item.id === id)
     if (!problem) throw new Error(`common problem ${id} is missing`)
     return problem
   })
-  const commitTime = new Map(catalog.commits.map(commit => {
+  const commitTime = new Map()
+  for (const commit of catalog.commits) {
     const time = Date.parse(commit.timestamp)
     if (Number.isNaN(time)) throw new Error(`commit ${commit.commit} has no time`)
-    return [commit.commit, time]
-  }))
-  const commitTimes = catalog.commits.map(commit => commitTime.get(commit.commit))
+    commitTime.set(commit.commit, time)
+  }
+  const commitTimes = [...commitTime.values()]
+  const fallbackTime = commitTimes.length === 0 ? null : Math.max(...commitTimes)
   return catalog.sandboxes.flatMap(sandbox => {
-    if (sandbox.total == null) return []
-    if (!sandbox.color) throw new Error(`${sandbox.id} has a total and no chart color`)
+    if (sandbox.total == null || !sandbox.color) return []
     const perProblem = problems.map(problem => {
       const version = problem.versions.find(item => item.id === sandbox.id)
-      if (!version) throw new Error(`${sandbox.id} has no cost on ${problem.id}`)
-      return version.series.map(point => {
-        const time = commitTime.get(point.commit)
-        if (time == null) throw new Error(`${problem.id} commit ${point.commit} is not in the catalog`)
-        return { time, cost: point.cost }
-      })
+      return versionPoints(version, commitTime, fallbackTime)
     })
-    const points = summedCostSeries(perProblem, commitTimes)
-    if (points.length === 0) throw new Error(`${sandbox.id} has no summed cost over time`)
-    if (points[points.length - 1].cost !== sandbox.total) {
-      throw new Error(`${sandbox.id} ends at ${points[points.length - 1].cost}, total is ${sandbox.total}`)
+    if (perProblem.some(points => points.length === 0) || commitTimes.length === 0) return []
+    let points = []
+    try {
+      points = summedCostSeries(perProblem, commitTimes)
+    } catch {
+      return []
     }
+    if (points.length === 0 || points[points.length - 1].cost !== sandbox.total) return []
     return [{ id: sandbox.id, label: sandbox.name, color: sandbox.color, points }]
   })
 }

@@ -16,7 +16,7 @@ import {
   VIEW_H,
   VIEW_W,
   TADA_S,
-  boxInFrame,
+  boxInColumn,
   boxPlace,
   clearFlourish,
   flourishPlace,
@@ -222,7 +222,8 @@ function pct(x: number, y: number, w: number, h: number): Record<string, string>
   }
 }
 
-const drawnBoxes = computed(() => game.value.boxes.filter(box => boxInFrame(box.progress, box.lane, box.spin)))
+const viewport = ref(typeof window === 'undefined' ? 0 : window.innerWidth)
+const drawnBoxes = computed(() => game.value.boxes.filter(box => boxInColumn(box.progress, box.lane, box.spin, viewport.value)))
 const tadaT = ref(1)
 let tadaFresh = false
 const shake = computed(() => machineHeadShake(game.value.miss, reduced.value))
@@ -368,7 +369,13 @@ function advance(dt: number): void {
   if (miss > 0 && game.value.miss === 0) note()
 }
 
+function onResize(): void {
+  viewport.value = window.innerWidth
+}
+
 onMounted(() => {
+  onResize()
+  window.addEventListener('resize', onResize)
   media = window.matchMedia('(prefers-reduced-motion: reduce)')
   if (media.matches !== reduced.value) applyReduced(media.matches)
   onMedia = () => applyReduced(media?.matches ?? false)
@@ -388,6 +395,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
   if (media && onMedia) media.removeEventListener('change', onMedia)
   document.removeEventListener('visibilitychange', onVisibility)
   observer?.disconnect()
