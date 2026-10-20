@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { axisTicks, costY, formatCost, polyline, polylineLength, runningMin, timeX, type PlacedPoint, type TimePoint } from '@/charts/cost'
+import { axisLabelPad, axisTicks, costY, formatCost, polyline, polylineLength, runningMin, timeX, type PlacedPoint, type TimePoint } from '@/charts/cost'
 import { ease } from '@/rex/motion'
 
 const props = withDefaults(defineProps<{
@@ -16,9 +16,6 @@ const props = withDefaults(defineProps<{
 
 const width = 640
 const height = computed(() => props.spark ? 96 : 280)
-const pad = computed(() => props.spark
-  ? { l: 8, r: 8, t: 8, b: 8 }
-  : { l: 72, r: 16, t: 16, b: 36 })
 const progress = ref(1)
 let frame = 0
 
@@ -42,13 +39,6 @@ onMounted(() => {
 
 onBeforeUnmount(stop)
 
-const inner = computed(() => ({
-  left: pad.value.l,
-  top: pad.value.t,
-  width: width - pad.value.l - pad.value.r,
-  height: height.value - pad.value.t - pad.value.b,
-}))
-
 const maxCost = computed(() => {
   const values = [
     ...props.bars.map(bar => bar.value),
@@ -56,6 +46,17 @@ const maxCost = computed(() => {
   ]
   return values.length === 0 ? 0 : Math.max(...values)
 })
+
+const pad = computed(() => props.spark
+  ? { l: 8, r: 8, t: 8, b: 8 }
+  : { l: axisLabelPad(maxCost.value), r: 16, t: 16, b: 52 })
+
+const inner = computed(() => ({
+  left: pad.value.l,
+  top: pad.value.t,
+  width: width - pad.value.l - pad.value.r,
+  height: height.value - pad.value.t - pad.value.b,
+}))
 
 const ticks = computed(() => props.spark ? [] : axisTicks(maxCost.value))
 
@@ -124,12 +125,21 @@ function tickY(value: number): number {
         <text
           v-if="!spark"
           :x="bar.x + bar.width / 2"
-          :y="height - 14"
+          :y="height - 30"
           text-anchor="middle"
           fill="currentColor"
           font-family="JetBrains Mono, ui-monospace, monospace"
           font-size="12"
         >{{ bar.label }}</text>
+        <text
+          v-if="!spark"
+          :x="bar.x + bar.width / 2"
+          :y="height - 14"
+          text-anchor="middle"
+          fill="currentColor"
+          font-family="JetBrains Mono, ui-monospace, monospace"
+          font-size="11"
+        >{{ bar.text }}</text>
       </g>
       <g v-for="item in drawnSeries" :key="item.id" :stroke="item.color" fill="none">
         <path

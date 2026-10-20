@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { axisTicks, costY, formatCost, polylineLength, runningMin, timeX } from './cost'
+import { axisLabelPad, axisTicks, costY, formatCost, polylineLength, runningMin, timeX } from './cost'
 
 describe('cost chart geometry', () => {
   it('keeps the minimum cost seen so far', () => {
@@ -27,6 +27,7 @@ describe('cost chart geometry', () => {
 
   it('formats costs and ticks', () => {
     expect(formatCost(27470323)).toBe('27,470,323')
+    expect(axisLabelPad(125979265)).toBe(104)
     expect(axisTicks(0)).toEqual([0])
     expect(axisTicks(10)).toEqual([0, 5, 10])
     expect(polylineLength([{ x: 0, y: 0 }, { x: 3, y: 4 }])).toBe(5)

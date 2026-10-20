@@ -22,6 +22,10 @@ export function formatCost(value: number): string {
   return value.toLocaleString('en-US')
 }
 
+export function axisLabelPad(max: number): number {
+  return formatCost(max).length * 8 + 16
+}
+
 export function axisTicks(max: number): number[] {
   if (!Number.isFinite(max) || max < 0) throw new Error(`axis max ${max} is not usable`)
   if (max === 0) return [0]
