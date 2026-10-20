@@ -171,6 +171,14 @@ stderr = ""
 exit_code = 0
 
 [[case]]
+name = "loose alist get walks an empty list entry on a miss"
+input = '(get (quote (() foo)) (quote missing) 0)'
+[case.expect]
+stdout = "0\n"
+stderr = ""
+exit_code = 0
+
+[[case]]
 name = "loose alist get reads second item and ignores extra tail"
 input = '(get (quote ((k v1 v2) foo)) (quote k) (quote missing))'
 [case.expect]

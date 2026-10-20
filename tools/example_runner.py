@@ -582,6 +582,7 @@ CORE_CASES: tuple[tuple[str, str | None], ...] = (
     ("examples/process/tests/line-read.toml", None),
     ("examples/process/tests/line-timeout.toml", None),
     ("examples/builtin/tests/bad-unknown.toml", "unknown builtin fails loudly"),
+    ("examples/named-capture/tests/duplicate.toml", "duplicate capture names match the participating group"),
 )
 
 
