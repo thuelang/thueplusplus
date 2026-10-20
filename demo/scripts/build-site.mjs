@@ -343,7 +343,7 @@ function readResources(problem) {
   return resources
 }
 
-function costsAt(iso, rulesets, problems, index) {
+function costsAt(timestamp, rulesets, problems, index) {
   const costs = {}
   for (const ruleset of rulesets) {
     costs[ruleset] = {}
@@ -351,7 +351,7 @@ function costsAt(iso, rulesets, problems, index) {
       const versions = index.get(`${ruleset}\0${problem}`) ?? []
       let cost = null
       for (const version of versions) {
-        if (version.iso <= iso) cost = version.cost
+        if (version.time <= timestamp) cost = version.cost
         else break
       }
       if (cost != null) costs[ruleset][problem] = cost
@@ -545,9 +545,11 @@ function historicalCosts(problem, ruleset, extension) {
 }
 
 let versionsDocument
+let recordedCostPoints = []
 function versionsByHash() {
   if (versionsDocument) return versionsDocument
   versionsDocument = new Map()
+  recordedCostPoints = []
   const path = join(repoRoot, 'metrics/versions.json')
   if (!existsSync(path)) return versionsDocument
   const data = JSON.parse(readFileSync(path, 'utf8'))
@@ -555,6 +557,15 @@ function versionsByHash() {
   if (!versions || typeof versions !== 'object') throw new CatalogError('metrics/versions.json is not schema 1')
   for (const [hash, entry] of Object.entries(versions)) {
     if (entry.pass === true && Number.isInteger(entry.cost) && entry.cost >= 0) versionsDocument.set(hash, entry)
+  }
+  if (data.points != null) {
+    if (!Array.isArray(data.points)) throw new CatalogError('metrics/versions.json points are not a list')
+    for (const point of data.points) {
+      if (!point || typeof point.problem !== 'string' || typeof point.ruleset !== 'string' || !/^[0-9a-f]{40}$/.test(point.commit) || !Number.isInteger(point.cost) || point.cost < 0) {
+        throw new CatalogError('metrics/versions.json has a cost point that is not tied to a commit')
+      }
+    }
+    recordedCostPoints = data.points
   }
   return versionsDocument
 }
@@ -617,6 +628,56 @@ function costForVersion(version, historical, latest, shallow, newest) {
   return null
 }
 
+function causeCommit(metric, stored) {
+  if (typeof metric.commit === 'string' && /^[0-9a-f]{40}$/.test(metric.commit)) return metric.commit
+  if (/^[0-9a-f]{40}$/.test(stored)) return stored
+  throw new CatalogError(`${stored} has no commit for cost ${metric.cost}`)
+}
+
+function costCommitSeries(problem, ruleset, boundary, current) {
+  versionsByHash()
+  const candidates = []
+  const metricPath = `problems/${problem}/solutions/${ruleset}/metric.json`
+  const log = git(['log', '--reverse', '--format=%H', '--', metricPath], { missing: true })
+  if (log) {
+    for (const stored of log.split('\n').filter(Boolean)) {
+      if (boundary.has(stored)) continue
+      const text = gitShow(stored, metricPath)
+      if (text == null) continue
+      let metric
+      try {
+        metric = readMetric(text, `${stored}:${metricPath}`)
+      } catch {
+        continue
+      }
+      const commit = causeCommit(metric, stored)
+      if (boundary.has(commit)) continue
+      candidates.push({ commit, metric })
+    }
+  }
+  for (const point of recordedCostPoints) {
+    if (point.problem !== problem || point.ruleset !== ruleset) continue
+    if (boundary.has(point.commit)) continue
+    candidates.push({ commit: point.commit, metric: point })
+  }
+  if (current?.metric && /^[0-9a-f]{40}$/.test(current.gitCommit) && !boundary.has(current.gitCommit)) {
+    candidates.push({ commit: current.gitCommit, metric: current.metric })
+  }
+  const stamped = candidates.map(item => {
+    const stamp = gitStamp(item.commit)
+    if (!stamp) throw new CatalogError(`${problem}/${ruleset} commit ${item.commit} is not in this clone`)
+    return { ...item, time: stamp.timestamp, author: stamp.author }
+  })
+  stamped.sort((left, right) => left.time.localeCompare(right.time) || left.commit.localeCompare(right.commit))
+  const series = []
+  for (const item of stamped) {
+    const last = series[series.length - 1]
+    if (last && last.metric.cost === item.metric.cost) continue
+    series.push(item)
+  }
+  return series
+}
+
 function build() {
   const problems = orderFrom('problems/suite.toml')
   const specVersion = readFileSync(join(repoRoot, 'SPEC_VERSION'), 'utf8').trim()
@@ -663,6 +724,16 @@ function build() {
       const measured = priced.filter(item => item.metric)
       if (measured.length === 0) throw new CatalogError(`${folder} has no recorded cost`)
       const current = measured.at(-1)
+      let series = costCommitSeries(problem, entry.name, boundary, { metric: current.metric, gitCommit: current.gitCommit })
+      if (series.length === 0) {
+        console.log(`site: ${problem}/${entry.name} has no metric history; keeping the working tree cost`)
+        const commit = /^[0-9a-f]{40}$/.test(current.gitCommit) ? current.gitCommit : head.commit
+        const stamp = gitStamp(commit)
+        if (!stamp) throw new CatalogError(`${problem}/${entry.name} commit ${commit} is not in this clone`)
+        series = [{ commit, metric: current.metric, time: stamp.timestamp, author: stamp.author }]
+      }
+      const lastCost = series[series.length - 1].metric.cost
+      if (lastCost !== current.metric.cost) throw new CatalogError(`${problem}/${entry.name} chart ends at ${lastCost} and the current cost is ${current.metric.cost}`)
       const solution = {
         problem,
         ruleset: entry.name,
@@ -674,8 +745,8 @@ function build() {
         notes: meta.body.trim(),
         versions: priced,
         latest: current.metric,
-        history: measured.map(item => ({ commit: item.iso, timestamp: item.iso, author: meta.fields.author })),
-        points: measured.map(item => metricPoint(item.name, item.iso, item.metric)),
+        history: series.map(item => ({ commit: item.commit, timestamp: item.time, author: item.author })),
+        points: series.map(item => metricPoint(item.metric.hash ?? entry.name, item.commit, item.metric)),
       }
       solutions.push(solution)
     }
@@ -691,19 +762,18 @@ function build() {
       seen.add(commit.commit)
       commits.push(commit)
     }
-    for (const point of solution.points) {
-      if (seen.has(point.commit)) continue
-      if (point.commit !== head.commit) throw new CatalogError(`${solution.problem}/${solution.ruleset} series commit ${point.commit} is not in the history`)
-      seen.add(head.commit)
-      commits.push(head)
-    }
   }
+  if (!seen.has(head.commit)) commits.push(head)
   commits.sort((left, right) => left.timestamp.localeCompare(right.timestamp) || left.commit.localeCompare(right.commit))
   const versionIndex = new Map()
   for (const solution of solutions) {
     versionIndex.set(
       `${solution.ruleset}\0${solution.problem}`,
-      solution.versions.filter(item => item.metric).map(item => ({ iso: item.iso, cost: item.metric.cost })),
+      solution.history.map((item, index) => {
+        const point = solution.points[index]
+        if (!point || point.commit !== item.commit) throw new CatalogError(`${solution.problem}/${solution.ruleset} cost point ${index} is not ${item.commit}`)
+        return { time: item.timestamp, cost: point.cost }
+      }),
     )
   }
   const passingNow = {}
@@ -795,12 +865,16 @@ function build() {
   }))
   const improvementEvents = []
   for (const solution of solutions) {
-    const points = solution.versions.filter(item => item.metric).map(item => ({
-      commit: /^[0-9a-f]{40}$/.test(item.gitCommit) ? item.gitCommit : head.commit,
-      timestamp: item.iso,
-      author: solution.author,
-      cost: item.metric.cost,
-    }))
+    const points = solution.history.map((item, index) => {
+      const point = solution.points[index]
+      if (!point || point.commit !== item.commit) throw new CatalogError(`${solution.problem}/${solution.ruleset} cost point ${index} is not ${item.commit}`)
+      return {
+        commit: item.commit,
+        timestamp: item.timestamp,
+        author: item.author,
+        cost: point.cost,
+      }
+    })
     for (const drop of costDrops(points)) {
       const row = points.find(item => item.commit === drop.commit)
       improvementEvents.push({
@@ -825,12 +899,6 @@ function build() {
     const then = commonProblems(passing)
     return { ...commit, common: then, totals: aggregateSum(at, then) }
   })
-  const commitSha = new Map()
-  for (const solution of solutions) {
-    for (const version of solution.versions) {
-      if (/^[0-9a-f]{40}$/.test(version.gitCommit) && !commitSha.has(version.iso)) commitSha.set(version.iso, version.gitCommit)
-    }
-  }
   for (const drop of aggregateDrops(snapshots)) {
     const row = commits.find(item => item.commit === drop.commit)
     improvementEvents.push({
@@ -839,7 +907,7 @@ function build() {
       problem: null,
       before: drop.before,
       after: drop.after,
-      commit: commitSha.get(row.timestamp) ?? head.commit,
+      commit: drop.commit,
       timestamp: row.timestamp,
       author: row.author,
     })
@@ -893,7 +961,7 @@ function solvedSeries(ruleset, problems, commits, index, truncated) {
     const passing = []
     for (const problem of problems) {
       const versions = index.get(`${ruleset}\0${problem}`) ?? []
-      if (versions.some(version => version.iso <= commit.timestamp)) passing.push(problem)
+      if (versions.some(version => version.time <= commit.timestamp)) passing.push(problem)
     }
     const added = previous == null ? (truncated ? null : [...passing]) : passing.filter(problem => !previous.has(problem))
     previous = new Set(passing)

@@ -175,6 +175,8 @@ class PublishTest(unittest.TestCase):
             recorded = versions["versions"][_hash("factorial")]
             self.assertEqual(recorded["cost"], 8)
             self.assertEqual(recorded["commit"], COMMIT_B)
+            points = versions["points"]
+            self.assertEqual([(point["problem"], point["cost"], point["commit"]) for point in points], [("factorial", 8, COMMIT_B)])
 
     def test_metric_json_ignores_commit_and_writes_diagnostics(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -203,9 +205,11 @@ class PublishTest(unittest.TestCase):
                 row["regex_evals"] = 9
             wrote = _write_metrics([hello], changed, COMMIT_B, root=root)
             self.assertEqual(wrote, ["metrics/versions.json"])
-            data = json.loads(path.read_text(encoding="utf-8"))["versions"][hello.hash]
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            data = saved["versions"][hello.hash]
             self.assertEqual(data["regex_evals"], 9)
             self.assertEqual(data["cost"], 4)
+            self.assertNotIn("points", saved)
             self.assertIn("regex_evals", METRIC_FIELDS)
             failed = _runs("factorial", 1)
             for row in failed:
@@ -216,6 +220,37 @@ class PublishTest(unittest.TestCase):
             with self.assertRaises(RunError):
                 _write_metrics([hello, _solution("factorial")], _runs("hello-world", 4) + failed, COMMIT_B, root=root)
             self.assertEqual(path.read_text(encoding="utf-8"), before)
+
+    def test_a_cost_point_is_appended_only_when_the_cost_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hello = _solution("hello-world")
+            path = root / "metrics" / "versions.json"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({
+                "schema_version": 1,
+                "versions": {
+                    hello.hash: {
+                        **_metric(4, COMMIT_A),
+                        "problem": "hello-world",
+                        "ruleset": "direct",
+                        "timestamp": hello.timestamp,
+                        "current": True,
+                    }
+                },
+            }) + "\n", encoding="utf-8")
+            self.assertEqual(_write_metrics([hello], _runs("hello-world", 4), COMMIT_B, root=root), [])
+            self.assertNotIn("points", json.loads(path.read_text(encoding="utf-8")))
+            self.assertEqual(_write_metrics([hello], _runs("hello-world", 3), "c" * 40, root=root), ["metrics/versions.json"])
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual([(point["cost"], point["commit"], point["hash"]) for point in saved["points"]], [(3, "c" * 40, hello.hash)])
+            self.assertEqual(_write_metrics([hello], _runs("hello-world", 3), "d" * 40, root=root), [])
+            self.assertEqual(len(json.loads(path.read_text(encoding="utf-8"))["points"]), 1)
+            self.assertEqual(_write_metrics([hello], _runs("hello-world", 2), "e" * 40, root=root), ["metrics/versions.json"])
+            points = json.loads(path.read_text(encoding="utf-8"))["points"]
+            self.assertEqual([point["cost"] for point in points], [3, 2])
+            self.assertEqual(points[0]["commit"], "c" * 40)
+            self.assertFalse((root / "problems").exists())
 
     def test_publish_refuses_a_bench_archive(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
