@@ -224,7 +224,7 @@ func loadSolutions(root, problemID string) ([]Solution, error) {
 		if !entry.IsDir() {
 			return nil, fmt.Errorf("%s/solutions: %s is not a ruleset directory", problemID, entry.Name())
 		}
-		program, err := currentThue(filepath.Join(dir, entry.Name()))
+		program, err := currentProgram(filepath.Join(dir, entry.Name()), "thue")
 		if err != nil {
 			return nil, fmt.Errorf("%s/%s: %w", problemID, entry.Name(), err)
 		}
@@ -257,7 +257,7 @@ func loadSolutions(root, problemID string) ([]Solution, error) {
 	return out, nil
 }
 
-func currentThue(rulesetDir string) (string, error) {
+func currentProgram(rulesetDir, extension string) (string, error) {
 	entries, err := os.ReadDir(rulesetDir)
 	if err != nil {
 		return "", err
@@ -272,22 +272,22 @@ func currentThue(rulesetDir string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		var thue []string
+		var matched []string
 		for _, file := range files {
-			if file.IsDir() || !isHashThue(file.Name()) {
+			if file.IsDir() || !isHashFile(file.Name(), extension) {
 				continue
 			}
-			thue = append(thue, file.Name())
+			matched = append(matched, file.Name())
 		}
-		if len(thue) == 0 {
+		if len(matched) == 0 {
 			continue
 		}
-		if len(thue) != 1 {
-			return "", fmt.Errorf("%s has %d thue files", entry.Name(), len(thue))
+		if len(matched) != 1 {
+			return "", fmt.Errorf("%s has %d .%s files", entry.Name(), len(matched), extension)
 		}
 		if entry.Name() > best {
 			best = entry.Name()
-			program = filepath.Join(rulesetDir, entry.Name(), thue[0])
+			program = filepath.Join(rulesetDir, entry.Name(), matched[0])
 		}
 	}
 	return program, nil
@@ -308,8 +308,9 @@ func isTimestamp(name string) bool {
 	return true
 }
 
-func isHashThue(name string) bool {
-	if len(name) != 17 || !strings.HasSuffix(name, ".thue") {
+func isHashFile(name, extension string) bool {
+	suffix := "." + extension
+	if len(name) != 12+len(suffix) || !strings.HasSuffix(name, suffix) {
 		return false
 	}
 	for _, c := range name[:12] {
