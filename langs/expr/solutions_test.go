@@ -20,7 +20,14 @@ func TestSharedProblems(t *testing.T) {
 		"leap-year",
 	}
 	for _, problem := range problems {
-		source, err := os.ReadFile(filepath.Join(root, problem, "solutions", "expr", "solution.expr"))
+		matches, err := filepath.Glob(filepath.Join(root, problem, "solutions", "expr", "*", "*.expr"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(matches) == 0 {
+			t.Fatalf("%s has no expr solution", problem)
+		}
+		source, err := os.ReadFile(matches[len(matches)-1])
 		if err != nil {
 			t.Fatal(err)
 		}

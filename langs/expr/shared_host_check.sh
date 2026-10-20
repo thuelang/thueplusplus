@@ -21,10 +21,10 @@ check() {
   fi
 }
 read_solution() {
-  python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).read_text().removesuffix("\n"), end="")' "$1"
+  python3 -c 'import pathlib,sys; paths=sorted(pathlib.Path(sys.argv[1]).glob("*/*.expr")); print(paths[-1].read_text().removesuffix("\n"), end="")' "$1"
 }
-check "$(read_solution "$root/problems/hello-world/solutions/expr/solution.expr")" '{"stdin":""}'
-check "$(read_solution "$root/problems/factorial/solutions/expr/solution.expr")" '{"stdin":"10"}'
-check "$(read_solution "$root/problems/greatest-common-divisor/solutions/expr/solution.expr")" '{"stdin":"48\n18"}'
-check "$(read_solution "$root/problems/leap-year/solutions/expr/solution.expr")" '{"stdin":"2024"}'
+check "$(read_solution "$root/problems/hello-world/solutions/expr")" '{"stdin":""}'
+check "$(read_solution "$root/problems/factorial/solutions/expr")" '{"stdin":"10"}'
+check "$(read_solution "$root/problems/greatest-common-divisor/solutions/expr")" '{"stdin":"48\n18"}'
+check "$(read_solution "$root/problems/leap-year/solutions/expr")" '{"stdin":"2024"}'
 echo js-agrees

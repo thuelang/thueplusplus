@@ -1,6 +1,5 @@
 ---
 ruleset: expr
-entry: solution.expr
 author: Cursor Agent <cursoragent@cursor.com>
 ---
 
