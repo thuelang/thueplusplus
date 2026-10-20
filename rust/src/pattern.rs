@@ -58,6 +58,7 @@ pub struct Rule {
     pub literal_prefix: String,
     pub builtin_name: String,
     pub builtin_args: Vec<String>,
+    pub group_aliases: Vec<(String, String)>,
 }
 
 #[derive(Clone, Debug)]
@@ -408,6 +409,111 @@ fn expand_patterns(content: &str) -> Result<String, String> {
     Ok(out.join("\n"))
 }
 
+/// A repeated `(?<name>...)` or `(?P<name>...)` is renamed so the pattern compiles.
+/// Go lets a later participating group overwrite the name. Callers fold `aliases`
+/// after the match. A pattern with unique names is returned unchanged.
+pub fn rewrite_duplicate_groups(pattern: &str) -> (String, Vec<(String, String)>) {
+    let groups = scan_named_groups(pattern);
+    let mut seen = std::collections::HashSet::new();
+    let mut taken: std::collections::HashSet<String> = groups.iter().map(|(_, _, name)| name.clone()).collect();
+    let mut aliases = Vec::new();
+    let mut serial = 0usize;
+    let mut out = String::new();
+    let mut cursor = 0usize;
+    for (name_start, name_end, name) in groups {
+        if seen.insert(name.clone()) {
+            continue;
+        }
+        let mut synth = format!("_d{serial}");
+        while taken.contains(&synth) {
+            serial += 1;
+            synth = format!("_d{serial}");
+        }
+        serial += 1;
+        taken.insert(synth.clone());
+        aliases.push((synth.clone(), name));
+        out.push_str(&pattern[cursor..name_start]);
+        out.push_str(&synth);
+        cursor = name_end;
+    }
+    if aliases.is_empty() {
+        return (pattern.to_string(), aliases);
+    }
+    out.push_str(&pattern[cursor..]);
+    (out, aliases)
+}
+
+fn scan_named_groups(pattern: &str) -> Vec<(usize, usize, String)> {
+    let bytes = pattern.as_bytes();
+    let mut groups = Vec::new();
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index] == b'\\' {
+            index += if index + 1 < bytes.len() { 2 } else { 1 };
+            continue;
+        }
+        if bytes[index] == b'[' {
+            index = skip_named_class(bytes, index);
+            continue;
+        }
+        let prefix = if bytes[index..].starts_with(b"(?P<") {
+            4
+        } else if bytes[index..].starts_with(b"(?<") {
+            3
+        } else {
+            0
+        };
+        if prefix == 0 {
+            index += 1;
+            continue;
+        }
+        let name_start = index + prefix;
+        let mut name_end = name_start;
+        if name_end < bytes.len() && is_name_start(bytes[name_end]) {
+            name_end += 1;
+            while name_end < bytes.len() && is_name_cont(bytes[name_end]) {
+                name_end += 1;
+            }
+            if name_end < bytes.len() && bytes[name_end] == b'>' {
+                groups.push((name_start, name_end, pattern[name_start..name_end].to_string()));
+                index = name_end + 1;
+                continue;
+            }
+        }
+        index += 1;
+    }
+    groups
+}
+
+fn is_name_start(byte: u8) -> bool {
+    byte.is_ascii_alphabetic() || byte == b'_'
+}
+
+fn is_name_cont(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
+}
+
+fn skip_named_class(bytes: &[u8], index: usize) -> usize {
+    let mut cursor = index + 1;
+    if cursor < bytes.len() && bytes[cursor] == b'^' {
+        cursor += 1;
+    }
+    if cursor < bytes.len() && bytes[cursor] == b']' {
+        cursor += 1;
+    }
+    while cursor < bytes.len() && bytes[cursor] != b']' {
+        if bytes[cursor] == b'\\' && cursor + 1 < bytes.len() {
+            cursor += 2;
+        } else {
+            cursor += 1;
+        }
+    }
+    if cursor < bytes.len() && bytes[cursor] == b']' {
+        cursor += 1;
+    }
+    cursor
+}
+
 /// Compile a guest pattern with RE2 multiline semantics.
 pub fn compile_guest(pattern: &str) -> Result<Regex, regex::Error> {
     let translated = translate_re2(pattern);
@@ -460,7 +566,8 @@ fn parse_rule(line: &str, line_number: usize, source_path: &str) -> Result<Optio
             pattern: pattern.to_string(),
         });
     }
-    let pattern = compile_guest(&lhs).map_err(|err| {
+    let (rewritten, group_aliases) = rewrite_duplicate_groups(&lhs);
+    let pattern = compile_guest(&rewritten).map_err(|err| {
         let detail = flatten_regex_error(&err);
         format!("Line {line_number}: Invalid regex '{lhs}': {detail}")
     })?;
@@ -468,6 +575,10 @@ fn parse_rule(line: &str, line_number: usize, source_path: &str) -> Result<Optio
     let mut builtin_args = Vec::new();
     if operator == Operator::Builtin {
         let mut names = capture_names(&pattern);
+        for (synth, original) in &group_aliases {
+            names.remove(synth);
+            names.insert(original.clone());
+        }
         for mid in &mids {
             for found in named_capture().captures_iter(&mid.pattern) {
                 if let Some(name) = found.get(1) {
@@ -491,6 +602,7 @@ fn parse_rule(line: &str, line_number: usize, source_path: &str) -> Result<Optio
         literal_prefix: crate::prefix::literal_prefix(&lhs),
         builtin_name,
         builtin_args,
+        group_aliases,
     }))
 }
 

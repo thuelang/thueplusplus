@@ -199,6 +199,99 @@ class Operator(Enum):
     BUILTIN = "::!"
 
 
+def rewrite_duplicate_groups(pattern: str) -> tuple[str, tuple[tuple[str, str], ...]]:
+    """Give a repeated capture name a fresh name so every group can participate.
+
+    Go keeps each copy and lets a later participating group overwrite the name.
+    The compiler here keeps one slot per name, so later copies are renamed and
+    folded back after the match. A pattern with unique names is unchanged.
+    """
+    groups = _scan_named_groups(pattern)
+    seen: set[str] = set()
+    taken = {name for _start, _end, name in groups}
+    aliases: list[tuple[str, str]] = []
+    serial = 0
+    pieces: list[str] = []
+    cursor = 0
+    for name_start, name_end, name in groups:
+        if name not in seen:
+            seen.add(name)
+            continue
+        synth = f"_d{serial}"
+        while synth in taken:
+            serial += 1
+            synth = f"_d{serial}"
+        serial += 1
+        taken.add(synth)
+        aliases.append((synth, name))
+        pieces.append(pattern[cursor:name_start])
+        pieces.append(synth)
+        cursor = name_end
+    if not aliases:
+        return pattern, ()
+    pieces.append(pattern[cursor:])
+    return "".join(pieces), tuple(aliases)
+
+
+def fold_duplicate_groups(groups: dict, aliases: tuple[tuple[str, str], ...]) -> dict:
+    if not aliases:
+        return groups
+    folded = dict(groups)
+    for synth, original in aliases:
+        value = folded.get(synth)
+        if value is not None:
+            folded[original] = value
+        folded.pop(synth, None)
+    return folded
+
+
+def _scan_named_groups(pattern: str) -> list[tuple[int, int, str]]:
+    groups: list[tuple[int, int, str]] = []
+    index = 0
+    length = len(pattern)
+    while index < length:
+        ch = pattern[index]
+        if ch == "\\":
+            index += 2 if index + 1 < length else 1
+            continue
+        if ch == "[":
+            index = _skip_char_class(pattern, index)
+            continue
+        prefix = 4 if pattern.startswith("(?P<", index) else 3 if pattern.startswith("(?<", index) else 0
+        if prefix == 0:
+            index += 1
+            continue
+        name_start = index + prefix
+        name_end = name_start
+        if name_end < length and (pattern[name_end].isascii() and (pattern[name_end].isalpha() or pattern[name_end] == "_")):
+            name_end += 1
+            while name_end < length and pattern[name_end].isascii() and (pattern[name_end].isalnum() or pattern[name_end] == "_"):
+                name_end += 1
+            if name_end < length and pattern[name_end] == ">":
+                groups.append((name_start, name_end, pattern[name_start:name_end]))
+                index = name_end + 1
+                continue
+        index += 1
+    return groups
+
+
+def _skip_char_class(pattern: str, index: int) -> int:
+    cursor = index + 1
+    length = len(pattern)
+    if cursor < length and pattern[cursor] == "^":
+        cursor += 1
+    if cursor < length and pattern[cursor] == "]":
+        cursor += 1
+    while cursor < length and pattern[cursor] != "]":
+        if pattern[cursor] == "\\" and cursor + 1 < length:
+            cursor += 2
+        else:
+            cursor += 1
+    if cursor < length and pattern[cursor] == "]":
+        cursor += 1
+    return cursor
+
+
 @dataclass(frozen=True)
 class SourceRow:
     text: str
@@ -240,6 +333,7 @@ class Rule:
     mids: tuple[Mid, ...] = ()
     source: str = ""
     literal_prefix: str = ""
+    group_aliases: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass
@@ -572,7 +666,8 @@ class ThueInterpreter:
             mids.append(Mid(pattern_text))
 
         try:
-            pattern_lhs = self._translate_lhs(lhs)
+            rewritten, group_aliases = rewrite_duplicate_groups(lhs)
+            pattern_lhs = self._translate_lhs(rewritten)
             # Rules match the mutable state string.
             # Enable line anchors by default so row-style rules using ^...$ still
             # match individual rows inside that suffix; dot remains non-newline
@@ -585,6 +680,7 @@ class ThueInterpreter:
         builtin_args: tuple[str, ...] = ()
         if op == Operator.BUILTIN:
             capture_names = set(pattern.groupindex.keys())
+            capture_names.update(original for _synth, original in group_aliases)
             for mid in mids:
                 capture_names.update(NAMED_CAPTURE_RE.findall(mid.pattern))
             builtin_name, builtin_args = self._parse_builtin_call(
@@ -603,6 +699,7 @@ class ThueInterpreter:
             tuple(mids),
             line.strip(),
             literal_prefix(lhs),
+            group_aliases,
         )
 
     def _parse_builtin_call(
@@ -941,7 +1038,8 @@ class ThueInterpreter:
             options = re.Options()
             options.log_errors = False
             try:
-                compiled = re.compile("(?m)" + self._translate_lhs(expanded), options=options)
+                rewritten, aliases = rewrite_duplicate_groups(expanded)
+                compiled = re.compile("(?m)" + self._translate_lhs(rewritten), options=options)
             except re.error:
                 raise RuntimeError(f"Line {rule.line_number}: Invalid ::| regex '{expanded}'")
             self._charge_eval(rule.lhs)
@@ -949,8 +1047,11 @@ class ThueInterpreter:
             if not found:
                 return groups, False
             self.regex_matches += 1
-            for name in compiled.groupindex:
-                value = found.group(name)
+            found_groups = fold_duplicate_groups(
+                {name: found.group(name) for name in compiled.groupindex},
+                aliases,
+            )
+            for name, value in found_groups.items():
                 if value is not None:
                     out[name] = value
         return out, True
@@ -1156,7 +1257,10 @@ class ThueInterpreter:
     ) -> None:
         if not self.trace_enabled:
             return
-        groups = {key: value for key, value in match.groupdict().items() if value is not None}
+        groups = fold_duplicate_groups(
+            {key: value for key, value in match.groupdict().items() if value is not None},
+            rule.group_aliases,
+        )
         # The Python match reports code points. The trace contract is UTF-8 bytes.
         match_start = len(state_before[: match.start()].encode("utf-8"))
         match_end = len(state_before[: match.end()].encode("utf-8"))
@@ -1224,7 +1328,7 @@ class ThueInterpreter:
                     continue
 
                 state_before = self.state
-                lhs_groups = match.groupdict()
+                lhs_groups = fold_duplicate_groups(match.groupdict(), rule.group_aliases)
                 try:
                     groups, mid_ok = self._apply_mids(rule, lhs_groups)
                 except RuntimeError as exc:

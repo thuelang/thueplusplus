@@ -273,7 +273,7 @@ export class Interpreter {
     const matcher = rule.pattern.matcher(state)
     if (!matcher.find()) return null
     this.regexMatches += 1
-    return { start: matcher.start(), end: matcher.end(), groups: participatingGroups(matcher) }
+    return { start: matcher.start(), end: matcher.end(), groups: participatingGroups(matcher, rule.groupAliases) }
   }
 
   applyMids(rule, groups) {
@@ -292,7 +292,7 @@ export class Interpreter {
       const matcher = compiled.re.matcher(this.state)
       if (!matcher.find()) return { groups: out, ok: false }
       this.regexMatches += 1
-      const found = participatingGroups(matcher)
+      const found = participatingGroups(matcher, compiled.aliases)
       for (const [name, value] of Object.entries(found)) out[name] = value
     }
     return { groups: out, ok: true }
@@ -420,11 +420,17 @@ function formatResourceError(name, message, omitName) {
   return `ERR:resource:${name}:${message}`
 }
 
-function participatingGroups(matcher) {
+function participatingGroups(matcher, aliases) {
   const named = matcher.getNamedGroups()
   const groups = {}
   for (const [name, value] of Object.entries(named)) {
     if (value !== null && value !== undefined) groups[name] = value
+  }
+  if (!aliases) return groups
+  for (const alias of aliases) {
+    if (!Object.prototype.hasOwnProperty.call(groups, alias.synth)) continue
+    groups[alias.original] = groups[alias.synth]
+    delete groups[alias.synth]
   }
   return groups
 }
@@ -432,23 +438,102 @@ function participatingGroups(matcher) {
 function compileMultiline(pattern) {
   let cached = compiledPatterns.get(pattern)
   if (!cached) {
-    try {
-      cached = { re: RE2JS.compile(`(?m)${pattern}`) }
-    } catch (error) {
-      const relaxed = relaxBraces(pattern)
-      if (relaxed !== pattern) {
-        try {
-          cached = { re: RE2JS.compile(`(?m)${relaxed}`) }
-        } catch {
-          cached = { error }
-        }
-      } else {
-        cached = { error }
-      }
-    }
+    const rewritten = rewriteDuplicateGroups(pattern)
+    cached = compileRewritten(rewritten.pattern, rewritten.aliases)
     compiledPatterns.set(pattern, cached)
   }
   return cached
+}
+
+function compileRewritten(pattern, aliases) {
+  try {
+    return { re: RE2JS.compile(`(?m)${pattern}`), aliases }
+  } catch (error) {
+    const relaxed = relaxBraces(pattern)
+    if (relaxed === pattern) return { error }
+    try {
+      return { re: RE2JS.compile(`(?m)${relaxed}`), aliases }
+    } catch {
+      return { error }
+    }
+  }
+}
+
+// The host regex compiler rejects a repeated (?<name>...) or (?P<name>...).
+// Go keeps every group and lets a later participating group overwrite the name.
+// Later copies are compiled under a fresh name and folded back after the match.
+function rewriteDuplicateGroups(pattern) {
+  const groups = scanNamedGroups(pattern)
+  const seen = new Set()
+  const taken = new Set(groups.map((group) => group.name))
+  const aliases = []
+  let serial = 0
+  let out = ''
+  let cursor = 0
+  for (const group of groups) {
+    if (!seen.has(group.name)) {
+      seen.add(group.name)
+      continue
+    }
+    let synth = `_d${serial}`
+    while (taken.has(synth)) {
+      serial += 1
+      synth = `_d${serial}`
+    }
+    serial += 1
+    taken.add(synth)
+    aliases.push({ synth, original: group.name })
+    out += pattern.slice(cursor, group.nameStart) + synth
+    cursor = group.nameEnd
+  }
+  if (aliases.length === 0) return { pattern, aliases }
+  return { pattern: out + pattern.slice(cursor), aliases }
+}
+
+function scanNamedGroups(pattern) {
+  const groups = []
+  for (let index = 0; index < pattern.length;) {
+    const ch = pattern[index]
+    if (ch === '\\') {
+      index += index + 1 < pattern.length ? 2 : 1
+      continue
+    }
+    if (ch === '[') {
+      index = skipCharClass(pattern, index)
+      continue
+    }
+    const prefixLen = pattern.startsWith('(?P<', index) ? 4 : pattern.startsWith('(?<', index) ? 3 : 0
+    if (prefixLen === 0) {
+      index += 1
+      continue
+    }
+    const nameStart = index + prefixLen
+    let nameEnd = nameStart
+    const first = pattern[nameEnd]
+    if (first !== undefined && /[A-Za-z_]/u.test(first)) {
+      nameEnd += 1
+      while (nameEnd < pattern.length && /[A-Za-z0-9_]/u.test(pattern[nameEnd])) nameEnd += 1
+      if (pattern[nameEnd] === '>') {
+        groups.push({ nameStart, nameEnd, name: pattern.slice(nameStart, nameEnd) })
+        index = nameEnd + 1
+        continue
+      }
+    }
+    index += 1
+  }
+  return groups
+}
+
+function skipCharClass(pattern, index) {
+  let cursor = index + 1
+  if (pattern[cursor] === '^') cursor += 1
+  if (pattern[cursor] === ']') cursor += 1
+  while (cursor < pattern.length && pattern[cursor] !== ']') {
+    if (pattern[cursor] === '\\' && cursor + 1 < pattern.length) cursor += 2
+    else cursor += 1
+  }
+  if (pattern[cursor] === ']') cursor += 1
+  return cursor
 }
 
 // re2js remembers a `{` that was not a quantifier and then rejects the next
@@ -685,6 +770,7 @@ function parseRule(line, lineNumber, sourcePath) {
   return {
     lhs,
     pattern: compiled.re,
+    groupAliases: compiled.aliases,
     mids,
     operator,
     rhs,

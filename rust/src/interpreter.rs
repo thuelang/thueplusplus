@@ -822,10 +822,11 @@ impl Interpreter {
         for pattern in mids {
             let expanded = expand_mid_pattern(pattern, &out)
                 .map_err(|err| format!("Line {line_number}: {err}"))?;
+            let (rewritten, aliases) = crate::pattern::rewrite_duplicate_groups(&expanded);
             let compiled = if let Some(cached) = self.mid_cache.get(&expanded) {
                 cached.clone()
             } else {
-                match compile_guest(&expanded) {
+                match compile_guest(&rewritten) {
                     Ok(compiled) => {
                         self.mid_cache.insert(expanded.clone(), compiled.clone());
                         compiled
@@ -845,11 +846,14 @@ impl Interpreter {
                 return Ok(None);
             };
             self.regex_matches += 1;
+            let mut found = HashMap::new();
             for name in compiled.capture_names().flatten() {
-                if let Some(found) = caps.name(name) {
-                    out.insert(name.to_string(), found.as_str().to_string());
+                if let Some(value) = caps.name(name) {
+                    found.insert(name.to_string(), value.as_str().to_string());
                 }
             }
+            fold_duplicate_groups(&mut found, &aliases);
+            out.extend(found);
         }
         Ok(Some(out))
     }
@@ -1043,6 +1047,14 @@ fn exceeds(len: usize, max: i64) -> bool {
     }
 }
 
+fn fold_duplicate_groups(groups: &mut HashMap<String, String>, aliases: &[(String, String)]) {
+    for (synth, original) in aliases {
+        if let Some(value) = groups.remove(synth) {
+            groups.insert(original.clone(), value);
+        }
+    }
+}
+
 fn find_match_rule(rule: &Rule, state: &str) -> Option<Match> {
     let caps = rule.pattern.captures(state)?;
     let whole = caps.get(0)?;
@@ -1052,6 +1064,7 @@ fn find_match_rule(rule: &Rule, state: &str) -> Option<Match> {
             groups.insert(name.to_string(), found.as_str().to_string());
         }
     }
+    fold_duplicate_groups(&mut groups, &rule.group_aliases);
     Some(Match {
         start: whole.start(),
         end: whole.end(),
