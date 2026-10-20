@@ -184,6 +184,14 @@ function gitShow(sha, path) {
   }
 }
 
+function gitShowBuffer(sha, path) {
+  try {
+    return execFileSync('git', ['show', `${sha}:${path}`], { cwd: repoRoot, encoding: 'buffer', stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch {
+    return null
+  }
+}
+
 function orderFrom(path) {
   const text = readFileSync(join(repoRoot, path), 'utf8')
   const ids = []
