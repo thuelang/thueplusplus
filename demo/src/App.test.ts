@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { runWithWorker } from './wasm'
 
 vi.mock('./RulesMonacoEditor.vue', async () => {
@@ -26,6 +26,11 @@ vi.mock('./RulesMonacoEditor.vue', async () => {
 import App from './App.vue'
 import { createAppRouter } from './router'
 
+const playgroundModules = import.meta.glob('./PlaygroundSurface.vue', { eager: true }) as Record<string, { default: object }>
+const playgroundModule = playgroundModules['./PlaygroundSurface.vue']
+if (!playgroundModule) throw new Error('playground surface missing from the test bundle')
+;(globalThis as unknown as { __testModules: Map<string, { default: object }> }).__testModules.set('src/PlaygroundSurface.vue', playgroundModule)
+
 vi.mock('./wasm', async () => {
   return {
     runWithWorker: vi.fn(),
@@ -35,8 +40,7 @@ vi.mock('./wasm', async () => {
 const mockedRunWithWorker = vi.mocked(runWithWorker)
 
 async function flush(): Promise<void> {
-  await Promise.resolve()
-  await Promise.resolve()
+  for (let attempt = 0; attempt < 4; attempt += 1) await flushPromises()
 }
 
 let active: ReturnType<typeof mount> | undefined

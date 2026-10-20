@@ -2,8 +2,10 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { Button } from '@/components/ui/button'
-import CostChart from '@/components/CostChart.vue'
-import SandboxScene from '@/components/SandboxScene.vue'
+import { lazyComponent } from '@/trackedImport'
+
+const CostChart = lazyComponent('src/components/CostChart.vue', () => import('@/components/CostChart.vue'))
+const SandboxScene = lazyComponent('src/components/SandboxScene.vue', () => import('@/components/SandboxScene.vue'))
 import SiteFooter from '@/components/SiteFooter.vue'
 import { catalog } from '@/catalog'
 import { problemTitle, sandboxCostSeries } from '@/charts/series'

@@ -2,7 +2,9 @@
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import DocPage from '@/components/DocPage.vue'
-import CostChart from '@/components/CostChart.vue'
+import { lazyComponent } from '@/trackedImport'
+
+const CostChart = lazyComponent('src/components/CostChart.vue', () => import('@/components/CostChart.vue'))
 import MarkdownBody from '@/components/MarkdownBody.vue'
 import NotFoundPage from '@/pages/NotFoundPage.vue'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'

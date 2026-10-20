@@ -508,7 +508,7 @@ function shots() {
 function pr() {
   const view = gh(['pr', 'view', '--json', 'body,mergeable,state,baseRefName'])
   const data = JSON.parse(view)
-  if (!/closes\s+#162/i.test(data.body ?? '')) fail('PR body does not close #162')
+  if (!/closes\s+#164/i.test(data.body ?? '')) fail('PR body does not close #164')
   if (data.baseRefName !== 'main') fail(`PR base is ${data.baseRefName}`)
   if (data.state !== 'MERGED' && data.mergeable !== 'MERGEABLE') fail(`PR mergeable is ${data.mergeable}`)
   console.log('pr ok')

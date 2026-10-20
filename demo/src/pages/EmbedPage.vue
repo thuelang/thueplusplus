@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import PlaygroundSurface from '@/PlaygroundSurface.vue'
+import { lazyComponent } from '@/trackedImport'
+
+const PlaygroundSurface = lazyComponent('src/PlaygroundSurface.vue', () => import('@/PlaygroundSurface.vue'))
 
 const embedProps = computed(() => {
   const params = new URLSearchParams(window.location.search)

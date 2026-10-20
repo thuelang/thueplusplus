@@ -11,9 +11,11 @@ async function mountAt(path: string) {
   await router.isReady()
   const component = router.currentRoute.value.matched[0]?.components?.default
   if (!component) throw new Error(`no component for ${path}`)
-  return mount(component, {
+  const wrapper = mount(component, {
     global: { plugins: [router] },
   })
+  for (let attempt = 0; attempt < 4; attempt += 1) await flushPromises()
+  return wrapper
 }
 
 describe('running best', () => {

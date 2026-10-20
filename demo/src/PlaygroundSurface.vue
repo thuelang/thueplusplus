@@ -123,7 +123,9 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
 import PlaygroundSettings from '@/playground/PlaygroundSettings.vue'
 import PlaygroundSplit from '@/playground/PlaygroundSplit.vue'
 import ResourceSection from './ResourceSection.vue'
-import RulesMonacoEditor from './RulesMonacoEditor.vue'
+import { lazyComponent } from '@/trackedImport'
+
+const RulesMonacoEditor = lazyComponent('src/RulesMonacoEditor.vue', () => import('./RulesMonacoEditor.vue'))
 import StateDiffs from './StateDiffs.vue'
 import TestCaseMenu from './TestCaseMenu.vue'
 import { flattenTestManifests, type TestCaseOption } from './testCases'
