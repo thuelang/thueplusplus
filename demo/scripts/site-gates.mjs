@@ -571,7 +571,7 @@ async function live() {
     }
     await page.goto('https://www.thuelang.org/problems/factorial', { waitUntil: 'networkidle', timeout: 60000 })
     await page.waitForSelector('[data-test="end-label"][data-sandbox="direct"]', { timeout: 15000 })
-    const directLabel = await page.locator('[data-test="end-label"][data-sandbox="direct"]').innerText()
+    const directLabel = (await page.locator('[data-test="end-label"][data-sandbox="direct"]').evaluate(node => node.textContent ?? '')).trim()
     if (!directLabel.startsWith('Direct Thue ')) fail(`factorial chart label is ${directLabel}`)
     await page.waitForSelector('[data-test="solution-link"]', { timeout: 15000 })
     const links = await page.locator('[data-test="solution-link"]').count()
