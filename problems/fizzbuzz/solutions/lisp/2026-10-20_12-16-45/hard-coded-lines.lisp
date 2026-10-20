@@ -1,7 +1,3 @@
-; ---
-; title: Hard-coded lines
-; author: Cursor Agent <cursoragent@cursor.com>
-; ---
 (let ((n (parse (readline))))
   (emit "1\n")
   (if (lte 2 n) (emit "2\n") false)

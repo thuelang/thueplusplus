@@ -1,7 +1,3 @@
----
-title: Trial division
-author: Cursor Agent <cursoragent@cursor.com>
----
 ^yes\n?\z ::> stdout true\n
 ^no\n?\z ::> stdout false\n
 ^$ ::- 0

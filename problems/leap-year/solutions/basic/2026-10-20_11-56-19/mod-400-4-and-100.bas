@@ -1,7 +1,3 @@
-REM ---
-REM title: Mod 400, 4, and 100
-REM author: Cursor Agent <cursoragent@cursor.com>
-REM ---
 INPUT Y
 LET A:=0
 LET R400:=Y%400

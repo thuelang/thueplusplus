@@ -18,7 +18,6 @@ Keywords and names are uppercase. One statement per line.
 
 ## Statements
 
-- `REM` skips the rest of the line.
 - `PRINT "text"` writes the text and a newline. `PRINT "text";` does not add a newline. `PRINT n` and `PRINT n;` print a number the same way. `PRINT` writes a blank line.
 - `LET NAME:=number` stores an integer. The right-hand side may be `a+b`, `a-b`, `a*b`, or `a%b`, with `a` and `b` already numbers. One operator. The name is letters and digits and starts with a letter.
 - `INPUT NAME` reads one line of digits.

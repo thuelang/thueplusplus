@@ -1,7 +1,3 @@
-; ---
-; title: Loop with mod 15
-; author: Cursor Agent <cursoragent@cursor.com>
-; ---
 (let ((n (parse (readline))) (i 1))
   (while (lte i n)
     (if (eq (mod i 15) 0)

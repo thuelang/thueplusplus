@@ -1,5 +1,1 @@
-// ---
-// title: Reduce a range
-// author: Cursor Agent <cursoragent@cursor.com>
-// ---
 let n = int(stdin); reduce(1..n, # * #acc, 1)

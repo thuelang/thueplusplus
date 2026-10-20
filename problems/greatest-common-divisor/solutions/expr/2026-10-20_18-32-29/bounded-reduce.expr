@@ -1,5 +1,1 @@
-// ---
-// title: Bounded reduce
-// author: Cursor Agent <cursoragent@cursor.com>
-// ---
 let xs = split(stdin, "\n"); let a = int(xs[0]); let b = int(xs[1]); let p = reduce(1..12, (#acc % 1000) == 0 ? #acc : ((#acc % 1000) * 1000 + int((#acc - #acc % 1000) / 1000) % (#acc % 1000)), a * 1000 + b); int((p - p % 1000) / 1000)

@@ -15,8 +15,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "metrics"))
 
-from solution_frontmatter import SolutionFrontmatterError, slugify, split_solution  # noqa: E402
-from versions import VersionError, format_timestamp, history_versions  # noqa: E402
+from frontmatter import parse_field_content, FrontmatterError  # noqa: E402
+from versions import VersionError, format_timestamp, history_versions, legacy_program, slugify  # noqa: E402
 
 
 def main() -> int:
@@ -51,10 +51,7 @@ def _migrate_file(root: Path, path: Path) -> int:
     seen = {item.name.split(".", 1)[0] for item in path.parent.glob("*/*") if item.is_file() and "." in item.name}
     written = 0
     for moment, blob in history_versions(root, relative):
-        try:
-            fields, _body = split_solution(blob, extension)
-        except SolutionFrontmatterError as exc:
-            raise VersionError(f"{relative}: {exc}") from exc
+        fields, body = _legacy_fields(blob, extension, f"{relative} at {format_timestamp(moment)}")
         title = fields.get("title", "")
         if not title:
             raise VersionError(f"{relative} at {format_timestamp(moment)} has no title")
@@ -65,12 +62,44 @@ def _migrate_file(root: Path, path: Path) -> int:
         if folder.exists():
             raise VersionError(f"{folder.relative_to(root).as_posix()} already exists")
         folder.mkdir(parents=True)
-        (folder / f"{slug}.{extension}").write_bytes(blob)
+        (folder / f"{slug}.{extension}").write_bytes(body)
+        lines = ["---", f"title: {title}"]
+        if fields.get("author"):
+            lines.append(f"author: {fields['author']}")
+        lines.append("---")
+        (folder / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
         seen.add(slug)
         written += 1
     if written == 0 and not any(path.parent.glob("*/*.*")):
         raise VersionError(f"{relative} has no committed bytes to migrate")
     return written
+
+
+_LEGACY_PREFIX = {"thue": "", "lisp": "; ", "fth": "\\ ", "bas": "REM ", "expr": "// "}
+
+
+def _legacy_fields(data: bytes, extension: str, label: str) -> tuple[dict[str, str], bytes]:
+    prefix = _LEGACY_PREFIX.get(extension)
+    if prefix is None:
+        raise VersionError(f"{label} is not a solution")
+    opener = f"{prefix}---\n".encode("ascii")
+    if not data.startswith(opener):
+        raise VersionError(f"{label} has no title")
+    body = legacy_program(data)
+    if body == data:
+        raise VersionError(f"{label} has no title")
+    header = data if body == b"" else data[: -len(body)]
+    fields: dict[str, str] = {}
+    for line in header.decode("utf-8").splitlines():
+        if line == f"{prefix}---" or line == "---" or line == "":
+            continue
+        content = line[len(prefix):] if prefix and line.startswith(prefix) else line
+        try:
+            key, value = parse_field_content(content, label)
+        except FrontmatterError as exc:
+            raise VersionError(str(exc)) from exc
+        fields[key] = value
+    return fields, body
 
 
 def _rewrite_readme(path: Path) -> None:

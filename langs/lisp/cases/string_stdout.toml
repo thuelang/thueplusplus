@@ -351,24 +351,6 @@ stderr = ""
 stdout = "999\n"
 
 [[case]]
-name = "leading semicolon comment"
-input = "; ---\n; title: Add\n; author: Ada\n(add 1 2)"
-
-[case.expect]
-exit_code = 0
-stderr = ""
-stdout = "3\n"
-
-[[case]]
-name = "leading semicolon comment keeps string escapes"
-input = "; ---\n; title: Hi\n; ---\n(let () (emit \"Hi\\n\") (finish))"
-
-[case.expect]
-exit_code = 0
-stderr = ""
-stdout = "Hi\n"
-
-[[case]]
 name = "a shadowed non callable numeric name fails as a call"
 input = '(let ((add 7)) (add 1 2))'
 

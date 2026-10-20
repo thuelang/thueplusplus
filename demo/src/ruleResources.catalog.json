@@ -106,17 +106,6 @@
     "errors": []
   },
   {
-    "path": "examples/frontmatter/comment.thue",
-    "resources": [
-      {
-        "name": "stdout",
-        "reads": false,
-        "writes": true
-      }
-    ],
-    "errors": []
-  },
-  {
     "path": "examples/guess-number/guess-number.thue",
     "resources": [
       {

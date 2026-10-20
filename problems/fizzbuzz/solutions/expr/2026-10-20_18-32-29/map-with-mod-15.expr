@@ -1,5 +1,1 @@
-// ---
-// title: Map with mod 15
-// author: Cursor Agent <cursoragent@cursor.com>
-// ---
 let n = int(stdin); join(map(1..n, # % 15 == 0 ? "FizzBuzz" : (# % 3 == 0 ? "Fizz" : (# % 5 == 0 ? "Buzz" : string(#)))), "\n")

@@ -59,7 +59,7 @@ Invalid programs exit 2 with one word on stderr:
 - `unknown_word`
 - `unsupported_form`
 
-A line that starts with `\` is a comment and is skipped. The program after those lines is one line. A second line of code is `unsupported_form`. Colon definitions and variables are not words.
+A multiline program is `unsupported_form`. Colon definitions, comments, and variables are not words.
 
 ## Tests
 
