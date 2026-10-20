@@ -95,6 +95,10 @@
   --chart-7: #7eb6ff;
   --chart-8: #7eb8a8;
   --chart-9: #d4a35a;
+  --sandbox-forth: #4c9dff;
+  --sandbox-lisp: #ff5a36;
+  --sandbox-basic: #3dce7a;
+  --sandbox-expr: #d56bff;
   --error-text: #ff9a80;
   --diff-removed-line: rgb(255 90 70 / 0.14);
   --diff-removed-char: rgb(255 70 55 / 0.46);
@@ -126,6 +130,10 @@ html:not(.dark) {
   --chart-7: #1d4e89;
   --chart-8: #2f6f62;
   --chart-9: #8a5a12;
+  --sandbox-forth: #1558c0;
+  --sandbox-lisp: #e24e2d;
+  --sandbox-basic: #0e8a3c;
+  --sandbox-expr: #7a2fe0;
   --error-text: #b4331a;
   --diff-removed-line: rgb(180 40 30 / 0.1);
   --diff-removed-char: rgb(180 40 30 / 0.32);

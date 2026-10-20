@@ -124,7 +124,7 @@ export function timeLabels(min, max, width) {
         { time: max, text: textOf(max) },
       ]
   const xOf = time => (max === min ? width / 2 : ((time - min) / span) * width)
-  const half = label => (label.text.length * 6.6) / 2
+  const half = label => textWidth(label.text) / 2
   const hit = (left, right) => Math.abs(xOf(left.time) - xOf(right.time)) < half(left) + half(right) + 8
   let labels = candidates
   if (labels.length === 3 && (hit(labels[0], labels[1]) || hit(labels[1], labels[2]))) labels = [labels[0], labels[2]]
@@ -232,21 +232,81 @@ export function sandboxSeriesFromCatalog(catalog) {
   })
 }
 
+export function textWidth(text) {
+  return text.length * 7.2
+}
+
+export function fitTimeLabels(labels, width) {
+  const margin = 2
+  return labels.map(label => {
+    const half = textWidth(label.text) / 2
+    if (half * 2 + margin * 2 > width) throw new Error(`time label ${label.text} is wider than the chart`)
+    const x = Math.min(width - margin - half, Math.max(margin + half, label.x))
+    return { ...label, x }
+  })
+}
+
+export function placeEndLabels(labels, top, bottom) {
+  const band = 14
+  const gap = 3
+  const minGap = band + gap
+  const order = labels.map((item, index) => ({ ...item, index })).sort((left, right) => left.y - right.y || left.index - right.index)
+  const ys = order.map(item => Math.min(bottom - band, Math.max(top, item.y)))
+  for (let index = 1; index < ys.length; index += 1) {
+    const min = ys[index - 1] + minGap
+    if (ys[index] < min) ys[index] = min
+  }
+  if (ys.length > 0 && ys[ys.length - 1] > bottom - band) {
+    ys[ys.length - 1] = bottom - band
+    for (let index = ys.length - 2; index >= 0; index -= 1) {
+      const max = ys[index + 1] - minGap
+      if (ys[index] <= max) break
+      ys[index] = max
+    }
+  }
+  for (let index = 0; index < ys.length; index += 1) {
+    if (ys[index] < top || ys[index] > bottom - band) throw new Error('end labels do not fit in the plot')
+    if (index > 0 && ys[index] < ys[index - 1] + band) throw new Error('end labels still collide')
+  }
+  const placed = new Array(labels.length)
+  order.forEach((item, index) => {
+    placed[item.index] = { id: item.id, text: item.text, x: item.x, y: ys[index], color: item.color }
+  })
+  return placed
+}
+
+export function bestSandboxMarks(problem) {
+  return problem.versions.flatMap(version => {
+    if (version.id === 'direct') return []
+    const costs = version.series.map(point => point.cost)
+    if (costs.length === 0) return []
+    for (const cost of costs) assertCost(cost)
+    return [{ id: version.id, label: version.name, color: version.color, cost: Math.min(...costs) }]
+  })
+}
+
 export function chartLayout(series, options) {
   const width = options.width
   const height = options.height
   const spark = options.spark === true
   const track = options.track === 'sum' ? 'sum' : 'best'
   const progress = options.progress ?? 1
+  if (options.scale && options.scale !== 'linear') throw new Error(`scale ${options.scale} is not linear`)
   const radius = spark ? 3 : 4
   const values = series.flatMap(item => item.points.map(point => point.cost))
   const max = values.length === 0 ? 0 : Math.max(...values)
-  const scale = options.scale ?? (track === 'sum' ? chooseScale(values) : 'linear')
-  const positive = values.filter(value => value > 0)
-  const minCost = scale === 'log' ? Math.min(...positive) : 0
+  const scale = 'linear'
+  const minCost = 0
+  const endTexts = series.map(item => {
+    const ordered = [...item.points].sort((left, right) => left.time - right.time || left.cost - right.cost)
+    const lineSource = track === 'best' ? runningMin(ordered) : ordered
+    const latest = lineSource[lineSource.length - 1]
+    return latest ? `${item.label} ${formatCost(latest.cost)}` : item.label
+  })
+  const endPad = endTexts.length === 0 ? 16 : Math.max(...endTexts.map(text => textWidth(text))) + 16
   const pad = spark
     ? { l: 8, r: 8, t: 8, b: 8 }
-    : { l: axisLabelPad(max), r: 16, t: 16, b: 36 }
+    : { l: axisLabelPad(max), r: endPad, t: 16, b: 36 }
   const inner = {
     left: pad.l,
     top: pad.t,
@@ -277,8 +337,25 @@ export function chartLayout(series, options) {
     const line = item.line
     return { ...item, dots, line, d: polyline(line), length: polylineLength(line) }
   })
-  const labels = spark ? [] : timeLabels(minTime, maxTime, inner.width).map(label => ({ ...label, x: xAt(label.time) }))
-  const tickValues = spark ? [] : scale === 'log' ? logTicks(minCost, max) : axisTicks(max)
+  const labels = spark ? [] : fitTimeLabels(timeLabels(minTime, maxTime, inner.width).map(label => ({ ...label, x: xAt(label.time) })), width)
+  const tickValues = spark ? [] : axisTicks(max)
   const ticks = tickValues.map(value => ({ value, y: yAt(value, 1), text: formatCost(value) }))
-  return { width, height, pad, scale, radius, series: laid, labels, ticks }
+  const ends = spark ? [] : placeEndLabels(laid.flatMap(item => {
+    const last = item.line[item.line.length - 1]
+    if (!last) return []
+    const sourceSeries = series.find(seriesItem => seriesItem.id === item.id)
+    if (!sourceSeries) throw new Error(`${item.id} disappeared while labeling the chart`)
+    const source = [...sourceSeries.points].sort((left, right) => left.time - right.time || left.cost - right.cost)
+    const shown = track === 'best' ? runningMin(source) : source
+    const latest = shown[shown.length - 1]
+    if (!latest) return []
+    return [{
+      id: item.id,
+      text: `${item.label} ${formatCost(latest.cost)}`,
+      x: last.x + radius + 6,
+      y: last.y,
+      color: item.color,
+    }]
+  }), inner.top, inner.top + inner.height)
+  return { width, height, pad, scale, radius, series: laid, labels, ticks, ends }
 }

@@ -5,7 +5,6 @@ import DocPage from '@/components/DocPage.vue'
 import CostChart from '@/components/CostChart.vue'
 import MarkdownBody from '@/components/MarkdownBody.vue'
 import NotFoundPage from '@/pages/NotFoundPage.vue'
-import ProblemScene from '@/components/scenes/ProblemScene.vue'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { authorName, problemById, sourceUrl, type CatalogVersion } from '@/catalog'
 import { formatCost } from '@/charts/cost'
@@ -67,10 +66,7 @@ function ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
 
 <template>
   <NotFoundPage v-if="!problem" />
-  <DocPage v-else kicker="Problems" :title="problem.title" :summary="problem.summary" wide>
-    <template #scene>
-      <ProblemScene :problem-id="problem.id" :cases="problem.cases" />
-    </template>
+  <DocPage v-else kicker="Problems" :title="problem.title" wide>
     <section id="cost" class="flex flex-col gap-3">
       <h2 class="text-xl font-semibold tracking-tight">Cost</h2>
       <CostChart :series="problemSeries(problem)" :label="`${problem.title} cost over time`" />
@@ -84,7 +80,7 @@ function ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
       <Table data-test="solutions-table">
         <TableHeader>
           <TableRow>
-            <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('sandbox')" @click="toggle('sandbox')">Sandbox</button></TableHead>
+            <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('sandbox')" @click="toggle('sandbox')">Entry</button></TableHead>
             <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('cost')" @click="toggle('cost')">Cost</button></TableHead>
             <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('author')" @click="toggle('author')">Author</button></TableHead>
             <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('date')" @click="toggle('date')">Date</button></TableHead>
@@ -95,7 +91,8 @@ function ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
         <TableBody>
           <TableRow v-for="version in rows" :key="version.id" data-test="solution-row" :data-sandbox="version.id">
             <TableCell>
-              <a data-test="solution-link" class="underline underline-offset-4" :href="sourceUrl(version.solutions[0].solutionPath)" rel="noreferrer">{{ version.name }}</a>
+              <span v-if="version.id !== 'direct'" data-test="sandbox-color" class="mr-2 inline-block size-2.5 align-middle" :style="{ background: version.color }" />
+              <a data-test="solution-link" class="underline underline-offset-4" :href="sourceUrl(version.solutions[0].solutionPath)" rel="noreferrer">{{ version.id === 'direct' ? 'Direct Thue' : version.name }}</a>
             </TableCell>
             <TableCell class="font-mono">{{ formatCost(requiredNumber(version, 'cost')) }}</TableCell>
             <TableCell>{{ authorName(version.author) }}</TableCell>

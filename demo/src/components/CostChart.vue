@@ -48,7 +48,7 @@ const layout = computed(() => chartLayout(props.series, {
   progress: progress.value,
 }))
 
-const caption = computed(() => props.track === 'sum' && layout.value.scale === 'log' ? `${props.label}. Log scale.` : props.label)
+const caption = computed(() => props.label)
 </script>
 
 <template>
@@ -100,6 +100,18 @@ const caption = computed(() => props.track === 'sum' && layout.value.scale === '
           stroke="none"
         />
       </g>
+      <g v-if="!spark" font-family="JetBrains Mono, ui-monospace, monospace" font-size="11">
+        <text
+          v-for="label in layout.ends"
+          :key="label.id"
+          data-test="end-label"
+          :data-sandbox="label.id"
+          :x="label.x"
+          :y="label.y"
+          dominant-baseline="middle"
+          :fill="label.color"
+        >{{ label.text }}</text>
+      </g>
     </svg>
     <figcaption v-if="!spark && series.length > 0" data-test="cost-legend" class="mt-3 flex flex-wrap gap-x-4 gap-y-2 font-mono text-[12px]">
       <span v-for="item in series" :key="item.id" class="inline-flex items-center gap-2" :data-series="item.id">
@@ -107,6 +119,5 @@ const caption = computed(() => props.track === 'sum' && layout.value.scale === '
         {{ item.label }}
       </span>
     </figcaption>
-    <p v-if="!spark && layout.scale === 'log'" data-test="cost-scale" class="text-ash mt-2 font-mono text-[12px]">Log scale.</p>
   </figure>
 </template>

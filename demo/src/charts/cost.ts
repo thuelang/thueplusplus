@@ -11,9 +11,13 @@ import {
   polyline as polylineJs,
   polylineLength as polylineLengthJs,
   runningMin as runningMinJs,
+  bestSandboxMarks as bestSandboxMarksJs,
+  fitTimeLabels as fitTimeLabelsJs,
+  placeEndLabels as placeEndLabelsJs,
   sandboxSeriesFromCatalog as sandboxSeriesFromCatalogJs,
   separateDots as separateDotsJs,
   summedCostSeries as summedCostSeriesJs,
+  textWidth as textWidthJs,
   timeLabels as timeLabelsJs,
   timeX as timeXJs,
 } from './geometry.mjs'
@@ -75,7 +79,15 @@ export interface ChartLayout {
   }[]
   labels: { time: number; text: string; x: number }[]
   ticks: { value: number; y: number; text: string }[]
+  ends: { id: string; text: string; x: number; y: number; color: string }[]
 }
+
+export const textWidth = textWidthJs as (text: string) => number
+export const fitTimeLabels = fitTimeLabelsJs as (labels: readonly { time: number; text: string; x: number }[], width: number) => { time: number; text: string; x: number }[]
+export const placeEndLabels = placeEndLabelsJs as (labels: readonly { id: string; text: string; x: number; y: number; color: string }[], top: number, bottom: number) => { id: string; text: string; x: number; y: number; color: string }[]
+export const bestSandboxMarks = bestSandboxMarksJs as (problem: {
+  versions: { id: string; name: string; color: string; series: { cost: number }[] }[]
+}) => { id: string; label: string; color: string; cost: number }[]
 
 export const chartLayout = chartLayoutJs as (series: readonly { id: string; label: string; color: string; points: TimePoint[] }[], options: {
   width: number
@@ -83,5 +95,5 @@ export const chartLayout = chartLayoutJs as (series: readonly { id: string; labe
   spark?: boolean
   track?: 'sum' | 'best'
   progress?: number
-  scale?: 'linear' | 'log'
+  scale?: string
 }) => ChartLayout

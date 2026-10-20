@@ -7,7 +7,7 @@ import SandboxScene from '@/components/SandboxScene.vue'
 import SiteFooter from '@/components/SiteFooter.vue'
 import { catalog } from '@/catalog'
 import { problemTitle, sandboxCostSeries } from '@/charts/series'
-import { chooseScale, formatCost } from '@/charts/cost'
+import { formatCost } from '@/charts/cost'
 import { registryHosts, repositoryUrl, soonLanguages } from '@/hosts'
 import { beginRubble, type Rubble } from '@/sandbox/rubble'
 
@@ -15,9 +15,8 @@ const ready = registryHosts
 const soon = soonLanguages
 const rubble = ref<Rubble | null>(null)
 const lines = sandboxCostSeries()
-const scale = chooseScale(lines.flatMap(line => line.points.map(point => point.cost)))
 const common = catalog.sandboxCommon.map(id => ({ id, title: problemTitle(id) }))
-const improvements = computed(() => catalog.improvements)
+const improvements = computed(() => catalog.improvements.filter(event => event.sandbox !== 'direct'))
 const chartLabel = computed(() => `Cost over time on ${common.map(problem => problem.title).join(', ')}`)
 
 function sandboxLabel(id: string): string {
@@ -82,7 +81,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div data-test="page-details" class="page-details flex w-full flex-col gap-10 pb-16">
-    <section id="sandboxes" data-test="featured-sandboxes" class="flex flex-col gap-4 px-4 sm:px-6 lg:px-14" :data-scale="scale">
+    <section id="sandboxes" data-test="featured-sandboxes" class="flex flex-col gap-4 px-4 sm:px-6 lg:px-14" data-scale="linear">
       <h2 class="font-display text-[clamp(28px,4vw,40px)] leading-none font-extrabold tracking-[-0.04em]">Sandboxes</h2>
       <p data-test="common-problems" class="font-mono text-[13px]">
         <RouterLink v-for="(problem, index) in common" :key="problem.id" :to="`/problems/${problem.id}`" class="underline underline-offset-4">
@@ -102,8 +101,7 @@ onBeforeUnmount(() => {
           class="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-[7.5rem_7rem_minmax(0,1fr)_auto_auto] sm:items-baseline"
         >
           <a data-test="improvement-commit" class="underline underline-offset-4" :href="`${repositoryUrl}/commit/${event.commit}`" rel="noreferrer">{{ event.timestamp.slice(0, 10) }}</a>
-          <RouterLink v-if="event.sandbox !== 'direct'" data-test="improvement-sandbox" :to="`/sandboxes/${event.sandbox}`" class="underline underline-offset-4">{{ sandboxLabel(event.sandbox) }}</RouterLink>
-          <span v-else data-test="improvement-sandbox">direct</span>
+          <RouterLink data-test="improvement-sandbox" :to="`/sandboxes/${event.sandbox}`" class="underline underline-offset-4">{{ sandboxLabel(event.sandbox) }}</RouterLink>
           <RouterLink v-if="event.problem" data-test="improvement-problem" :to="`/problems/${event.problem}`" class="underline underline-offset-4">{{ problemTitle(event.problem) }}</RouterLink>
           <span v-else data-test="improvement-problem">common problems</span>
           <span data-test="improvement-before">{{ formatCost(event.before) }}</span>
