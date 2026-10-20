@@ -1174,7 +1174,7 @@ env = "{\"name\":\"hi\"}"
 
 [case.expect]
 exit_code = 0
-stdout = "\"hi\"\n"
+stdout = "hi\n"
 stderr = ""
 
 [[case]]
@@ -1186,7 +1186,7 @@ env = "{\"name\":\"hi\\n\"}"
 
 [case.expect]
 exit_code = 0
-stdout = "\"hi\\n\"\n"
+stdout = "hi\n\n"
 stderr = ""
 
 [[case]]
@@ -1198,7 +1198,8 @@ env = "{\"s\":\"\\\"\\\\\\/\\b\\f\\n\\r\\t&<>\"}"
 
 [case.expect]
 exit_code = 0
-stdout = "\"\\\"\\\\/\\b\\f\\n\\r\\t\\u0026\\u003c\\u003e\"\n"
+# The case runner reads stdout as text, so this carriage return is compared as a line feed.
+stdout = "\"\\/\u0008\u000c\n\n\t&<>\n"
 stderr = ""
 
 [[case]]
@@ -1210,7 +1211,7 @@ env = "{\"s\":\"\\u0000\\u0001\\u000b\\u000e\\u000f\\u0010\\u001a\\u001b\\u001c\
 
 [case.expect]
 exit_code = 0
-stdout = "\"\\u0000\\u0001\\u000b\\u000e\\u000f\\u0010\\u001a\\u001b\\u001c\\u001d\\u001e\\u001f\"\n"
+stdout = "\u0000\u0001\u000b\u000e\u000f\u0010\u001a\u001b\u001c\u001d\u001e\u001f\n"
 stderr = ""
 
 [[case]]
@@ -1222,7 +1223,7 @@ env = "{\"s\":\"\\u0041\"}"
 
 [case.expect]
 exit_code = 0
-stdout = "\"A\"\n"
+stdout = "A\n"
 stderr = ""
 
 [[case]]
@@ -2015,7 +2016,7 @@ env = "{\"s\":\"\\u004A\"}"
 
 [case.expect]
 exit_code = 0
-stdout = "\"J\"\n"
+stdout = "J\n"
 stderr = ""
 
 [[case]]
@@ -2468,4 +2469,592 @@ expr = "9007199254740995.0"
 [case.expect]
 exit_code = 0
 stdout = "9007199254740996\n"
+stderr = ""
+
+[[case]]
+name = "277 string literal"
+
+[case.bindings.lines]
+expr = "\"ab\""
+
+[case.expect]
+exit_code = 0
+stdout = "ab\n"
+stderr = ""
+
+[[case]]
+name = "278 string concat"
+
+[case.bindings.lines]
+expr = "\"a\" + \"b\""
+
+[case.expect]
+exit_code = 0
+stdout = "ab\n"
+stderr = ""
+
+[[case]]
+name = "279 string escape"
+
+[case.bindings.lines]
+expr = "\"\\n\""
+
+[case.expect]
+exit_code = 0
+stdout = "\n\n"
+stderr = ""
+
+[[case]]
+name = "280 bad string escape"
+
+[case.bindings.lines]
+expr = "\"\\q\""
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: bad string escape"
+
+[[case]]
+name = "281 unclosed string"
+
+[case.bindings.lines]
+expr = "\"ab"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unclosed string"
+
+[[case]]
+name = "282 int string"
+
+[case.bindings.lines]
+expr = "int(\"12\")"
+
+[case.expect]
+exit_code = 0
+stdout = "12\n"
+stderr = ""
+
+[[case]]
+name = "283 string int"
+
+[case.bindings.lines]
+expr = "string(12)"
+
+[case.expect]
+exit_code = 0
+stdout = "12\n"
+stderr = ""
+
+[[case]]
+name = "284 string bool"
+
+[case.bindings.lines]
+expr = "string(true)"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "285 int truncate"
+
+[case.bindings.lines]
+expr = "int(7/2)"
+
+[case.expect]
+exit_code = 0
+stdout = "3\n"
+stderr = ""
+
+[[case]]
+name = "286 int truncate negative"
+
+[case.bindings.lines]
+expr = "int(-7/2)"
+
+[case.expect]
+exit_code = 0
+stdout = "-3\n"
+stderr = ""
+
+[[case]]
+name = "287 int half"
+
+[case.bindings.lines]
+expr = "int(1/2)"
+
+[case.expect]
+exit_code = 0
+stdout = "0\n"
+stderr = ""
+
+[[case]]
+name = "288 reduce range"
+
+[case.bindings.lines]
+expr = "reduce(1..3, # + #acc, 0)"
+
+[case.expect]
+exit_code = 0
+stdout = "6\n"
+stderr = ""
+
+[[case]]
+name = "289 empty range"
+
+[case.bindings.lines]
+expr = "reduce(1..0, # * #acc, 1)"
+
+[case.expect]
+exit_code = 0
+stdout = "1\n"
+stderr = ""
+
+[[case]]
+name = "290 let"
+
+[case.bindings.lines]
+expr = "let n = 4; n * n"
+
+[case.expect]
+exit_code = 0
+stdout = "16\n"
+stderr = ""
+
+[[case]]
+name = "291 let sequence"
+
+[case.bindings.lines]
+expr = "let a = 1; let b = 2; a + b"
+
+[case.expect]
+exit_code = 0
+stdout = "3\n"
+stderr = ""
+
+[[case]]
+name = "292 map join"
+
+[case.bindings.lines]
+expr = "join(map(1..3, string(#)), \"-\")"
+
+[case.expect]
+exit_code = 0
+stdout = "1-2-3\n"
+stderr = ""
+
+[[case]]
+name = "293 split index"
+
+[case.bindings.lines]
+expr = "split(\"a\\nb\", \"\\n\")[0]"
+
+[case.expect]
+exit_code = 0
+stdout = "a\n"
+stderr = ""
+
+[[case]]
+name = "294 split index second"
+
+[case.bindings.lines]
+expr = "split(\"a\\nb\", \"\\n\")[1]"
+
+[case.expect]
+exit_code = 0
+stdout = "b\n"
+stderr = ""
+
+[[case]]
+name = "295 bad index"
+
+[case.bindings.lines]
+expr = "split(\"a\", \"\\n\")[1]"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: bad index"
+
+[[case]]
+name = "296 unknown function"
+
+[case.bindings.lines]
+expr = "foo(1)"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: unknown function foo"
+
+[[case]]
+name = "297 hash outside"
+
+[case.bindings.lines]
+expr = "#"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: '#' outside a predicate"
+
+[[case]]
+name = "298 acc outside"
+
+[case.bindings.lines]
+expr = "#acc"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: '#acc' outside a predicate"
+
+[[case]]
+name = "299 empty separator"
+
+[case.bindings.lines]
+expr = "split(\"a\", \"\")"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: empty separator"
+
+[[case]]
+name = "300 wrong arity"
+
+[case.bindings.lines]
+expr = "map(1)"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: wrong arity"
+
+[[case]]
+name = "301 cannot print array"
+
+[case.bindings.lines]
+expr = "1..3"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot print array"
+
+[[case]]
+name = "302 range needs integers"
+
+[case.bindings.lines]
+expr = "\"a\"..\"b\""
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: range needs integers"
+
+[[case]]
+name = "303 cannot convert string"
+
+[case.bindings.lines]
+expr = "int(\"no\")"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot convert string"
+
+[[case]]
+name = "304 cannot convert value"
+
+[case.bindings.lines]
+expr = "int(true)"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot convert value"
+
+[[case]]
+name = "305 cannot join"
+
+[case.bindings.lines]
+expr = "join(1..3, \",\")"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot join that"
+
+[[case]]
+name = "306 cannot map"
+
+[case.bindings.lines]
+expr = "map(1, #)"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot map that"
+
+[[case]]
+name = "307 cannot reduce"
+
+[case.bindings.lines]
+expr = "reduce(1, # + #acc, 0)"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot reduce that"
+
+[[case]]
+name = "308 cannot split"
+
+[case.bindings.lines]
+expr = "split(1, \"a\")"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot split that"
+
+[[case]]
+name = "309 string rational"
+
+[case.bindings.lines]
+expr = "string(1/2)"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot convert value"
+
+[[case]]
+name = "310 stdin let"
+
+[case.bindings.lines]
+expr = "let n = int(stdin); n"
+env = "{\"stdin\":\"5\"}"
+
+[case.expect]
+exit_code = 0
+stdout = "5\n"
+stderr = ""
+
+[[case]]
+name = "311 input string"
+input = "\"Hello\""
+
+[case.expect]
+exit_code = 0
+stdout = "Hello\n"
+stderr = ""
+
+[[case]]
+name = "312 input let"
+input = "let n = 2; n"
+
+[case.expect]
+exit_code = 0
+stdout = "2\n"
+stderr = ""
+
+[[case]]
+name = "313 ternary group"
+
+[case.bindings.lines]
+expr = "true ? 1 : (2)"
+
+[case.expect]
+exit_code = 0
+stdout = "1\n"
+stderr = ""
+
+[[case]]
+name = "314 join empty sep"
+
+[case.bindings.lines]
+expr = "join(split(\"a\", \"b\"), \"\")"
+
+[case.expect]
+exit_code = 0
+stdout = "a\n"
+stderr = ""
+
+[[case]]
+name = "315 string escapes"
+
+[case.bindings.lines]
+expr = "\"\\\"\\\\\\/\\b\\f\\n\\r\\t\\u0067\\u007F\\u000A\\u000B\\u000C\\u000D\\u000E\\u000F\\u0010\\u0041\""
+
+[case.expect]
+exit_code = 0
+# The case runner reads stdout as text, so a carriage return is compared as a line feed.
+stdout = "\"\\/\u0008\u000c\n\n\tg\u007f\n\u000b\u000c\n\u000e\u000f\u0010A\n"
+stderr = ""
+
+[[case]]
+name = "316 unicode too big"
+
+[case.bindings.lines]
+expr = "\"\\u0080\""
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: bad string escape"
+
+[[case]]
+name = "317 acc prefix"
+
+[case.bindings.lines]
+expr = "#accX"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected token"
+
+[[case]]
+name = "318 index bool"
+
+[case.bindings.lines]
+expr = "map(1..1, # == 1)[0]"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "319 index false"
+
+[case.bindings.lines]
+expr = "map(1..1, # == 2)[0]"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "320 index int"
+
+[case.bindings.lines]
+expr = "map(1..3, #)[1]"
+
+[case.expect]
+exit_code = 0
+stdout = "2\n"
+stderr = ""
+
+[[case]]
+name = "321 empty join"
+
+[case.bindings.lines]
+expr = "join(1..0, \",\")"
+
+[case.expect]
+exit_code = 0
+stdout = "\n"
+stderr = ""
+
+[[case]]
+name = "322 reduce strings"
+
+[case.bindings.lines]
+expr = "reduce(split(\"ab\", \"b\"), # + #acc, \"\")"
+
+[case.expect]
+exit_code = 0
+stdout = "a\n"
+stderr = ""
+
+[[case]]
+name = "323 reduce bool"
+
+[case.bindings.lines]
+expr = "reduce(1..2, # == 1 && #acc, true)"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "324 let group"
+
+[case.bindings.lines]
+expr = "let n = (1 + 2); n"
+
+[case.expect]
+exit_code = 0
+stdout = "3\n"
+stderr = ""
+
+[[case]]
+name = "325 let missing"
+
+[case.bindings.lines]
+expr = "let n = (1; n"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: missing value"
+
+[[case]]
+name = "326 let unexpected paren"
+
+[case.bindings.lines]
+expr = "let n = ); n"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected ')'"
+
+[[case]]
+name = "327 name index"
+
+[case.bindings.lines]
+expr = "let xs = split(\"ab\", \"b\"); xs[0]"
+
+[case.expect]
+exit_code = 0
+stdout = "a\n"
+stderr = ""
+
+[[case]]
+name = "328 input newline"
+input = "let n = 1;\nn"
+
+[case.expect]
+exit_code = 0
+stdout = "1\n"
+stderr = ""
+
+[[case]]
+name = "329 input return"
+input = "let n = 1;\rn"
+
+[case.expect]
+exit_code = 0
+stdout = "1\n"
+stderr = ""
+
+[[case]]
+name = "330 map bool join"
+
+[case.bindings.lines]
+expr = "join(map(1..2, string(# == 1)), \",\")"
+
+[case.expect]
+exit_code = 0
+stdout = "true,false\n"
 stderr = ""
