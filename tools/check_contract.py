@@ -74,7 +74,7 @@ def source_excerpt(root: Path, source_path: str, source_lines: str | None) -> tu
 
 def playground_url(source_path: str) -> str:
     file_param = quote(f"./{source_path}", safe="./")
-    return f"https://thuelang.org/playground?file={file_param}"
+    return f"https://thuelang.org/embed?file={file_param}"
 
 
 SOURCE_ROOT = "https://github.com/thuelang/thueplusplus/blob/main"

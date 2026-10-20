@@ -2,6 +2,7 @@
 import { RouterLink } from 'vue-router'
 import DocPage from '@/components/DocPage.vue'
 import DocsScene from '@/components/scenes/DocsScene.vue'
+import { siteHosts } from '@/hosts'
 import { pages } from '@/site'
 
 const page = pages.docs
@@ -12,15 +13,15 @@ const page = pages.docs
     <template #scene>
       <DocsScene />
     </template>
-    <section id="language" class="flex flex-col gap-3">
-      <h2 class="text-xl font-semibold tracking-tight">Language</h2>
-      <p class="leading-7">Operators, resources, and the limits a new interpreter starts with. Programs are <code>.thue</code> files.</p>
-      <RouterLink to="/docs/language" class="underline underline-offset-4">Language reference</RouterLink>
-    </section>
-    <section id="guides" class="flex flex-col gap-3">
-      <h2 class="text-xl font-semibold tracking-tight">Guides</h2>
-      <p class="leading-7">A short tour of a Thue++ program and a run in the browser.</p>
-      <RouterLink to="/docs/guides" class="underline underline-offset-4">Guides</RouterLink>
-    </section>
+    <ul class="flex flex-col gap-6">
+      <li v-for="host in siteHosts" :key="host.id" :id="host.id">
+        <h2 class="text-xl font-semibold tracking-tight">{{ host.title }}</h2>
+        <p class="mt-2 flex flex-wrap gap-x-4 font-mono text-[13px]">
+          <RouterLink :to="`/docs/${host.id}/install`" class="underline underline-offset-4">Install</RouterLink>
+          <RouterLink :to="`/docs/${host.id}/api`" class="underline underline-offset-4">API</RouterLink>
+          <RouterLink :to="`/docs/${host.id}/examples`" class="underline underline-offset-4">Examples</RouterLink>
+        </p>
+      </li>
+    </ul>
   </DocPage>
 </template>

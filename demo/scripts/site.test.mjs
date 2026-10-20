@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { CatalogError, aggregateSum, commonProblems, historyRows, parseFrontmatter, sitemapXml, stampForRunsDocument } from './build-site.mjs'
+import { CatalogError, aggregateDrops, aggregateSum, commonProblems, costDrops, discoverSandboxIds, historyRows, parseFrontmatter, sitemapXml, stampForRunsDocument } from './build-site.mjs'
 
 describe('site data', () => {
   it('rejects limits in frontmatter', () => {
@@ -36,6 +36,36 @@ describe('site data', () => {
 
   it('omits a runs document that has no author and no git object', () => {
     assert.equal(stampForRunsDocument({ commit: 'b'.repeat(40) }, () => null), null)
+  })
+
+  it('records a cost drop only when the same solution gets cheaper', () => {
+    const points = [
+      { commit: 'a', cost: 10 },
+      { commit: 'b', cost: 10 },
+      { commit: 'c', cost: 4 },
+      { commit: 'd', cost: 9 },
+    ]
+    assert.deepEqual(costDrops(points), [{ before: 10, after: 4, commit: 'c' }])
+    assert.deepEqual(costDrops([{ commit: 'a', cost: 3 }]), [])
+  })
+
+  it('records a sandbox total drop only while the common set stays the same', () => {
+    const same = ['hello-world', 'factorial']
+    const events = aggregateDrops([
+      { commit: 'a', common: same, totals: { forth: 20, lisp: 30 } },
+      { commit: 'b', common: same, totals: { forth: 12, lisp: 30 } },
+      { commit: 'c', common: ['hello-world'], totals: { forth: 1, lisp: 1 } },
+    ])
+    assert.deepEqual(events, [{ sandbox: 'forth', before: 20, after: 12, commit: 'b' }])
+  })
+
+  it('discovers sandboxes from langs/ and always includes expr', () => {
+    const ids = discoverSandboxIds()
+    assert.ok(ids.includes('forth'))
+    assert.ok(ids.includes('lisp'))
+    assert.ok(ids.includes('basic'))
+    assert.ok(ids.includes('expr'))
+    assert.equal(ids.indexOf('expr') > ids.indexOf('forth'), true)
   })
 
   it('drops shallow boundary commits instead of treating them as measurements', () => {

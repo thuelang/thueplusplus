@@ -45,6 +45,7 @@ export interface CatalogVersion {
   missing: boolean
   notes: string
   author: string
+  measured: string
   solutions: CatalogSolution[]
   series: CatalogPoint[]
 }
@@ -80,6 +81,36 @@ export interface ProblemResource {
   name: string
   read: boolean
   write: boolean
+}
+
+export interface CatalogImprovement {
+  kind: 'solution' | 'sandbox'
+  sandbox: string
+  problem: string | null
+  before: number
+  after: number
+  commit: string
+  timestamp: string
+  author: string
+}
+
+export interface CatalogSandboxCase {
+  name: string
+  path: string
+  source: string
+}
+
+export interface CatalogSandbox {
+  id: string
+  name: string
+  description: string
+  status: 'ready' | 'pending'
+  program: string | null
+  programSource: string | null
+  readme: string
+  cases: CatalogSandboxCase[]
+  total: number | null
+  color: string | null
 }
 
 export interface CatalogProblem {
@@ -119,7 +150,10 @@ export interface Catalog {
   author: string
   timestamp: string
   commonProblems: string[]
+  sandboxCommon: string[]
   rulesets: CatalogRuleset[]
+  sandboxes: CatalogSandbox[]
+  improvements: CatalogImprovement[]
   commits: CatalogCommit[]
   problems: CatalogProblem[]
 }
@@ -161,6 +195,10 @@ function assertCatalog(value: unknown): Catalog {
   if (!Array.isArray(catalog.problems) || catalog.problems.length === 0) throw new Error('catalog has no problems')
   if (!Array.isArray(catalog.commits)) throw new Error('catalog commits is missing')
   if (!Array.isArray(catalog.rulesets) || catalog.rulesets.length === 0) throw new Error('catalog has no rulesets')
+  if (!Array.isArray(catalog.sandboxes) || catalog.sandboxes.length === 0) throw new Error('catalog has no sandboxes')
+  if (!Array.isArray(catalog.sandboxCommon)) throw new Error('catalog sandboxCommon is missing')
+  if (!Array.isArray(catalog.improvements)) throw new Error('catalog improvements is missing')
+  if (!catalog.sandboxes.some(sandbox => sandbox.id === 'expr')) throw new Error('catalog is missing the expr sandbox')
   for (const problem of catalog.problems) {
     if (!Array.isArray(problem.cases) || problem.cases.length === 0) throw new Error(`${problem.id} has no cases`)
     if (!Array.isArray(problem.resources) || problem.resources.length === 0) throw new Error(`${problem.id} has no resources`)
@@ -173,10 +211,6 @@ export const catalog = assertCatalog(raw)
 
 export function problemById(id: string): CatalogProblem | undefined {
   return catalog.problems.find(problem => problem.id === id)
-}
-
-export function solutionPath(problemId: string, solutionId: string): string {
-  return `/problems/${problemId}/${solutionId}`
 }
 
 export function versionById(problem: CatalogProblem, solutionId: string): CatalogVersion | undefined {
@@ -221,46 +255,12 @@ export function caseInput(item: ProblemCase): Record<string, string> {
   return reads
 }
 
-export function solutionRouteMeta(problemId: string, solutionId: string): RouteMetaFields {
-  const problem = problemById(problemId)
-  const version = problem ? versionById(problem, solutionId) : undefined
-  if (!problem || !version) {
-    return {
-      documentTitle: 'Solution not found — Thue++',
-      description: `No solution ${problemId}/${solutionId} is in the suite.`,
-      canonical: 'https://thuelang.org/problems',
-      robots: 'noindex,follow',
-    }
-  }
-  const solution = version.solutions[0]
-  return {
-    documentTitle: `Thue++ ${problem.title} — ${version.name}`,
-    description: `${version.name} for ${problem.title}, cost ${solution?.cost ?? 'unknown'}.`,
-    canonical: `https://thuelang.org${solutionPath(problem.id, version.id)}`,
-    robots: 'index,follow',
-  }
-}
-
 export function rulesetById(id: string): CatalogRuleset | undefined {
   return catalog.rulesets.find(ruleset => ruleset.id === id)
 }
 
-export function rulesetRouteMeta(rulesetId: string): RouteMetaFields {
-  const ruleset = rulesetById(rulesetId)
-  if (!ruleset) {
-    return {
-      documentTitle: 'Ruleset not found — Thue++',
-      description: `No ruleset ${rulesetId} is in the suite.`,
-      canonical: 'https://thuelang.org/problems',
-      robots: 'noindex,follow',
-    }
-  }
-  return {
-    documentTitle: `Thue++ ${ruleset.name}`,
-    description: `${ruleset.name} aggregate cost over the common problems.`,
-    canonical: `https://thuelang.org/rulesets/${ruleset.id}`,
-    robots: 'index,follow',
-  }
+export function sandboxById(id: string): CatalogSandbox | undefined {
+  return catalog.sandboxes.find(sandbox => sandbox.id === id)
 }
 
 export function problemRouteMeta(problemId: string): RouteMetaFields {

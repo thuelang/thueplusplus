@@ -717,8 +717,27 @@ html.rex-shattered .rex-rubble [data-shard] {
   to { transform: rotate(-360deg); }
 }
 
-.markdown-body :is(p, ul) {
+.markdown-body :is(p, ul, pre) {
   margin: 0;
+}
+
+.markdown-body :is(h2, h3) {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.markdown-body h2 {
+  font-size: 1.25rem;
+}
+
+.markdown-body pre {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 1rem;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .markdown-body a {

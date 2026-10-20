@@ -29,6 +29,9 @@ export function pageLinks(path: string): PageLink[] {
   if (path === pages.problems.path) {
     return catalog.problems.map(problem => ({ title: problem.title, href: problem.path }))
   }
+  if (path === pages.sandboxes.path) {
+    return catalog.sandboxes.map(sandbox => ({ title: sandbox.name, href: `/sandboxes/${sandbox.id}` }))
+  }
   const problem = catalog.problems.find(item => item.path === path)
   if (problem) return problemPageLinks(problem)
   return pageByPath(path)?.links ?? []
@@ -38,8 +41,6 @@ function problemPageLinks(problem: CatalogProblem): PageLink[] {
   if (problem.versions.length === 0) throw new Error(`${problem.id} has no solutions`)
   return [
     { title: 'Cost', href: '#cost' },
-    { title: 'Scoreboard', href: '#scoreboard' },
-    { title: 'Example', href: '#example' },
     { title: 'Solutions', href: '#solutions' },
   ]
 }

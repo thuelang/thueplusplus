@@ -52,7 +52,11 @@ async function collectSoon(): Promise<void> {
 function updateActiveHeading(): void {
   const scope = shell()
   const elements = headings.value
-    .map(heading => scope?.querySelector<HTMLElement>(`#${heading.id}`) ?? null)
+    .map(heading => {
+      const element = document.getElementById(heading.id)
+      if (!element || !scope?.contains(element)) return null
+      return element
+    })
     .filter((element): element is HTMLElement => element !== null)
   if (!elements.length) {
     activeHeadingId.value = ''

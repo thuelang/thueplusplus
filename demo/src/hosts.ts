@@ -57,25 +57,6 @@ interface InstallPageRecord {
   links: { title: string; href: string }[]
 }
 
-const PLATFORM_PAGE: Record<string, string> = {
-  go: 'installGo',
-  python: 'installPython',
-  js: 'installJs',
-  wasm: 'installWasm',
-  rust: 'installRust',
-  cpp: 'installCpp',
-  ruby: 'installRuby',
-  csharp: 'installCsharp',
-  java: 'installJava',
-}
-
-const PLATFORM_LINKS = [
-  { title: 'Install', href: '#install' },
-  { title: 'Library', href: '#library' },
-  { title: 'CLI', href: '#cli' },
-  { title: 'API', href: '#api' },
-]
-
 function readHostIds(text: string): string[] {
   const parsed = parseToml(text) as { host?: { id?: unknown }[] }
   if (!Array.isArray(parsed.host) || parsed.host.length === 0) {
@@ -119,7 +100,7 @@ export const siteHosts: SiteHost[] = SITE_ORDER.map(id => {
     landing: presentation.landing,
     title: presentation.title,
     anchor: presentation.anchor,
-    href: `/install/${presentation.landing}`,
+    href: `/docs/${id}/install`,
   }
 })
 
@@ -140,23 +121,12 @@ if (!installOverview) throw new Error('pages.json is missing install')
 if (installOverview.path !== '/install') throw new Error('pages.json install path must be /install')
 const overviewLinks = [
   { title: 'Quick start', href: '#quick-start' },
-  { title: 'Supported', href: '#supported' },
+  { title: 'Hosts', href: '#hosts' },
 ]
 if (JSON.stringify(installOverview.links) !== JSON.stringify(overviewLinks)) {
   throw new Error(`pages.json install links must be ${JSON.stringify(overviewLinks)}`)
 }
 
 for (const host of siteHosts) {
-  const key = PLATFORM_PAGE[host.id]
-  if (!key) throw new Error(`install page key is missing for ${host.id}`)
-  const page = records[key]
-  if (!page) throw new Error(`pages.json is missing ${key}`)
-  if (page.path !== host.href) throw new Error(`pages.json ${key} path must be ${host.href}`)
-  if (page.title !== `${host.title}.`) throw new Error(`pages.json ${key} title must be ${host.title}.`)
-  if (page.documentTitle !== `Thue++ Install — ${host.title}`) {
-    throw new Error(`pages.json ${key} documentTitle must be Thue++ Install — ${host.title}`)
-  }
-  if (JSON.stringify(page.links) !== JSON.stringify(PLATFORM_LINKS)) {
-    throw new Error(`pages.json ${key} links must be ${JSON.stringify(PLATFORM_LINKS)}`)
-  }
+  if (host.href !== `/docs/${host.id}/install`) throw new Error(`host ${host.id} href must be /docs/${host.id}/install`)
 }

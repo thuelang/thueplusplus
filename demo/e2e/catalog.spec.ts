@@ -1,59 +1,42 @@
-import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
 
-function summaryTip(): string {
-  const summary = JSON.parse(readFileSync(new URL('../src/generated/summary.json', import.meta.url), 'utf8')) as {
-    entries: { commit: string }[]
-  }
-  return summary.entries[summary.entries.length - 1].commit.slice(0, 12)
-}
-
-test('sandboxed projects are cards and metrics keep the charts', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 })
-  await page.goto('/projects')
-  await expect(page.getByRole('heading', { level: 1, name: 'Sandboxed projects.' })).toBeVisible()
-  await expect(page.getByTestId('project-card').first()).toBeVisible()
-  await expect(page.locator('body')).not.toContainText(/\bguest\b/i)
-  await expect(page.locator('body')).not.toContainText(/RE2/)
-  await page.goto('/metrics')
-  await expect(page.getByRole('heading', { level: 1, name: 'What each commit measured.' })).toBeVisible()
-  await expect(page.getByTestId('page-hero-graphic')).toBeVisible()
-  await expect(page.getByTestId('language-card').first()).toBeVisible()
-  await expect(page.getByTestId('problem-card').first()).toBeVisible()
-  await expect(page.getByTestId('benchmark-readout')).toContainText('go native')
-  await expect(page.getByTestId('benchmark-readout')).toContainText('wasm (node)')
-  await expect(page.locator('body')).not.toContainText(/RE2/)
-  await expect(page.locator('body')).not.toContainText(/\bguest\b/i)
-  await expect(page.getByText('Placeholder')).toHaveCount(0)
-  await expect(page.getByTestId('time-chart')).toContainText('go native')
-  await expect(page.getByTestId('benchmark-readout')).toContainText('× go')
-  await expect(page.getByTestId('benchmark-readout')).not.toContainText(' ms')
-  await expect(page.getByTestId('benchmark-readout')).toContainText(summaryTip())
-})
-
-test('problems index shows the finish line', async ({ page }) => {
+test('problems index shows a cost chart on every card', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   await page.goto('/problems')
-  await expect(page.getByRole('heading', { level: 1, name: 'Programs with a finish line.' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Problems.' })).toBeVisible()
   await expect(page.getByTestId('page-hero-graphic')).toBeVisible()
-  await expect(page.getByTestId('problem-index')).toBeVisible()
-  await expect(page.getByTestId('program-leaderboard')).toBeVisible()
-  await expect(page.getByTestId('program-improve')).toContainText(/autoresearch/i)
+  await expect(page.getByTestId('problem-card').first()).toBeVisible()
+  await expect(page.getByTestId('problem-card').first().locator('svg')).toBeVisible()
+  await expect(page.locator('body')).not.toContainText(/RE2/)
+  await expect(page.locator('body')).not.toContainText(/\bguest\b/i)
 })
 
-test('mobile projects page keeps the hero and the cards', async ({ page }) => {
+test('a problem page charts cost and links the solutions', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('/problems/factorial')
+  await expect(page.getByRole('heading', { level: 1, name: 'Factorial' })).toBeVisible()
+  await expect(page.getByTestId('cost-chart')).toBeVisible()
+  await expect(page.getByTestId('cost-legend')).toContainText('direct')
+  await expect(page.getByTestId('solutions-table')).toBeVisible()
+  await expect(page.getByTestId('solution-link').first()).toHaveAttribute('href', /github\.com\/thuelang\/thueplusplus\/blob\/main\//)
+  await expect(page.locator('body')).not.toContainText(/RE2/)
+})
+
+test('sandboxes index names the interpreters', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('/sandboxes')
+  await expect(page.getByRole('heading', { level: 1, name: 'Sandboxes.' })).toBeVisible()
+  await expect(page.getByTestId('sandbox-index')).toContainText('Lisp')
+  await expect(page.getByTestId('sandbox-index')).toContainText('Forth')
+  await expect(page.getByTestId('sandbox-index')).toContainText('BASIC')
+  await expect(page.getByTestId('sandbox-index')).toContainText('In progress.')
+})
+
+test('mobile problems page keeps the hero and the cards', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 })
-  await page.goto('/projects')
+  await page.goto('/problems')
   await expect(page.getByTestId('page-hero')).toBeVisible()
-  await expect(page.getByTestId('project-cards')).toBeVisible()
+  await expect(page.getByTestId('problem-card').first()).toBeVisible()
   await expect(page.getByTestId('page-sidebar')).toBeHidden()
   await expect(page.getByTestId('site-nav').getByRole('link')).toHaveCount(4)
-  await expect(page.getByTestId('site-footer').getByRole('link', { name: 'Projects' })).toBeVisible()
-})
-
-test('metrics chart headings are deep links', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto('/metrics#host-time')
-  await expect(page.getByRole('heading', { level: 3, name: 'Host time' })).toBeInViewport()
-  await expect(page.getByTestId('benchmark-readout')).toContainText('wasm (node)')
 })

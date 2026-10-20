@@ -1,24 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import MetricsPage from './pages/MetricsPage.vue'
-import ProblemPage from './pages/ProblemPage.vue'
-import ProblemsPage from './pages/ProblemsPage.vue'
-import ProjectsPage from './pages/ProjectsPage.vue'
+import { routes } from './router'
 import { catalog, problemRouteMeta, rulesetColor, runningBest, type CatalogPoint } from './catalog'
-import { projects } from './projects'
 import { pageLinks } from './site'
 
 async function mountAt(path: string) {
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [
-      { path: '/projects', component: ProjectsPage },
-      { path: '/metrics', component: MetricsPage },
-      { path: '/problems', component: ProblemsPage },
-      { path: '/problems/:problemId', component: ProblemPage },
-    ],
-  })
+  const router = createRouter({ history: createMemoryHistory(), routes })
   await router.push(path)
   await router.isReady()
   const component = router.currentRoute.value.matched[0]?.components?.default
@@ -56,90 +44,46 @@ describe('catalog pages', () => {
       expect(direct?.series.length).toBeGreaterThan(0)
     }
     expect(catalog.rulesets.every(ruleset => ruleset.color.startsWith('var(--chart-'))).toBe(true)
-  })
-
-  it('renders sandboxed project cards and the metrics charts', async () => {
-    const projectsPage = await mountAt('/projects')
-    expect(projectsPage.get('h1').text()).toBe('Sandboxed projects.')
-    const cards = projectsPage.findAll('[data-test="project-card"]')
-    expect(cards.map(card => card.attributes('data-project'))).toEqual(projects.map(project => project.id))
-    for (const card of cards) {
-      const project = projects.find(item => item.id === card.attributes('data-project'))
-      expect(project).toBeTruthy()
-      expect(card.text()).toContain(project!.name)
-      expect(card.text()).toContain(project!.description)
-      expect(card.find('[data-slot="badge"]').exists()).toBe(false)
+    expect(catalog.sandboxCommon.length).toBeGreaterThan(0)
+    const listed = catalog.sandboxes.filter(sandbox => sandbox.status === 'ready' && sandbox.total !== null)
+    expect(listed.length).toBeGreaterThan(0)
+    for (const id of catalog.sandboxCommon) {
+      expect(listed.every(sandbox => catalog.problems.find(problem => problem.id === id)?.versions.some(version => version.id === sandbox.id))).toBe(true)
     }
-    expect(projectsPage.text()).not.toMatch(/\bguest\b/i)
-    expect(projectsPage.text()).not.toContain('RE2')
-
-    const wrapper = await mountAt('/metrics')
-    await flushPromises()
-    expect(wrapper.get('h1').text()).toBe('What each commit measured.')
-    expect(wrapper.get('[data-test="page-hero-graphic"]').text()).toContain('::=')
-    expect(wrapper.get('[data-test="page-hero-graphic"]').text()).toContain('program')
-    expect(wrapper.get('[data-test="benchmark-readout"]').text()).toContain('go native')
-    expect(wrapper.get('[data-test="benchmark-readout"]').text()).toContain('× go')
-    expect(wrapper.get('[data-test="benchmark-readout"]').text()).not.toContain(' ms')
-    expect(wrapper.get('[data-test="time-chart"]').find('svg').exists()).toBe(true)
-    expect(wrapper.find('[data-test="memory-chart"]').exists() || wrapper.text().includes('No memory is recorded')).toBe(true)
-    expect(wrapper.find('[data-test="page-sidebar"]').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('Placeholder')
-    expect(wrapper.text()).not.toMatch(/\bguest\b/i)
-    expect(wrapper.text()).not.toContain('RE2')
   })
 
   it('renders a problem index and one page per problem', async () => {
     const index = await mountAt('/problems')
-    expect(index.get('h1').text()).toBe('Programs with a finish line.')
-    expect(index.get('[data-test="page-hero-graphic"]').text()).toContain('stdin')
-    const statuses = index.findAll('[data-test="problem-status"]')
-    expect(statuses.length).toBeGreaterThan(0)
-    expect(statuses.every(cell => cell.attributes('data-status') === 'pass' || cell.attributes('data-status') === 'fail')).toBe(true)
-    expect(index.get('[data-test="program-leaderboard"]').text()).toContain('Solved problems')
-    expect(index.get('[data-test="ruleset-aggregate"]').text()).toContain('sum')
-    expect(index.find('[data-test="page-sidebar"]').exists()).toBe(false)
-    expect(index.text()).not.toContain('Placeholder')
-    expect(index.text()).not.toContain('unmeasured')
-    expect(index.get('[data-test="program-improve"]').text().toLowerCase()).toContain('autoresearch')
-    expect(index.text()).not.toMatch(/\bguest\b/i)
+    expect(index.get('h1').text()).toBe('Problems.')
+    expect(index.findAll('[data-test="problem-card"]')).toHaveLength(catalog.problems.length)
+    expect(index.get('[data-test="problem-card"]').find('svg').exists()).toBe(true)
     expect(index.text()).not.toContain('RE2')
+    expect(index.text()).not.toMatch(/\bguest\b/i)
 
     const problem = catalog.problems.find(item => item.id === 'factorial')
     expect(problem).toBeTruthy()
     const page = await mountAt(problem!.path)
     await flushPromises()
     expect(page.get('h1').text()).toBe('Factorial')
-    expect(page.get('[data-test="problem-description"]').text()).toContain(problem!.summary)
+    expect(page.get('[data-test="problem-description"]').text()).toContain('0!')
     const links = pageLinks(problem!.path).map(link => link.title)
-    expect(links).toEqual(['Cost', 'Scoreboard', 'Example', 'Solutions'])
-    const detailIds = [...page.get('[data-test="page-details"]').element.children].map(node => (node as HTMLElement).id).filter(id => id.length > 0)
-    expect(detailIds[0]).toBe('cost')
-    expect(page.get('[data-test="cost-caption"]').text().split('.').filter(sentence => sentence.trim().length > 0).length).toBeLessThanOrEqual(2)
-    expect(page.get('[data-test="problem-description"]').html()).toContain('<code>')
-    expect(page.get('[data-test="problem-credit"]').find('a').attributes('href')).toMatch(/^https:\/\//)
-    expect(page.text()).not.toContain('The Go test')
-    expect(page.find('[data-test="page-hero"]').exists()).toBe(true)
-    expect(page.get('[data-test="rex-scene"]').attributes('data-scene')).toBe('problem')
-    expect(page.get('[data-test="problem-legend"]').text()).toContain('direct')
-    const swatch = page.get('[data-test="problem-legend"]').find('[style]')
+    expect(links).toEqual(['Cost', 'Solutions'])
+    expect(page.get('#cost').find('svg').exists()).toBe(true)
+    expect(page.get('[data-test="cost-legend"]').text()).toContain('direct')
+    const swatch = page.get('[data-test="cost-legend"]').find('[style]')
     expect(swatch.attributes('style')).toContain(rulesetColor('direct'))
-    const chart = page.get('[data-test="problem-chart-cost"]')
-    expect(chart.find('svg').exists()).toBe(true)
-    expect(chart.text()).toContain('var(--chart-')
-    const direct = page.get('[data-test="problem-version"][data-version="direct"]')
-    expect(direct.text()).toContain('pass')
-    expect(direct.text()).toContain('cost')
-    expect(page.get('[data-test="problem-version"][data-version="lisp"]').text()).toContain('cost')
-    expect(page.text()).not.toContain('unmeasured')
-    expect(page.text()).not.toMatch(/\bguest\b/i)
+    expect(page.get('[data-test="problem-credit"]').find('a').attributes('href')).toMatch(/^https:\/\//)
+    const table = page.get('[data-test="solutions-table"]')
+    expect(table.find('[data-sandbox="lisp"]').find('[data-test="solution-link"]').attributes('href')).toContain('github.com/thuelang/thueplusplus/blob/main/')
+    await table.get('button[aria-sort="ascending"]').trigger('click')
+    expect(table.get('button[aria-sort="descending"]').text()).toBe('Cost')
     expect(page.text()).not.toContain('RE2')
+    expect(page.text()).not.toMatch(/\bguest\b/i)
   })
 
   it('says when a problem id is not in the suite', async () => {
     const wrapper = await mountAt('/problems/not-a-problem')
-    expect(wrapper.get('h1').text()).toBe('This problem is not in the suite.')
-    expect(wrapper.get('[data-test="problem-missing"]').text()).toContain('not-a-problem')
+    expect(wrapper.get('h1').text()).toBe('This page is not here.')
     expect(problemRouteMeta('not-a-problem').robots).toBe('noindex,follow')
     const known = catalog.problems[0]
     expect(problemRouteMeta(known.id)).toEqual({

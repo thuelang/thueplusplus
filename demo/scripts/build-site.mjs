@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 const catalogPath = join(repoRoot, 'demo/src/generated/catalog.json')
 const summaryPath = join(repoRoot, 'demo/src/generated/summary.json')
-const CHARTS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
+const CHARTS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--chart-6)', 'var(--chart-7)', 'var(--chart-8)', 'var(--chart-9)']
 const SITE = 'https://thuelang.org'
 
 export class CatalogError extends Error {}
@@ -66,26 +66,84 @@ export function problemPages(catalog) {
   }))
 }
 
-export function solutionPages(catalog) {
-  return catalog.problems.flatMap(problem => problem.versions.map(version => ({
-    path: `/problems/${problem.id}/${version.id}`,
-    title: `${problem.title} / ${version.name}`,
-    documentTitle: `Thue++ ${problem.title} — ${version.name}`,
-    description: `${version.name} for ${problem.title}.`,
-    canonical: `${SITE}/problems/${problem.id}/${version.id}`,
-    robots: 'index,follow',
-  })))
+export const HOST_TITLES = {
+  python: 'Python',
+  go: 'Go',
+  js: 'JavaScript (native)',
+  wasm: 'WebAssembly',
+  rust: 'Rust',
+  cpp: 'C++',
+  ruby: 'Ruby',
+  csharp: 'C#',
+  java: 'Java',
 }
 
-export function rulesetPages(catalog) {
-  return catalog.rulesets.map(ruleset => ({
-    path: `/rulesets/${ruleset.id}`,
-    title: ruleset.name,
-    documentTitle: `Thue++ ${ruleset.name}`,
-    description: `${ruleset.name} aggregate cost over the common problems.`,
-    canonical: `${SITE}/rulesets/${ruleset.id}`,
+export function hostIds(text) {
+  const ids = []
+  for (const match of text.matchAll(/\{\s*id\s*=\s*"([^"]+)"/g)) ids.push(match[1])
+  if (ids.length === 0) throw new CatalogError('hosts.toml has no host ids')
+  if (new Set(ids).size !== ids.length) throw new CatalogError('hosts.toml has a duplicate id')
+  return ids
+}
+
+export function hostDocPages(ids) {
+  return ids.flatMap(id => {
+    const title = HOST_TITLES[id]
+    if (!title) throw new CatalogError(`hosts.toml host ${id} has no site title`)
+    return [
+      ['install', 'Install', `${title}.`, `Install the ${title} host.`],
+      ['api', 'API', `${title} API.`, `The ${title} embedding API.`],
+      ['examples', 'Examples', `${title} examples.`, `A ${title} library example.`],
+    ].map(([part, label, heading, description]) => ({
+      path: `/docs/${id}/${part}`,
+      title: heading,
+      documentTitle: `Thue++ ${label} — ${title}`,
+      description,
+      canonical: `${SITE}/docs/${id}/${part}`,
+      robots: 'index,follow',
+    }))
+  })
+}
+
+export function sandboxPages(catalog) {
+  return catalog.sandboxes.map(sandbox => ({
+    path: `/sandboxes/${sandbox.id}`,
+    title: `${sandbox.name}.`,
+    documentTitle: `Thue++ ${sandbox.name}`,
+    description: sandbox.status === 'pending' ? 'In progress.' : sandbox.description,
+    canonical: `${SITE}/sandboxes/${sandbox.id}`,
     robots: 'index,follow',
   }))
+}
+
+export function costDrops(points) {
+  const events = []
+  let previous = null
+  for (const point of points) {
+    if (!Number.isInteger(point.cost) || point.cost < 0) throw new CatalogError(`cost at ${point.commit} is not a non-negative integer`)
+    if (previous && point.cost < previous.cost) {
+      events.push({ before: previous.cost, after: point.cost, commit: point.commit })
+    }
+    previous = point
+  }
+  return events
+}
+
+export function aggregateDrops(snapshots) {
+  const events = []
+  let previous = null
+  for (const snap of snapshots) {
+    if (previous && previous.common.join('\0') === snap.common.join('\0')) {
+      for (const [id, after] of Object.entries(snap.totals)) {
+        const before = previous.totals[id]
+        if (Number.isInteger(before) && after < before) {
+          events.push({ sandbox: id, before, after, commit: snap.commit })
+        }
+      }
+    }
+    previous = snap
+  }
+  return events
 }
 
 export function readGeneratedCatalog() {
@@ -339,6 +397,85 @@ function hostsFromRuns(runs, commit) {
   return [...buckets.values()]
 }
 
+export function discoverSandboxIds() {
+  const ordered = orderFrom('langs/suite.toml')
+  const root = join(repoRoot, 'langs')
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    if (!ordered.includes(entry.name)) ordered.push(entry.name)
+  }
+  if (!ordered.includes('expr')) ordered.push('expr')
+  return ordered
+}
+
+function readSandbox(id) {
+  const readmePath = `langs/${id}/README.md`
+  const abs = join(repoRoot, readmePath)
+  if (!existsSync(abs)) {
+    if (id !== 'expr') throw new CatalogError(`${readmePath} is missing`)
+    return {
+      id,
+      name: 'Expr',
+      description: '',
+      status: 'pending',
+      program: null,
+      programSource: null,
+      readme: '',
+      cases: [],
+    }
+  }
+  const meta = parseFrontmatter(readFileSync(abs, 'utf8'), readmePath)
+  if (!meta.fields.name) throw new CatalogError(`${readmePath}: frontmatter needs name`)
+  if (!meta.fields.description) throw new CatalogError(`${readmePath}: frontmatter needs description`)
+  if (!meta.fields.extension) throw new CatalogError(`${readmePath}: frontmatter needs extension`)
+  const program = `langs/${id}/${id}.thue`
+  if (!existsSync(join(repoRoot, program))) throw new CatalogError(`${program} is missing`)
+  const casesDir = join(repoRoot, 'langs', id, 'cases')
+  const cases = []
+  if (existsSync(casesDir)) {
+    const ext = `.${meta.fields.extension}`
+    for (const name of readdirSync(casesDir).filter(item => item.endsWith(ext)).sort()) {
+      const path = `langs/${id}/cases/${name}`
+      cases.push({
+        name: name.slice(0, -ext.length),
+        path,
+        source: readFileSync(join(repoRoot, path), 'utf8'),
+      })
+    }
+  }
+  return {
+    id,
+    name: meta.fields.name,
+    description: meta.fields.description,
+    status: 'ready',
+    program,
+    programSource: readFileSync(join(repoRoot, program), 'utf8'),
+    readme: meta.body.trim(),
+    cases,
+  }
+}
+
+function measuredAt(solution, fallback) {
+  const last = solution.history.at(-1)
+  if (last) return last.timestamp
+  const stamp = gitStamp(solution.latest.commit)
+  if (stamp) return stamp.timestamp
+  console.log(`site: ${solution.problem}/${solution.ruleset} measurement commit is not in this clone`)
+  return fallback
+}
+
+function seriesCosts(solution) {
+  const points = []
+  for (const row of solution.history) {
+    const metricRel = `problems/${solution.problem}/solutions/${solution.ruleset}/metric.json`
+    const text = gitShow(row.commit, metricRel)
+    if (text == null) continue
+    const data = readMetric(text, `${row.commit}:${metricRel}`)
+    points.push({ commit: row.commit, timestamp: row.timestamp, author: row.author, cost: data.cost })
+  }
+  return points
+}
+
 function build() {
   const problems = orderFrom('problems/suite.toml')
   const specVersion = readFileSync(join(repoRoot, 'SPEC_VERSION'), 'utf8').trim()
@@ -454,6 +591,7 @@ function build() {
           missing: false,
           notes: solution.notes,
           author: solution.author,
+          measured: measuredAt(solution, head.timestamp),
           solutions: [{
             id: solution.entry,
             status: 'pass',
@@ -493,13 +631,72 @@ function build() {
       }),
     }
   })
+  const sandboxes = discoverSandboxIds().map(id => readSandbox(id))
+  const sandboxIds = sandboxes.filter(item => item.status === 'ready').map(item => item.id)
+  const passingSandboxes = {}
+  for (const id of sandboxIds) {
+    const solved = solutions.filter(solution => solution.ruleset === id).map(solution => solution.problem)
+    if (solved.length > 0) passingSandboxes[id] = solved
+  }
+  const sandboxCommon = commonProblems(passingSandboxes)
+  const sandboxCosts = Object.fromEntries(sandboxIds.map(id => [id, Object.fromEntries(solutions.filter(solution => solution.ruleset === id).map(solution => [solution.problem, solution.latest.cost]))]))
+  const sandboxTotals = aggregateSum(sandboxCosts, sandboxCommon)
+  const listed = sandboxes.map(sandbox => ({
+    ...sandbox,
+    total: sandboxTotals[sandbox.id] === undefined ? null : sandboxTotals[sandbox.id],
+    color: colors[sandbox.id] ?? null,
+  }))
+  const improvementEvents = []
+  for (const solution of solutions) {
+    const points = seriesCosts(solution)
+    for (const drop of costDrops(points)) {
+      const row = points.find(item => item.commit === drop.commit)
+      improvementEvents.push({
+        kind: 'solution',
+        sandbox: solution.ruleset,
+        problem: solution.problem,
+        before: drop.before,
+        after: drop.after,
+        commit: drop.commit,
+        timestamp: row.timestamp,
+        author: row.author,
+      })
+    }
+  }
+  const snapshots = commits.map(commit => {
+    const at = costsAt(commit.commit, sandboxIds, problems)
+    const passing = {}
+    for (const id of sandboxIds) {
+      const solved = problems.filter(problem => Number.isInteger(at[id]?.[problem]))
+      if (solved.length > 0) passing[id] = solved
+    }
+    const then = commonProblems(passing)
+    return { ...commit, common: then, totals: aggregateSum(at, then) }
+  })
+  for (const drop of aggregateDrops(snapshots)) {
+    const row = commits.find(item => item.commit === drop.commit)
+    improvementEvents.push({
+      kind: 'sandbox',
+      sandbox: drop.sandbox,
+      problem: null,
+      before: drop.before,
+      after: drop.after,
+      commit: drop.commit,
+      timestamp: row.timestamp,
+      author: row.author,
+    })
+  }
+  improvementEvents.sort((left, right) => right.timestamp.localeCompare(left.timestamp) || left.sandbox.localeCompare(right.sandbox) || String(left.problem).localeCompare(String(right.problem)) || left.kind.localeCompare(right.kind))
   const catalog = {
     schemaVersion: 3,
     specVersion,
     ...head,
     commits,
     commonProblems: common,
+    sandboxCommon,
     rulesets,
+    sandboxes: listed,
+    improvements: improvementEvents,
     problems: catalogProblems,
   }
   mkdirSync(dirname(catalogPath), { recursive: true })
@@ -543,8 +740,9 @@ function writeSitemap(catalog) {
   const pages = JSON.parse(readFileSync(join(repoRoot, 'demo/src/pages.json'), 'utf8'))
   const entries = Object.values(pages).map(page => ({ loc: page.canonical, priority: page.path === '/' ? '1.0' : '0.7' }))
   for (const problem of catalog.problems) entries.push({ loc: problem.canonical, priority: '0.6' })
-  for (const page of solutionPages(catalog)) entries.push({ loc: page.canonical, priority: '0.5' })
-  for (const ruleset of catalog.rulesets) entries.push({ loc: `${SITE}/rulesets/${ruleset.id}`, priority: '0.5' })
+  for (const page of sandboxPages(catalog)) entries.push({ loc: page.canonical, priority: '0.6' })
+  const hosts = hostIds(readFileSync(join(repoRoot, 'hosts.toml'), 'utf8'))
+  for (const page of hostDocPages(hosts)) entries.push({ loc: page.canonical, priority: '0.5' })
   writeFileSync(join(repoRoot, 'demo/public/sitemap.xml'), sitemapXml(entries))
 }
 

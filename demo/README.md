@@ -60,15 +60,14 @@ The state history below the State editor is a raw chronological shadcn-vue/TanSt
 
 ## Page layout
 
-The docs shell is a 52px sticky header. The header is four plain links: Install, Docs, Leaderboard, and Contribute. The logo links home. The theme control is one button that cycles system, light, and dark. A thin line on the header's bottom border shows route progress. Playground, projects, host benchmarks, and the autoresearch prompt are in the footer. The left column is the sticky On this page list: the page's h2 and h3 headings, a vertical rail, and a brighter segment on the section in view. Below 1024px that list collapses behind a Contents toggle at the top of the article. The article is one centered column at about 65ch. There is no right column. `/playground` uses the same header and is outside that shell.
+The docs shell is a 52px sticky header. The header is four plain links: Sandboxes, Problems, Install, and Docs. The logo is Thue++ and links home. The theme control is one button that cycles system, light, and dark. A thin line on the header's bottom border shows route progress. The left column is the sticky On this page list: the page's h2 and h3 headings, a vertical rail, and a brighter segment on the section in view. Below 1024px that list collapses behind a Contents toggle at the top of the article. The article is one centered column at about 65ch, wider on sandboxes and problems. There is no right column. `/embed` is outside that shell.
 
 ## Embeddable playground routes
 
-The same shared playground surface powers the playground page and the embeddable route:
+The shared playground surface is the embeddable route and the runnable examples on a sandbox page:
 
-- `/playground` is its own full-screen route: header, resizable editor and output, and a status bar. It does not use the docs shell.
-- `/embed` renders that same surface with no docs chrome. It is for iframe embeds.
-- `/`, `/docs`, `/docs/guides`, `/docs/language`, `/install`, `/install/go`, `/install/python`, `/install/js`, `/install/wasm`, `/install/rust`, `/install/cpp`, `/install/ruby`, `/install/csharp`, `/install/java`, `/projects`, `/metrics`, `/problems`, `/contribute`, and `/autoresearch` are the other prerendered pages. `/docs` links the language reference and the guides. `/` is the landing page. `/projects` is the sandboxed projects. `/metrics` is the per-commit charts from the generated `demo/src/generated/summary.json`. `/problems` is the problem index, and each problem is also prerendered at `/problems/<id>`. Each ruleset is prerendered at `/rulesets/<id>`. `/contribute` is the contributor loop. `/autoresearch` is the copyable agent prompt. Hash links such as `/metrics#host-time` open that section.
+- `/embed` renders that surface with no docs chrome. It is for iframe embeds.
+- `/`, `/sandboxes`, `/sandboxes/<id>`, `/problems`, `/problems/<id>`, `/install`, `/docs`, and `/docs/<host>/install`, `/docs/<host>/api`, and `/docs/<host>/examples` are prerendered. `/` keeps the hero and charts sandbox cost. `/sandboxes/<id>` is the guide from `langs/<id>`. `/problems/<id>` charts solution cost over commit time.
 
 Supported embed query parameters:
 

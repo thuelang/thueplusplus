@@ -2,7 +2,7 @@
 
 `make metrics` is a local preview of schema 5 `metrics/latest.json`. Pull request CI measures the head and warns. A push to `main` commits `metrics/latest.json` and any changed `metric.json` only when the run results changed. The recorder does not add a bench file.
 
-`/metrics` does not import these files one by one. `demo/scripts/build-site.mjs` globs `metrics/**/bench.json` and `metrics/latest.json` at build time and writes `demo/src/generated/summary.json` from documents that contain `runs`. The host charts on `/metrics` read that summary. The same summary is published at `/metrics/summary.json`. A bench already stores `author` and `timestamp`, and the build uses those fields. A runs document without them uses `git log` when that commit object is in the clone and is omitted when it is not. Problem and ruleset charts read the git history of each `metric.json` that this clone actually contains. A commit listed in `.git/shallow` is a clone boundary, not a measurement, and it is not a chart point.
+`demo/scripts/build-site.mjs` globs `metrics/**/bench.json` and `metrics/latest.json` at build time and writes `demo/src/generated/summary.json` from documents that contain `runs`. The site does not publish that file. A bench already stores `author` and `timestamp`, and the build uses those fields. A runs document without them uses `git log` when that commit object is in the clone and is omitted when it is not. Problem and sandbox charts read the git history of each `metric.json` that this clone actually contains. A commit listed in `.git/shallow` is a clone boundary, not a measurement, and it is not a chart point.
 
 A new `latest.json` is schema 5: `schema_version`, `commit`, `machine`, and `runs`. The publisher also stores `author` and `timestamp` of that commit. Both fields are present or both are absent. An older `latest.json` without them stays valid. Each run is one solution case on one host. `pass` and `cost` match the Go run. A runs document may omit a host the registry gained later. Every case in that document lists the same host set, that set is a subset of the registry, and it includes `go`. The global limits from `metrics/limits.toml` are on every run, and `host_timeout_seconds` equals `timeout_seconds`. `reads` is the scripted resource set. A schema 4 run document stores `stdin` instead of `reads` and stays valid. Older benches stay valid. A schema 4 bench without `runs` is the earlier problem and language record.
 
@@ -10,10 +10,9 @@ A new `latest.json` is schema 5: `schema_version`, `commit`, `machine`, and `run
 | --- | --- |
 | `metrics/latest.json` | The current measurement. Main CI writes it when the runs change. A runs document stores the measured commit. |
 | `metrics/YYYY/MM/DD/{sha}/bench.json` | One archived measurement. The directory date matches `timestamp`. |
-| `demo/src/generated/summary.json` | Compact series generated from every bench file and from `latest.json`. Not committed. |
-| `/metrics/summary.json` | That summary on the published site. |
+| `demo/src/generated/summary.json` | Compact series generated from every bench file and from `latest.json`. Not committed. The site does not publish it. |
 
-Vercel serves the site at https://thuelang.org. The demo build copies the summary to `demo/dist/metrics/summary.json`, and the Vercel build publishes that file at `/metrics/summary.json`. GitLab mirrors the repository and does not publish the site.
+Vercel serves the site at https://thuelang.org. The demo build does not copy the summary into `demo/dist`. GitLab mirrors the repository and does not publish the site.
 
 ## Who writes a file
 

@@ -1,15 +1,15 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { problemPages, readGeneratedCatalog, rulesetPages, solutionPages } from './build-site.mjs'
+import { hostDocPages, hostIds, problemPages, readGeneratedCatalog, sandboxPages } from './build-site.mjs'
 
 const dist = new URL('../dist/', import.meta.url).pathname
 const pages = JSON.parse(readFileSync(new URL('../src/pages.json', import.meta.url), 'utf8'))
 const catalog = readGeneratedCatalog()
 const problems = problemPages(catalog)
-const solutions = solutionPages(catalog)
-const rulesets = rulesetPages(catalog)
+const sandboxes = sandboxPages(catalog)
+const hosts = hostDocPages(hostIds(readFileSync(new URL('../../hosts.toml', import.meta.url), 'utf8')))
 const requiredAssets = ['robots.txt', 'sitemap.xml', 'og-image.png', 'favicon.svg', 'favicon.png', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'brand/thue-mark.svg']
-const staticRoutes = [...Object.values(pages).filter(page => page.path !== '/').map(page => page.path.replace(/^\//, '')), ...problems.map(page => page.path.replace(/^\//, '')), ...solutions.map(page => page.path.replace(/^\//, '')), ...rulesets.map(page => page.path.replace(/^\//, '')), 'embed']
+const staticRoutes = [...Object.values(pages).filter(page => page.path !== '/').map(page => page.path.replace(/^\//, '')), ...problems.map(page => page.path.replace(/^\//, '')), ...sandboxes.map(page => page.path.replace(/^\//, '')), ...hosts.map(page => page.path.replace(/^\//, '')), 'embed']
 
 for (const asset of requiredAssets) {
   const path = join(dist, asset)
@@ -48,15 +48,17 @@ for (const route of staticRoutes) {
   }
 }
 
-const playgroundIndex = readFileSync(join(dist, 'playground', 'index.html'), 'utf8')
-if (!playgroundIndex.includes('Thue++ Playground') || !playgroundIndex.includes('https://thuelang.org/playground')) {
-  throw new Error('playground route index must include route-specific SEO metadata')
+const removed = ['playground', 'projects', 'metrics', 'contribute', 'autoresearch', 'docs/guides', 'docs/language', 'install/go', 'rulesets/direct', 'problems/hello-world/direct']
+for (const route of removed) {
+  if (existsSync(join(dist, route, 'index.html'))) {
+    throw new Error(`${route} must not be prerendered`)
+  }
 }
 const embedIndex = readFileSync(join(dist, 'embed', 'index.html'), 'utf8')
 if (!embedIndex.includes('noindex,follow')) {
   throw new Error('embed route index must be noindexed')
 }
-for (const page of [...Object.values(pages), ...problems, ...solutions]) {
+for (const page of [...Object.values(pages), ...problems, ...sandboxes, ...hosts]) {
   if (page.path === '/') continue
   const routeIndex = readFileSync(join(dist, page.path.replace(/^\//, ''), 'index.html'), 'utf8')
   if (!routeIndex.includes(page.title) || !routeIndex.includes(page.canonical)) {
@@ -72,10 +74,13 @@ for (const problem of problems) {
     throw new Error(`sitemap.xml is missing ${problem.canonical}`)
   }
 }
-for (const solution of solutions) {
-  if (!sitemap.includes(solution.canonical)) {
-    throw new Error(`sitemap.xml is missing ${solution.canonical}`)
+for (const page of [...sandboxes, ...hosts]) {
+  if (!sitemap.includes(page.canonical)) {
+    throw new Error(`sitemap.xml is missing ${page.canonical}`)
   }
+}
+if (sitemap.includes('/playground') || sitemap.includes('/rulesets/') || sitemap.includes('/projects')) {
+  throw new Error('sitemap.xml still lists a removed route')
 }
 
 const jsFiles = readdirSync(join(dist, 'assets')).filter(name => name.endsWith('.js'))
