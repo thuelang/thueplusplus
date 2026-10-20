@@ -382,6 +382,17 @@
     "errors": []
   },
   {
+    "path": "examples/named-capture/duplicate.thue",
+    "resources": [
+      {
+        "name": "stdout",
+        "reads": false,
+        "writes": true
+      }
+    ],
+    "errors": []
+  },
+  {
     "path": "examples/pattern-alias/dollar-transitive.thue",
     "resources": [
       {

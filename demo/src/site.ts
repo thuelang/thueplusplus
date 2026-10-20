@@ -1,4 +1,6 @@
 import { catalog, type CatalogProblem } from './catalog'
+import { headingId } from './markdown'
+import { guideFor } from './sandboxGuides.mjs'
 import pageRecords from './pages.json'
 
 export interface PageLink {
@@ -31,6 +33,16 @@ export function pageLinks(path: string): PageLink[] {
   }
   if (path === pages.sandboxes.path) {
     return catalog.sandboxes.map(sandbox => ({ title: sandbox.name, href: `/sandboxes/${sandbox.id}` }))
+  }
+  if (path.startsWith('/sandboxes/')) {
+    const id = path.slice('/sandboxes/'.length)
+    if (!catalog.sandboxes.some(sandbox => sandbox.id === id)) return []
+    const guide = guideFor(id)
+    return [
+      { title: 'Call', href: '#call' },
+      { title: 'Examples', href: '#examples' },
+      ...guide.readmeSections.map((title: string) => ({ title, href: `#${headingId(title)}` })),
+    ]
   }
   const problem = catalog.problems.find(item => item.path === path)
   if (problem) return problemPageLinks(problem)

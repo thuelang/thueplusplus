@@ -1,5 +1,5 @@
 import { catalog, type CatalogProblem } from '@/catalog'
-import type { TimePoint } from './cost'
+import { sandboxSeriesFromCatalog, type TimePoint } from './cost'
 
 export interface ChartSeries {
   id: string
@@ -8,12 +8,8 @@ export interface ChartSeries {
   points: TimePoint[]
 }
 
-export function sandboxBars(): { id: string; label: string; value: number; color: string }[] {
-  return catalog.sandboxes.flatMap(sandbox => {
-    if (sandbox.total === null) return []
-    if (!sandbox.color) throw new Error(`${sandbox.id} has a total and no chart color`)
-    return [{ id: sandbox.id, label: sandbox.name, value: sandbox.total, color: sandbox.color }]
-  })
+export function sandboxCostSeries(): ChartSeries[] {
+  return sandboxSeriesFromCatalog(catalog)
 }
 
 export function problemSeries(problem: CatalogProblem): ChartSeries[] {

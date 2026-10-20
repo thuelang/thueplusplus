@@ -15,10 +15,22 @@ function inline(value: string): string {
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" rel="noreferrer">$1</a>')
 }
 
-function headingId(text: string): string {
+export function headingId(text: string): string {
   const id = text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   if (id.length === 0) throw new Error(`heading has no id: ${text}`)
   return id
+}
+
+function tableCells(line: string): string[] {
+  return line.split('|').slice(1, -1).map(cell => cell.trim())
+}
+
+function renderTable(lines: string[]): string {
+  const header = tableCells(lines[0])
+  const body = lines.slice(1).filter(line => !tableCells(line).every(cell => /^:?-+:?$/.test(cell)))
+  const head = `<tr>${header.map(cell => `<th>${inline(cell)}</th>`).join('')}</tr>`
+  const rows = body.map(line => `<tr>${tableCells(line).map(cell => `<td>${inline(cell)}</td>`).join('')}</tr>`).join('')
+  return `<table><thead>${head}</thead><tbody>${rows}</tbody></table>`
 }
 
 function renderBlock(block: string): string {
@@ -28,6 +40,9 @@ function renderBlock(block: string): string {
     const level = heading[1].length
     const text = heading[2]
     return `<h${level} id="${headingId(text)}">${inline(text)}</h${level}>`
+  }
+  if (lines.length >= 2 && lines.every(line => line.startsWith('|') && line.endsWith('|'))) {
+    return renderTable(lines)
   }
   if (lines.every(line => line.startsWith('- '))) {
     const items = lines.map(line => `<li>${inline(line.slice(2))}</li>`).join('')

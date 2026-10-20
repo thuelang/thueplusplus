@@ -1,0 +1,284 @@
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function assertCost(value) {
+  if (!Number.isInteger(value) || value < 0) throw new Error(`cost ${value} is not a non-negative integer`)
+}
+
+export function runningMin(points) {
+  let best = Number.POSITIVE_INFINITY
+  return points.map(point => {
+    assertCost(point.cost)
+    best = Math.min(best, point.cost)
+    return { time: point.time, cost: best }
+  })
+}
+
+export function formatCost(value) {
+  assertCost(value)
+  return value.toLocaleString('en-US')
+}
+
+export function axisLabelPad(max) {
+  return formatCost(max).length * 8 + 16
+}
+
+export function axisTicks(max) {
+  if (!Number.isFinite(max) || max < 0) throw new Error(`axis max ${max} is not usable`)
+  if (max === 0) return [0]
+  const mid = Math.round(max / 2)
+  return mid === 0 || mid === max ? [0, max] : [0, mid, max]
+}
+
+export function chooseScale(values) {
+  if (!Array.isArray(values) || values.length === 0) return 'linear'
+  for (const value of values) assertCost(value)
+  const positive = values.filter(value => value > 0)
+  if (positive.length < 2) return 'linear'
+  const min = Math.min(...positive)
+  const max = Math.max(...positive)
+  return max / min >= 20 ? 'log' : 'linear'
+}
+
+export function logTicks(min, max) {
+  if (!(min > 0) || !(max >= min)) throw new Error(`log domain ${min}..${max} is not usable`)
+  const ticks = []
+  const start = Math.ceil(Math.log10(min) - 1e-9)
+  const end = Math.floor(Math.log10(max) + 1e-9)
+  for (let power = start; power <= end; power += 1) {
+    const tick = 10 ** power
+    if (tick >= min && tick <= max) ticks.push(tick)
+  }
+  if (!ticks.includes(min)) ticks.unshift(min)
+  if (ticks[ticks.length - 1] !== max) ticks.push(max)
+  if (ticks.length <= 4) return ticks
+  const kept = [ticks[0]]
+  const step = (ticks.length - 1) / 3
+  for (let index = 1; index < 3; index += 1) kept.push(ticks[Math.round(index * step)])
+  kept.push(ticks[ticks.length - 1])
+  return [...new Set(kept)].sort((left, right) => left - right)
+}
+
+export function timeX(time, min, max, left, width) {
+  if (max === min) return left + width / 2
+  return left + ((time - min) / (max - min)) * width
+}
+
+export function costY(cost, max, top, height, progress) {
+  const span = max === 0 ? 1 : max
+  const full = top + height - (cost / span) * height
+  const base = top + height
+  return base + (full - base) * progress
+}
+
+export function plotY(cost, scale, min, max, top, height, progress) {
+  if (scale === 'linear') return costY(cost, max, top, height, progress)
+  if (scale !== 'log') throw new Error(`scale ${scale} is not linear or log`)
+  if (!(min > 0) || !(max > 0) || !(cost > 0)) throw new Error(`log scale cannot plot ${cost} in ${min}..${max}`)
+  const lo = Math.log10(min)
+  const hi = Math.log10(max)
+  const t = hi === lo ? 1 : (Math.log10(cost) - lo) / (hi - lo)
+  const full = top + height - t * height
+  const base = top + height
+  return base + (full - base) * progress
+}
+
+export function polyline(points) {
+  return points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(' ')
+}
+
+export function polylineLength(points) {
+  let length = 0
+  for (let index = 1; index < points.length; index += 1) {
+    const dx = points[index].x - points[index - 1].x
+    const dy = points[index].y - points[index - 1].y
+    length += Math.hypot(dx, dy)
+  }
+  return length
+}
+
+export function formatTime(time, span) {
+  const date = new Date(time)
+  if (Number.isNaN(date.getTime())) throw new Error(`bad time ${time}`)
+  const month = MONTHS[date.getUTCMonth()]
+  const day = date.getUTCDate()
+  const year = date.getUTCFullYear()
+  if (span < 36 * 60 * 60 * 1000) {
+    const hours = String(date.getUTCHours()).padStart(2, '0')
+    const minutes = String(date.getUTCMinutes()).padStart(2, '0')
+    return `${month} ${day} ${hours}:${minutes}`
+  }
+  if (span < 370 * 24 * 60 * 60 * 1000) return `${month} ${day}`
+  return String(year)
+}
+
+export function timeLabels(min, max, width) {
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max < min) throw new Error(`time domain ${min}..${max} is not usable`)
+  if (!Number.isFinite(width) || width <= 0) throw new Error(`label width ${width} is not usable`)
+  const span = max - min
+  const textOf = time => formatTime(time, span)
+  const candidates = max === min
+    ? [{ time: min, text: textOf(min) }]
+    : [
+        { time: min, text: textOf(min) },
+        { time: min + span / 2, text: textOf(min + span / 2) },
+        { time: max, text: textOf(max) },
+      ]
+  const xOf = time => (max === min ? width / 2 : ((time - min) / span) * width)
+  const half = label => (label.text.length * 6.6) / 2
+  const hit = (left, right) => Math.abs(xOf(left.time) - xOf(right.time)) < half(left) + half(right) + 8
+  let labels = candidates
+  if (labels.length === 3 && (hit(labels[0], labels[1]) || hit(labels[1], labels[2]))) labels = [labels[0], labels[2]]
+  if (labels.length === 2 && hit(labels[0], labels[1])) {
+    const time = min + span / 2
+    labels = [{ time, text: textOf(time) }]
+  }
+  return labels
+}
+
+export function separateDots(dots, radius) {
+  if (!Number.isFinite(radius) || radius <= 0) throw new Error(`radius ${radius} is not usable`)
+  const minDist = radius * 2 + 1
+  const seriesCount = new Set(dots.map(dot => dot.series)).size
+  const maxShift = minDist * Math.max(1, seriesCount)
+  const placed = dots.map(dot => ({ ...dot, x: dot.x, origin: dot.x }))
+  const overlaps = (left, right) => left.series !== right.series && Math.hypot(left.x - right.x, left.y - right.y) < minDist
+  for (let pass = 0; pass < 24; pass += 1) {
+    let moved = false
+    for (let i = 0; i < placed.length; i += 1) {
+      for (let j = i + 1; j < placed.length; j += 1) {
+        const a = placed[i]
+        const b = placed[j]
+        if (!overlaps(a, b)) continue
+        const dx = b.x - a.x
+        const dir = dx === 0 ? (a.series < b.series ? -1 : 1) : Math.sign(dx)
+        const push = Math.max((minDist - Math.abs(dx)) / 2, 0.5)
+        const left = dir < 0 ? b : a
+        const right = dir < 0 ? a : b
+        const nextLeft = Math.max(left.origin - maxShift, left.x - push)
+        const nextRight = Math.min(right.origin + maxShift, right.x + push)
+        if (nextLeft !== left.x || nextRight !== right.x) moved = true
+        left.x = nextLeft
+        right.x = nextRight
+      }
+    }
+    if (!moved) break
+  }
+  for (let i = 0; i < placed.length; i += 1) {
+    for (let j = i + 1; j < placed.length; j += 1) {
+      if (overlaps(placed[i], placed[j])) throw new Error(`dots ${placed[i].series} and ${placed[j].series} still overlap`)
+    }
+  }
+  return placed.map(({ origin, ...dot }) => dot)
+}
+
+export function summedCostSeries(perProblem, commits) {
+  if (!Array.isArray(perProblem) || perProblem.length === 0) throw new Error('summed cost needs the common problems')
+  const times = [...commits].filter(time => Number.isFinite(time)).sort((left, right) => left - right)
+  if (times.length === 0) throw new Error('summed cost needs commit times')
+  const sorted = perProblem.map(series => [...series].sort((left, right) => left.time - right.time || left.cost - right.cost))
+  const latest = (series, time) => {
+    let cost = null
+    for (const point of series) {
+      assertCost(point.cost)
+      if (point.time <= time) cost = point.cost
+      else break
+    }
+    return cost
+  }
+  const points = []
+  let previous = null
+  for (const time of times) {
+    const costs = sorted.map(series => latest(series, time))
+    if (costs.some(cost => cost == null)) continue
+    const cost = costs.reduce((sum, item) => sum + item, 0)
+    if (previous == null || cost !== previous) points.push({ time, cost })
+    previous = cost
+  }
+  const end = times[times.length - 1]
+  if (points.length > 0 && points[points.length - 1].time !== end) points.push({ time: end, cost: previous })
+  return points
+}
+
+export function sandboxSeriesFromCatalog(catalog) {
+  const problems = catalog.sandboxCommon.map(id => {
+    const problem = catalog.problems.find(item => item.id === id)
+    if (!problem) throw new Error(`common problem ${id} is missing`)
+    return problem
+  })
+  const commitTime = new Map(catalog.commits.map(commit => {
+    const time = Date.parse(commit.timestamp)
+    if (Number.isNaN(time)) throw new Error(`commit ${commit.commit} has no time`)
+    return [commit.commit, time]
+  }))
+  const commitTimes = catalog.commits.map(commit => commitTime.get(commit.commit))
+  return catalog.sandboxes.flatMap(sandbox => {
+    if (sandbox.total == null) return []
+    if (!sandbox.color) throw new Error(`${sandbox.id} has a total and no chart color`)
+    const perProblem = problems.map(problem => {
+      const version = problem.versions.find(item => item.id === sandbox.id)
+      if (!version) throw new Error(`${sandbox.id} has no cost on ${problem.id}`)
+      return version.series.map(point => {
+        const time = commitTime.get(point.commit)
+        if (time == null) throw new Error(`${problem.id} commit ${point.commit} is not in the catalog`)
+        return { time, cost: point.cost }
+      })
+    })
+    const points = summedCostSeries(perProblem, commitTimes)
+    if (points.length === 0) throw new Error(`${sandbox.id} has no summed cost over time`)
+    if (points[points.length - 1].cost !== sandbox.total) {
+      throw new Error(`${sandbox.id} ends at ${points[points.length - 1].cost}, total is ${sandbox.total}`)
+    }
+    return [{ id: sandbox.id, label: sandbox.name, color: sandbox.color, points }]
+  })
+}
+
+export function chartLayout(series, options) {
+  const width = options.width
+  const height = options.height
+  const spark = options.spark === true
+  const track = options.track === 'sum' ? 'sum' : 'best'
+  const progress = options.progress ?? 1
+  const radius = spark ? 3 : 4
+  const values = series.flatMap(item => item.points.map(point => point.cost))
+  const max = values.length === 0 ? 0 : Math.max(...values)
+  const scale = options.scale ?? (track === 'sum' ? chooseScale(values) : 'linear')
+  const positive = values.filter(value => value > 0)
+  const minCost = scale === 'log' ? Math.min(...positive) : 0
+  const pad = spark
+    ? { l: 8, r: 8, t: 8, b: 8 }
+    : { l: axisLabelPad(max), r: 16, t: 16, b: 36 }
+  const inner = {
+    left: pad.l,
+    top: pad.t,
+    width: width - pad.l - pad.r,
+    height: height - pad.t - pad.b,
+  }
+  const times = series.flatMap(item => item.points.map(point => point.time))
+  const minTime = times.length === 0 ? 0 : Math.min(...times)
+  const maxTime = times.length === 0 ? 0 : Math.max(...times)
+  const yAt = (cost, at) => plotY(cost, scale, minCost, max, inner.top, inner.height, at)
+  const xAt = time => timeX(time, minTime, maxTime, inner.left, inner.width)
+  const drawn = series.map((item, seriesIndex) => {
+    const ordered = [...item.points].sort((left, right) => left.time - right.time || left.cost - right.cost)
+    const lineSource = track === 'best' ? runningMin(ordered) : ordered
+    const line = lineSource.map(point => ({ x: xAt(point.time), y: yAt(point.cost, progress) }))
+    const dots = ordered.map(point => ({
+      x: xAt(point.time),
+      y: yAt(point.cost, 1),
+      series: seriesIndex,
+      cost: point.cost,
+      id: item.id,
+    }))
+    return { id: item.id, label: item.label, color: item.color, line, dots }
+  })
+  const separated = spark ? drawn.flatMap(item => item.dots) : separateDots(drawn.flatMap(item => item.dots), radius)
+  const laid = drawn.map(item => {
+    const dots = separated.filter(dot => dot.id === item.id).map(dot => ({ ...dot, y: yAt(dot.cost, progress) }))
+    const line = item.line
+    return { ...item, dots, line, d: polyline(line), length: polylineLength(line) }
+  })
+  const labels = spark ? [] : timeLabels(minTime, maxTime, inner.width).map(label => ({ ...label, x: xAt(label.time) }))
+  const tickValues = spark ? [] : scale === 'log' ? logTicks(minCost, max) : axisTicks(max)
+  const ticks = tickValues.map(value => ({ value, y: yAt(value, 1), text: formatCost(value) }))
+  return { width, height, pad, scale, radius, series: laid, labels, ticks }
+}

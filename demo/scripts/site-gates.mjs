@@ -1,8 +1,10 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { commonProblems, discoverSandboxIds, readGeneratedCatalog } from './build-site.mjs'
+import { chartLayout, chooseScale, sandboxSeriesFromCatalog } from '../src/charts/geometry.mjs'
+import { guideFor, readmeSection, sandboxGuides } from '../src/sandboxGuides.mjs'
+import { commonProblems, costDrops, discoverSandboxIds, readGeneratedCatalog } from './build-site.mjs'
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 const demoSrc = join(repoRoot, 'demo/src')
@@ -14,12 +16,20 @@ if (!name) {
 
 const handlers = {
   common,
+  'home-chart': homeChart,
+  'home-scale': homeScale,
   improvements,
+  featured,
+  rex,
+  outlines,
+  'guides-page': guidesPage,
+  guides,
   sandboxes,
   expr,
   'problems-index': problemsIndex,
   'problem-chart': problemChart,
   'solutions-table': solutionsTable,
+  filler,
   install,
   docs,
   nav,
@@ -74,7 +84,7 @@ function common() {
   if (expected.length === 0) fail('common set is empty')
   if (expected.join('\0') !== data.sandboxCommon.join('\0')) fail(`sandboxCommon ${data.sandboxCommon.join(',')} != ${expected.join(',')}`)
   const home = source('pages/HomePage.vue')
-  if (!home.includes('sandboxBars()') || !home.includes('catalog.sandboxCommon')) fail('home chart is not driven by the catalog')
+  if (!home.includes('sandboxCostSeries()') || !home.includes('catalog.sandboxCommon')) fail('home chart is not driven by the catalog')
   if (!home.includes('data-test="featured-sandboxes"') || !home.includes('data-test="cost-chart"') && !home.includes('<CostChart')) fail('home has no cost chart')
   const listed = data.sandboxes.filter(sandbox => sandbox.total !== null)
   if (listed.length === 0) fail('no sandbox has a total')
@@ -92,34 +102,136 @@ function common() {
   console.log('common ok')
 }
 
+function homeChart() {
+  const data = catalog()
+  const home = source('pages/HomePage.vue')
+  const chart = source('components/CostChart.vue')
+  if (home.includes('sandboxBars') || chart.includes('<rect') || chart.includes('<canvas')) fail('home chart is still bars or a canvas')
+  if (!home.includes('track="sum"') || !home.includes('sandboxCostSeries')) fail('home chart is not one line of summed cost per sandbox')
+  const series = sandboxSeriesFromCatalog(data)
+  const expected = data.sandboxes.filter(item => item.total != null).map(item => item.id)
+  if (expected.length < 3) fail('fewer than three sandboxes have a common-problem sum')
+  if (series.map(item => item.id).join(',') !== expected.join(',')) fail('chart lines are not the sandboxes with a total')
+  for (const line of series) {
+    const ruleset = data.rulesets.find(item => item.id === line.id)
+    const sandbox = data.sandboxes.find(item => item.id === line.id)
+    if (!ruleset || line.color !== ruleset.color) fail(`${line.id} color does not match the problem page`)
+    if (line.points.length === 0 || line.points[line.points.length - 1].cost !== sandbox.total) fail(`${line.id} line does not end at the common-problem sum`)
+  }
+  const layout = chartLayout(series, { width: 640, height: 280, track: 'sum', progress: 1 })
+  if (layout.labels.length === 0) fail('home chart has no time labels')
+  if (!chart.includes('data-test="cost-legend"') || !chart.includes('data-test="time-label"')) fail('home chart is missing a legend or time labels')
+  console.log('home-chart ok')
+}
+
+function homeScale() {
+  const series = sandboxSeriesFromCatalog(catalog())
+  const values = series.flatMap(line => line.points.map(point => point.cost))
+  const positive = values.filter(value => value > 0)
+  const ratio = Math.max(...positive) / Math.min(...positive)
+  const scale = chooseScale(values)
+  if (scale !== (ratio >= 20 ? 'log' : 'linear')) fail(`scale ${scale} does not follow ratio ${ratio}`)
+  const home = source('pages/HomePage.vue')
+  const chart = source('components/CostChart.vue')
+  if (!home.includes('chooseScale')) fail('home does not choose the scale from the costs')
+  if (!chart.includes('Log scale.')) fail('a log scale would be unlabeled')
+  const layout = chartLayout(series, { width: 640, height: 280, track: 'sum', progress: 1 })
+  if (layout.scale !== scale) fail('drawn scale does not match the costs')
+  console.log('home-scale ok')
+}
+
 function improvements() {
   const home = source('pages/HomePage.vue')
-  if (!home.includes('v-if="improvements.length"')) fail('home always shows the improvements list')
+  for (const field of ['improvement-commit', 'improvement-sandbox', 'improvement-problem', 'improvement-before', 'improvement-after']) {
+    if (!home.includes(`data-test="${field}"`)) fail(`home feed is missing ${field}`)
+  }
+  if (!home.includes('repositoryUrl}/commit/')) fail('feed does not link to the commit')
+  if (!home.includes('v-if="improvements.length"')) fail('home shows an empty improvements list')
   const data = catalog()
+  let found = 0
+  for (const problem of data.problems) {
+    for (const version of problem.versions) {
+      const points = version.series.map(point => {
+        const commit = data.commits.find(item => item.commit === point.commit)
+        if (!commit) fail(`${problem.id} ${point.commit} is not in the catalog`)
+        return { commit: point.commit, cost: point.cost, time: Date.parse(commit.timestamp) }
+      }).sort((left, right) => left.time - right.time || left.commit.localeCompare(right.commit))
+      for (const drop of costDrops(points)) {
+        const event = data.improvements.find(item => item.kind === 'solution' && item.commit === drop.commit && item.problem === problem.id && item.sandbox === version.id && item.before === drop.before && item.after === drop.after)
+        if (!event) fail(`missing improvement ${problem.id} ${version.id} ${drop.before} -> ${drop.after}`)
+        found += 1
+      }
+    }
+  }
+  if (found === 0) fail('no solution cost drop in the catalog history')
   for (const event of data.improvements) {
     if (!(event.after < event.before)) fail(`${event.commit} is not a decrease`)
-    if (event.kind !== 'solution' && event.kind !== 'sandbox') fail(`bad improvement kind ${event.kind}`)
   }
-  const builder = read('demo/scripts/build-site.mjs')
-  if (!builder.includes('export function costDrops') || !builder.includes('export function aggregateDrops')) fail('improvement rules are missing')
   console.log('improvements ok')
+}
+
+function featured() {
+  const home = source('pages/HomePage.vue')
+  if (!home.includes('data-test="featured-sandboxes"') || !home.includes('catalog.sandboxCommon') || !home.includes('data-test="common-problems"')) fail('featured sandboxes are gone')
+  console.log('featured ok')
+}
+
+function rex() {
+  for (const root of [join(demoSrc, 'pages'), join(demoSrc, 'components/scenes')]) {
+    for (const path of walk(root)) {
+      if (!/\.(vue|ts)$/.test(path)) continue
+      if (readFileSync(path, 'utf8').includes('hello Ada')) fail(`${path} still has the hello Ada scene`)
+    }
+  }
+  for (const path of ['pages/SandboxesPage.vue', 'pages/SandboxPage.vue', 'pages/ProblemsPage.vue']) {
+    const text = source(path)
+    if (text.includes('GuideScene') || text.includes('SceneFrame') || text.includes('LeaderboardScene')) fail(`${path} still mounts a Rex scene`)
+  }
+  console.log('rex ok')
+}
+
+function outlines() {
+  const page = source('pages/SandboxesPage.vue')
+  if (page.includes('sandbox.readme') || page.includes('MarkdownBody') || page.includes('In progress')) fail('sandbox index dumps a readme')
+  if (!page.includes('guide.useCases') || !page.includes('guide.strengths')) fail('sandbox index has no outline')
+  const sentence = 'Apparently, you can write a powerful Lisp'
+  if (!read('langs/lisp/README.md').includes(sentence)) fail('lisp readme sentence moved')
+  if (page.includes(sentence)) fail('sandbox index dumps the lisp readme')
+  for (const sandbox of catalog().sandboxes) guideFor(sandbox.id)
+  console.log('outlines ok')
+}
+
+function guidesPage() {
+  const page = source('pages/SandboxPage.vue')
+  if (!page.includes('guide.purpose') || !page.includes('sandbox-command') || !page.includes('sandbox-output')) fail('sandbox page is not a guide')
+  if (page.includes('PlaygroundSurface') || page.includes('In progress')) fail('sandbox page still dumps a playground')
+  console.log('guides-page ok')
+}
+
+function guides() {
+  for (const guide of sandboxGuides) {
+    for (const example of guide.examples) {
+      const result = spawnSync('node', ['js/src/cli.js', example.program, ...example.args], { cwd: repoRoot, encoding: 'utf8' })
+      if (result.status !== example.exit) fail(`${guide.id} ${example.name} exit ${result.status}, stderr ${JSON.stringify(result.stderr)}`)
+      if (result.stdout !== example.stdout) fail(`${guide.id} ${example.name} stdout ${JSON.stringify(result.stdout)}`)
+      if (result.stderr !== example.stderr) fail(`${guide.id} ${example.name} stderr ${JSON.stringify(result.stderr)}`)
+      const shown = example.exit === 0 ? example.stdout : example.stderr
+      if (example.output !== shown) fail(`${guide.id} ${example.name} displayed output is not the host output`)
+    }
+  }
+  console.log('guides ok')
 }
 
 function sandboxes() {
   const data = catalog()
   const page = source('pages/SandboxesPage.vue')
-  const detail = source('pages/SandboxPage.vue')
   if (!page.includes('catalog.sandboxes')) fail('sandbox index is not the catalog')
-  if (!detail.includes('sandbox-guide')) fail('sandbox page does not render the guide')
-  for (const id of ['lisp', 'forth', 'basic']) {
+  for (const id of ['lisp', 'forth', 'basic', 'expr']) {
     const sandbox = data.sandboxes.find(item => item.id === id)
     if (!sandbox || sandbox.status !== 'ready') fail(`${id} is not a ready sandbox`)
-    const readme = read(`langs/${id}/README.md`)
-    const body = readme.slice(readme.indexOf('\n---\n') + 5).trim().replace(/^#[^\n]*\n+/, '')
-    const sentence = body.trim().slice(0, 40)
-    if (sentence.length < 24 || !sandbox.readme.includes(sentence.slice(0, 24))) fail(`${id} guide is not the langs readme`)
-    if (sandbox.cases.length === 0) fail(`${id} has no runnable case`)
     if (!sandbox.programSource) fail(`${id} has no interpreter source`)
+    const guide = guideFor(id)
+    if (guide.examples.length < 2) fail(`${id} has fewer than two examples`)
   }
   console.log('sandboxes ok')
 }
@@ -127,23 +239,27 @@ function sandboxes() {
 function expr() {
   const data = catalog()
   const sandbox = data.sandboxes.find(item => item.id === 'expr')
-  if (!sandbox) fail('expr is missing from the catalog')
-  const page = source('pages/SandboxPage.vue')
-  const pending = page.slice(page.indexOf("sandbox.status === 'pending'"), page.indexOf('<DocPage v-else'))
-  if (pending.includes('PlaygroundSurface') || pending.includes('MarkdownBody')) fail('pending expr page renders a guide or a playground')
-  const readme = join(repoRoot, 'langs/expr/README.md')
-  if (!existsSync(readme)) {
-    if (sandbox.status !== 'pending' || sandbox.readme !== '' || sandbox.cases.length !== 0) fail('missing langs/expr is not pending')
-  } else if (sandbox.status !== 'ready' || sandbox.readme.length === 0) {
-    fail('langs/expr exists but the page is not ready')
+  if (!sandbox || sandbox.status !== 'ready' || sandbox.readme.length === 0) fail('expr is not ready')
+  const text = [source('pages/SandboxPage.vue'), source('pages/SandboxesPage.vue'), source('router.ts')].join('\n')
+  if (text.includes('In progress')) fail('expr still says in progress')
+  const guide = guideFor('expr')
+  if (!guide.command.includes('--line:expr') || !guide.command.includes('--line:env')) fail('expr call does not document the line resources')
+  for (const heading of ['Resources', 'What works', 'Errors', 'Known differences']) {
+    const section = readmeSection(sandbox.readme, heading)
+    if (!guide.readmeSections.includes(heading)) fail(`expr page omits ${heading}`)
+    if (heading === 'Resources' && (!section.includes('`expr`') || !section.includes('`env`'))) fail('expr resources are missing')
+    if (heading === 'What works' && (!section.includes('**') || !section.includes('??'))) fail('expr operators are missing')
+    if (heading === 'Errors' && !section.includes('division_by_zero')) fail('expr error codes are missing')
+    if (heading === 'Known differences' && !section.includes('unsupported_float')) fail('expr limits are missing')
   }
+  if (!source('pages/SandboxPage.vue').includes('readmeSection')) fail('expr page does not render the readme sections')
   console.log('expr ok')
 }
 
 function problemsIndex() {
   const data = catalog()
   const page = source('pages/ProblemsPage.vue')
-  if (!page.includes('data-test="problem-card"') || !page.includes('<CostChart') || !page.includes('problem.summary')) fail('problem cards are missing a chart or a description')
+  if (!page.includes('data-test="problem-card"') || !page.includes('<CostChart') || !page.includes('problem.description') || !page.includes('grid-cols-1')) fail('problem cards are missing a chart, a description, or a grid')
   if (data.problems.length === 0) fail('no problems')
   for (const problem of data.problems) {
     if (!problem.summary || !problem.description) fail(`${problem.id} has no description`)
@@ -152,25 +268,54 @@ function problemsIndex() {
   console.log('problems-index ok')
 }
 
-function problemChart() {
-  const chart = source('components/CostChart.vue')
-  if (!chart.includes('<svg') || !chart.includes('<circle') || !chart.includes('runningMin') || !chart.includes("ease('out'")) fail('problem chart is not an inline SVG with a running minimum')
-  if (chart.includes('<canvas') || chart.includes('@unovis') || chart.includes('recharts')) fail('problem chart uses a canvas or a chart library')
-  const data = catalog()
-  const problem = data.problems.find(item => item.id === 'factorial') ?? data.problems[0]
-  if (!problem) fail('no problem to chart')
-  const ids = new Set(problem.versions.map(version => version.id))
-  if (!ids.has('direct')) fail(`${problem.id} chart has no direct series`)
-  for (const version of problem.versions) {
-    if (!version.color.startsWith('var(--chart-')) fail(`${version.id} has no chart color`)
-    if (version.series.length === 0) fail(`${version.id} has no points`)
-    for (const point of version.series) {
+function problemSeries(data, problem) {
+  return problem.versions.map(version => ({
+    id: version.id,
+    label: version.name,
+    color: version.color,
+    points: version.series.map(point => {
       const commit = data.commits.find(item => item.commit === point.commit)
       if (!commit || Number.isNaN(Date.parse(commit.timestamp))) fail(`${point.commit} has no commit time`)
       if (!Number.isInteger(point.cost)) fail(`${version.id} point has no cost`)
+      return { time: Date.parse(commit.timestamp), cost: point.cost }
+    }),
+  }))
+}
+
+function problemChart() {
+  const chart = source('components/CostChart.vue')
+  const geometry = read('demo/src/charts/geometry.mjs')
+  if (!chart.includes('<svg') || !chart.includes('<circle') || !geometry.includes("track === 'best' ? runningMin") || !chart.includes("ease('out'")) fail('problem chart is not an inline SVG with a running minimum')
+  if (chart.includes('<canvas') || chart.includes('@unovis') || chart.includes('recharts')) fail('problem chart uses a canvas or a chart library')
+  if (!geometry.includes('export function separateDots') || !chart.includes('data-test="time-label"')) fail('problem chart does not separate dots or label time')
+  const data = catalog()
+  const problem = data.problems.find(item => item.id === 'factorial') ?? data.problems[0]
+  if (!problem) fail('no problem to chart')
+  const series = problemSeries(data, problem)
+  if (!series.some(item => item.id === 'direct')) fail(`${problem.id} chart has no direct series`)
+  const layout = chartLayout(series, { width: 640, height: 280, track: 'best', progress: 1 })
+  if (layout.labels.length === 0) fail('problem chart has no time labels')
+  const dots = layout.series.flatMap(item => item.dots)
+  let close = 0
+  for (let i = 0; i < dots.length; i += 1) {
+    for (let j = i + 1; j < dots.length; j += 1) {
+      if (dots[i].id === dots[j].id) continue
+      const dist = Math.hypot(dots[i].x - dots[j].x, dots[j].y - dots[i].y)
+      if (dist < 9) close += 1
     }
   }
+  if (close !== 0) fail(`${close} problem-chart dots still overlap`)
   console.log('problem-chart ok')
+}
+
+function filler() {
+  const files = walk(demoSrc).filter(path => /\.(vue|mjs)$/.test(path) || (path.endsWith('.ts') && !path.endsWith('.test.ts')))
+  for (const path of files) {
+    const text = readFileSync(path, 'utf8')
+    if (text.includes('In progress')) fail(`${path} says in progress`)
+    if (text.includes('RE2')) fail(`${path} mentions RE2`)
+  }
+  console.log('filler ok')
 }
 
 function solutionsTable() {
@@ -322,9 +467,9 @@ function changelog() {
 
 function shots() {
   const root = '/opt/cursor/artifacts'
-  const pages = ['home', 'sandboxes', 'sandbox', 'problems', 'problem', 'install', 'docs-install', 'docs-api', 'docs-examples']
+  const pages = ['home', 'sandboxes', 'sandbox-lisp', 'sandbox-forth', 'sandbox-basic', 'sandbox-expr', 'problems', 'problem']
   const themes = ['dark', 'light']
-  const widths = ['390', '768', '1440']
+  const widths = ['390', '1440']
   for (const page of pages) {
     for (const theme of themes) {
       for (const width of widths) {
@@ -333,20 +478,21 @@ function shots() {
       }
     }
   }
-  const videos = readdirSync(root).filter(name => name.endsWith('.mp4'))
-  if (videos.length === 0) fail('missing chart screen recording')
   const body = prBody()
   for (const page of pages) {
-    if (!body.includes(`${page}-dark-1440.png`) && !body.includes(`${page}-dark-1440`)) fail(`PR body is missing ${page}`)
+    for (const theme of themes) {
+      for (const width of widths) {
+        if (!body.includes(`${page}-${theme}-${width}.png`)) fail(`PR body is missing ${page}-${theme}-${width}.png`)
+      }
+    }
   }
-  if (!body.includes('.mp4') && !body.includes('<video')) fail('PR body is missing the chart recording')
   console.log('shots ok')
 }
 
 function pr() {
   const view = gh(['pr', 'view', '--json', 'body,mergeable,state,baseRefName'])
   const data = JSON.parse(view)
-  if (!/closes\s+#148/i.test(data.body ?? '')) fail('PR body does not close #148')
+  if (!/closes\s+#153/i.test(data.body ?? '')) fail('PR body does not close #153')
   if (data.baseRefName !== 'main') fail(`PR base is ${data.baseRefName}`)
   if (data.mergeable !== 'MERGEABLE') fail(`PR mergeable is ${data.mergeable}`)
   console.log('pr ok')

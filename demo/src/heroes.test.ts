@@ -59,11 +59,15 @@ describe('heroes', () => {
       wrapper.get('[data-test="page-details"]')
       const scene = wrapper.find('[data-test="rex-scene"]')
       const sandbox = wrapper.find('[data-test="sandbox-scene"]')
-      expect(scene.exists() || sandbox.exists(), path).toBe(true)
+      const sceneFree = path === '/sandboxes' || path === '/problems' || path.startsWith('/sandboxes/')
       if (path === '/') {
         expect(sandbox.attributes('data-test')).toBe('sandbox-scene')
         expect(wrapper.get('[data-test="landing-languages"]').text()).toContain('Available in')
+      } else if (sceneFree) {
+        expect(scene.exists(), path).toBe(false)
+        expect(wrapper.text(), path).not.toContain('hello Ada')
       } else {
+        expect(scene.exists() || sandbox.exists(), path).toBe(true)
         expect(scene.attributes('data-scene')?.length, path).toBeGreaterThan(0)
       }
       wrapper.unmount()

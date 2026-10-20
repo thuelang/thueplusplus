@@ -4,7 +4,7 @@ test('problems index shows a cost chart on every card', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   await page.goto('/problems')
   await expect(page.getByRole('heading', { level: 1, name: 'Problems.' })).toBeVisible()
-  await expect(page.getByTestId('page-hero-graphic')).toBeVisible()
+  await expect(page.getByTestId('problem-index')).toBeVisible()
   await expect(page.getByTestId('problem-card').first()).toBeVisible()
   await expect(page.getByTestId('problem-card').first().locator('svg')).toBeVisible()
   await expect(page.locator('body')).not.toContainText(/RE2/)
@@ -29,7 +29,10 @@ test('sandboxes index names the interpreters', async ({ page }) => {
   await expect(page.getByTestId('sandbox-index')).toContainText('Lisp')
   await expect(page.getByTestId('sandbox-index')).toContainText('Forth')
   await expect(page.getByTestId('sandbox-index')).toContainText('BASIC')
-  await expect(page.getByTestId('sandbox-index')).toContainText('In progress.')
+  await expect(page.getByTestId('sandbox-index')).toContainText('Expr')
+  await expect(page.getByTestId('sandbox-index')).toContainText('Use cases')
+  await expect(page.getByTestId('sandbox-index')).not.toContainText('In progress.')
+  await expect(page.getByTestId('sandbox-index')).not.toContainText('hello Ada')
 })
 
 test('mobile problems page keeps the hero and the cards', async ({ page }) => {
