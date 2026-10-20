@@ -226,7 +226,7 @@ export function sandboxSeriesFromCatalog(catalog) {
   }
   const commitTimes = [...commitTime.values()]
   const fallbackTime = commitTimes.length === 0 ? null : Math.max(...commitTimes)
-  return catalog.sandboxes.flatMap(sandbox => {
+  const lines = catalog.sandboxes.flatMap(sandbox => {
     if (sandbox.total == null || !sandbox.color) return []
     const perProblem = problems.map(problem => {
       const version = problem.versions.find(item => item.id === sandbox.id)
@@ -242,6 +242,27 @@ export function sandboxSeriesFromCatalog(catalog) {
     if (points.length === 0 || points[points.length - 1].cost !== sandbox.total) return []
     return [{ id: sandbox.id, label: sandbox.name, color: sandbox.color, points }]
   })
+  const direct = directHomeSeries(problems, commitTime, commitTimes, fallbackTime)
+  if (direct) lines.push(direct)
+  return lines
+}
+
+function directHomeSeries(problems, commitTime, commitTimes, fallbackTime) {
+  if (problems.length === 0 || commitTimes.length === 0) return null
+  const versions = problems.map(problem => problem.versions.find(item => item.id === 'direct'))
+  if (versions.some(version => !version)) return null
+  const perProblem = versions.map(version => versionPoints(version, commitTime, fallbackTime))
+  if (perProblem.some(points => points.length === 0)) return null
+  const points = summedCostSeries(perProblem, commitTimes)
+  const total = perProblem.reduce((sum, series) => {
+    const ordered = [...series].sort((left, right) => left.time - right.time || left.cost - right.cost)
+    return sum + ordered[ordered.length - 1].cost
+  }, 0)
+  const last = points[points.length - 1]
+  if (!last || last.cost !== total) throw new Error(`Direct Thue sum ${last?.cost} is not ${total}`)
+  const color = versions[0].color
+  if (!color) throw new Error('Direct Thue has no chart color')
+  return { id: 'direct', label: 'Direct Thue', color, points }
 }
 
 export function textWidth(text) {
@@ -289,11 +310,15 @@ export function placeEndLabels(labels, top, bottom) {
 
 export function bestSandboxMarks(problem) {
   return problem.versions.flatMap(version => {
-    if (version.id === 'direct') return []
     const costs = version.series.map(point => point.cost)
     if (costs.length === 0) return []
     for (const cost of costs) assertCost(cost)
-    return [{ id: version.id, label: version.name, color: version.color, cost: Math.min(...costs) }]
+    return [{
+      id: version.id,
+      label: version.id === 'direct' ? 'Direct Thue' : version.name,
+      color: version.color,
+      cost: Math.min(...costs),
+    }]
   })
 }
 

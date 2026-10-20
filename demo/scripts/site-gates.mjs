@@ -283,9 +283,11 @@ function problemsIndex() {
 }
 
 function problemSeries(data, problem) {
-  return problem.versions.map(version => ({
+  return problem.versions.flatMap(version => {
+    if (version.id === 'direct' && version.series.length === 0) return []
+    return [{
     id: version.id,
-    label: version.name,
+    label: version.id === 'direct' ? 'Direct Thue' : version.name,
     color: version.color,
     points: version.series.map(point => {
       const commit = data.commits.find(item => item.commit === point.commit)
@@ -293,7 +295,8 @@ function problemSeries(data, problem) {
       if (!Number.isInteger(point.cost)) fail(`${version.id} point has no cost`)
       return { time: Date.parse(commit.timestamp), cost: point.cost }
     }),
-  }))
+  }]
+  })
 }
 
 function problemChart() {
@@ -305,9 +308,10 @@ function problemChart() {
   const data = catalog()
   const problem = data.problems.find(item => item.id === 'factorial') ?? data.problems[0]
   if (!problem) fail('no problem to chart')
-  const series = problemSeries(data, problem).filter(item => item.id !== 'direct')
-  if (series.length === 0) fail(`${problem.id} chart has no sandbox series`)
-  if (series.some(item => item.id === 'direct')) fail(`${problem.id} chart still draws direct`)
+  const series = problemSeries(data, problem)
+  if (!series.some(item => item.id !== 'direct')) fail(`${problem.id} chart has no sandbox series`)
+  const directLine = series.find(item => item.id === 'direct')
+  if (!directLine || directLine.label !== 'Direct Thue' || directLine.points.length === 0) fail(`${problem.id} chart has no Direct Thue line`)
   const layout = chartLayout(series, { width: 640, height: 280, track: 'best', progress: 1 })
   if (layout.labels.length === 0) fail('problem chart has no time labels')
   const dots = layout.series.flatMap(item => item.dots)
@@ -508,7 +512,7 @@ function shots() {
 function pr() {
   const view = gh(['pr', 'view', '--json', 'body,mergeable,state,baseRefName'])
   const data = JSON.parse(view)
-  if (!/closes\s+#164/i.test(data.body ?? '')) fail('PR body does not close #164')
+  if (!/closes\s+#165/i.test(data.body ?? '')) fail('PR body does not close #165')
   if (data.baseRefName !== 'main') fail(`PR base is ${data.baseRefName}`)
   if (data.state !== 'MERGED' && data.mergeable !== 'MERGEABLE') fail(`PR mergeable is ${data.mergeable}`)
   console.log('pr ok')
@@ -562,11 +566,13 @@ async function live() {
     await page.goto('https://www.thuelang.org/', { waitUntil: 'networkidle', timeout: 60000 })
     await page.waitForSelector('[data-test="end-label"]', { timeout: 15000 })
     const labels = await page.locator('[data-test="end-label"]').allTextContents()
-    if (labels.length !== 3) fail(`home chart has ${labels.length} lines: ${labels.join(' | ')}`)
-    for (const name of ['Forth', 'Lisp', 'BASIC']) {
+    for (const name of ['Forth', 'Lisp', 'BASIC', 'Direct Thue']) {
       if (!labels.some(label => label.startsWith(`${name} `))) fail(`home chart is missing ${name}: ${labels.join(' | ')}`)
     }
     await page.goto('https://www.thuelang.org/problems/factorial', { waitUntil: 'networkidle', timeout: 60000 })
+    await page.waitForSelector('[data-test="end-label"][data-sandbox="direct"]', { timeout: 15000 })
+    const directLabel = await page.locator('[data-test="end-label"][data-sandbox="direct"]').innerText()
+    if (!directLabel.startsWith('Direct Thue ')) fail(`factorial chart label is ${directLabel}`)
     await page.waitForSelector('[data-test="solution-link"]', { timeout: 15000 })
     const links = await page.locator('[data-test="solution-link"]').count()
     if (links < 1) fail('problem page has no solution links')
@@ -629,6 +635,17 @@ function colors() {
         if (distance < 100) fail(`${theme} ${ids[left]} and ${ids[right]} are ${distance.toFixed(1)} apart`)
       }
     }
+    const block = theme === 'dark' ? css.slice(darkStart, lightStart) : css.slice(lightStart)
+    const directMatch = block.match(/--direct:\s*(#[0-9a-fA-F]{6})/)
+    if (!directMatch) fail(`${theme} is missing --direct`)
+    const direct = directMatch[1].toLowerCase()
+    const [red, green, blue] = rgbOf(direct)
+    if (Math.max(red, green, blue) - Math.min(red, green, blue) < 50) fail(`${theme} direct ${direct} is gray`)
+    for (const id of ids) {
+      const [ar, ag, ab] = rgbOf(hexes[id])
+      const distance = Math.hypot(ar - red, ag - green, ab - blue)
+      if (distance < 100) fail(`${theme} direct and ${id} are ${distance.toFixed(1)} apart`)
+    }
   }
   const data = catalog()
   for (const id of ['forth', 'lisp', 'basic', 'expr']) {
@@ -639,7 +656,7 @@ function colors() {
     if (ruleset && ruleset.color !== expected) fail(`${id} ruleset color is ${ruleset.color}`)
   }
   const directRuleset = data.rulesets.find(item => item.id === 'direct')
-  if (!directRuleset || directRuleset.color.includes('--sandbox-')) fail('direct uses a sandbox color')
+  if (!directRuleset || directRuleset.color !== 'var(--direct)') fail(`direct color is ${directRuleset?.color}`)
   console.log('colors ok')
 }
 
@@ -682,7 +699,7 @@ function labels() {
   assertEnds(chartLayout(homeSeries, { width: 640, height: 280, track: 'sum', progress: 1 }), homeSeries, 'sum')
   const factorial = data.problems.find(item => item.id === 'factorial')
   if (!factorial) fail('factorial is missing')
-  const factorialSeries = problemSeries(data, factorial).filter(item => item.id !== 'direct')
+  const factorialSeries = problemSeries(data, factorial)
   assertEnds(chartLayout(factorialSeries, { width: 640, height: 280, track: 'best', progress: 1 }), factorialSeries, 'best')
   const spreadSeries = [
     { id: 'low', label: 'Low', color: '#4c9dff', points: [{ time: 1, cost: 10 }, { time: 2, cost: 10 }] },
@@ -715,7 +732,7 @@ function timeFit() {
   const homeSeries = sandboxSeriesFromCatalog(data)
   assertInside(chartLayout(homeSeries, { width: 640, height: 280, track: 'sum', progress: 1 }))
   const factorial = data.problems.find(item => item.id === 'factorial')
-  const factorialSeries = problemSeries(data, factorial).filter(item => item.id !== 'direct')
+  const factorialSeries = problemSeries(data, factorial)
   assertInside(chartLayout(factorialSeries, { width: 640, height: 280, track: 'best', progress: 1 }))
   console.log('time-fit ok')
 }
@@ -731,17 +748,24 @@ function cards() {
   let empty = 0
   for (const problem of data.problems) {
     const marks = bestSandboxMarks(problem)
-    const expected = problem.versions.filter(version => version.id !== 'direct' && version.series.length > 0)
-    if (marks.length !== expected.length) fail(`${problem.id} has ${marks.length} marks for ${expected.length} sandbox series`)
+    const expected = problem.versions.filter(version => version.series.length > 0)
+    if (marks.length !== expected.length) fail(`${problem.id} has ${marks.length} marks for ${expected.length} series`)
     if (marks.length === 0) empty += 1
     for (const mark of marks) {
       const version = expected.find(item => item.id === mark.id)
       const best = Math.min(...version.series.map(point => point.cost))
       if (mark.cost !== best) fail(`${problem.id} ${mark.id} mark is not the best cost`)
       if (mark.color !== version.color) fail(`${problem.id} ${mark.id} mark color differs from the chart`)
+      if (mark.id === 'direct' && mark.label !== 'Direct Thue') fail(`${problem.id} card calls direct ${mark.label}`)
     }
   }
-  if (empty === 0) fail('no direct-only problem, so an empty card chart was not measured')
+  const directOnly = data.problems.filter(problem => problem.versions.some(version => version.id === 'direct' && version.series.length > 0) && problem.versions.every(version => version.id === 'direct' || version.series.length === 0))
+  if (directOnly.length === 0) fail('no direct-only problem')
+  for (const problem of directOnly) {
+    const marks = bestSandboxMarks(problem)
+    if (marks.length !== 1 || marks[0].id !== 'direct' || marks[0].label !== 'Direct Thue') fail(`${problem.id} card does not show Direct Thue alone`)
+  }
+  if (empty !== 0) fail(`${empty} cards have no cost mark`)
   console.log('cards ok')
 }
 
@@ -750,16 +774,20 @@ function direct() {
   if (!home.includes("event.sandbox !== 'direct'")) fail('home feed still lists direct')
   if (home.includes('>direct<')) fail('home renders direct as a sandbox name')
   const series = source('charts/series.ts')
-  if (!series.includes("version.id !== 'direct'")) fail('problem charts include direct')
+  if (series.includes("version.id !== 'direct'")) fail('problem charts still drop direct')
+  if (!series.includes("'Direct Thue'")) fail('problem charts do not name Direct Thue')
   const page = source('pages/ProblemPage.vue')
   if (!page.includes('Direct Thue')) fail('solutions table does not call the baseline Direct Thue')
   if (!page.includes('>Entry<')) fail('solutions column still treats every row as a sandbox')
   const data = catalog()
-  const factorial = data.problems.find(item => item.id === 'factorial')
-  const all = problemSeries(data, factorial)
-  const drawn = all.filter(item => item.id !== 'direct')
-  if (!all.some(item => item.id === 'direct') || drawn.length === all.length) fail('factorial has no direct series to keep off the chart')
-  if (!drawn.some(item => item.id === 'forth')) fail('factorial chart dropped a sandbox')
+  const leap = data.problems.find(item => item.id === 'leap-year')
+  const drawn = problemSeries(data, leap)
+  if (!drawn.some(item => item.id === 'direct' && item.label === 'Direct Thue' && item.points.length > 0)) fail('leap-year chart has no Direct Thue line')
+  const omitted = problemSeries(data, { ...leap, versions: leap.versions.filter(version => version.id !== 'direct') })
+  if (omitted.some(item => item.id === 'direct')) fail('a problem without direct still draws it')
+  if (!drawn.some(item => item.id === 'forth')) fail('leap-year chart dropped a sandbox')
+  const homeSeries = sandboxSeriesFromCatalog(data)
+  if (!homeSeries.some(item => item.id === 'direct' && item.label === 'Direct Thue')) fail('home chart omitted Direct Thue')
   const events = data.improvements.filter(event => event.sandbox === 'direct')
   if (events.length === 0) fail('catalog has no direct drop, so the feed filter was not measured')
   console.log('direct ok')

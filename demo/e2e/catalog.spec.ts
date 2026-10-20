@@ -20,7 +20,7 @@ test('a problem page charts cost and links the solutions', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Factorial' })).toBeVisible()
   await expect(page.getByTestId('cost-chart')).toBeVisible()
   await expect(page.getByTestId('cost-legend')).toContainText('Forth')
-  await expect(page.getByTestId('cost-legend')).not.toContainText('direct')
+  await expect(page.getByTestId('cost-legend')).toContainText('Direct Thue')
   await expect(page.getByTestId('end-label').first()).toBeVisible()
   await expect(page.locator('[data-sandbox="direct"] [data-test="solution-link"]')).toHaveText('Direct Thue')
   await expect(page.getByTestId('rex-scene')).toHaveCount(0)
