@@ -197,11 +197,17 @@ export function bestSandboxMarks(problem) {
     const costs = version.series.map(point => point.cost)
     if (costs.length === 0) return []
     for (const cost of costs) assertCost(cost)
+    let best = version.series[0]
+    for (const point of version.series) {
+      if (point.cost < best.cost) best = point
+    }
+    const solution = (version.solutions || []).find(item => item.id === best.solution)
     return [{
       id: version.id,
       label: version.id === 'direct' ? 'Direct Thue' : version.name,
       color: version.color,
-      cost: Math.min(...costs),
+      cost: best.cost,
+      title: solution && solution.title ? solution.title : null,
     }]
   })
 }

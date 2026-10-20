@@ -1,0 +1,7 @@
+name = "front matter is a comment"
+program = "../comment.thue"
+
+[expect]
+stdout = "hi\n"
+stderr = ""
+exit_code = 0

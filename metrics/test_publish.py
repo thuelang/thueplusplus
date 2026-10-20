@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Publish only real metric changes. No interpreters."""
 
-import hashlib
 import json
 import os
 import subprocess
@@ -40,23 +39,22 @@ MACHINE_A = {"os": "Linux", "release": "6.12.0", "arch": "x86_64", "cpu": "Examp
 MACHINE_B = {**MACHINE_A, "cpu": "Other CPU", "cpus": 4}
 
 
-def _hash(problem: str, ruleset: str = "direct") -> str:
-    return hashlib.sha256(f"{problem}/{ruleset}".encode()).hexdigest()[:12]
+def _key(problem: str, ruleset: str = "direct") -> str:
+    return f"{problem}/{ruleset}/2026-10-20_14-34-00"
 
 
 def _solution(problem: str, ruleset: str = "direct") -> Solution:
-    digest = _hash(problem, ruleset)
     return Solution(
         problem=problem,
         ruleset=ruleset,
-        entry=f"{digest}.thue",
-        entry_path=f"problems/{problem}/solutions/{ruleset}/2026-10-20_14-34-00/{digest}.thue",
+        entry="sample.thue",
+        entry_path=f"problems/{problem}/solutions/{ruleset}/2026-10-20_14-34-00/sample.thue",
         author="Ada <ada@example.com>",
         notes="Notes.",
-        program=f"problems/{problem}/solutions/{ruleset}/2026-10-20_14-34-00/{digest}.thue",
+        program=f"problems/{problem}/solutions/{ruleset}/2026-10-20_14-34-00/sample.thue",
         state="x",
         direct=ruleset == "direct",
-        hash=digest,
+        slug="sample",
         timestamp="2026-10-20_14-34-00",
     )
 
@@ -158,7 +156,7 @@ class PublishTest(unittest.TestCase):
             )
             self.assertEqual(paths, ["metrics/versions.json", "metrics/latest.json"])
             versions = json.loads((root / "metrics" / "versions.json").read_text(encoding="utf-8"))
-            hello = versions["versions"][_hash("hello-world")]
+            hello = versions["versions"][_key("hello-world")]
             self.assertEqual(hello["cost"], 4)
             self.assertEqual(hello["commit"], COMMIT_A)
             self.assertTrue(hello["current"])
@@ -172,7 +170,7 @@ class PublishTest(unittest.TestCase):
             factorial = next(row for row in latest["runs"] if row["problem"] == "factorial" and row["host"] == "go")
             self.assertEqual(factorial["cost"], 8)
             self.assertEqual(factorial["duration_ms"], 40)
-            recorded = versions["versions"][_hash("factorial")]
+            recorded = versions["versions"][_key("factorial")]
             self.assertEqual(recorded["cost"], 8)
             self.assertEqual(recorded["commit"], COMMIT_B)
 
@@ -183,7 +181,7 @@ class PublishTest(unittest.TestCase):
             document = {
                 "schema_version": 1,
                 "versions": {
-                    hello.hash: {
+                    _key("hello-world"): {
                         **_metric(4, COMMIT_A),
                         "problem": "hello-world",
                         "ruleset": "direct",
@@ -197,13 +195,13 @@ class PublishTest(unittest.TestCase):
             path.write_text(json.dumps(document) + "\n", encoding="utf-8")
             same = _write_metrics([hello], _runs("hello-world", 4), COMMIT_B, root=root)
             self.assertEqual(same, [])
-            self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["versions"][hello.hash]["commit"], COMMIT_A)
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["versions"][_key("hello-world")]["commit"], COMMIT_A)
             changed = _runs("hello-world", 4)
             for row in changed:
                 row["regex_evals"] = 9
             wrote = _write_metrics([hello], changed, COMMIT_B, root=root)
             self.assertEqual(wrote, ["metrics/versions.json"])
-            data = json.loads(path.read_text(encoding="utf-8"))["versions"][hello.hash]
+            data = json.loads(path.read_text(encoding="utf-8"))["versions"][_key("hello-world")]
             self.assertEqual(data["regex_evals"], 9)
             self.assertEqual(data["cost"], 4)
             self.assertIn("regex_evals", METRIC_FIELDS)
@@ -324,7 +322,7 @@ class PublishTest(unittest.TestCase):
         versions = {"schema_version": 1, "versions": {}}
         for problem, cost in costs.items():
             solution = _solution(problem)
-            versions["versions"][solution.hash] = {
+            versions["versions"][_key(problem)] = {
                 **_metric(cost, commit),
                 "problem": problem,
                 "ruleset": "direct",

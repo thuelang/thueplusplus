@@ -166,7 +166,7 @@ function homeScale() {
 
 function improvements() {
   const home = source('pages/HomePage.vue')
-  for (const field of ['improvement-commit', 'improvement-sandbox', 'improvement-problem', 'improvement-before', 'improvement-after']) {
+  for (const field of ['improvement-commit', 'improvement-sandbox', 'improvement-problem', 'improvement-title', 'improvement-before', 'improvement-after']) {
     if (!home.includes(`data-test="${field}"`)) fail(`home feed is missing ${field}`)
   }
   if (!home.includes('repositoryUrl}/commit/')) fail('feed does not link to the commit')
@@ -363,12 +363,13 @@ function filler() {
 function solutionsTable() {
   const page = source('pages/ProblemPage.vue')
   if (!page.includes('data-test="solutions-table"') || !page.includes('data-test="solution-link"') || !page.includes('sourceUrl')) fail('solutions table does not link to the source')
-  if (!page.includes("toggle('cost')") || !page.includes("toggle('author')") || !page.includes("toggle('date')")) fail('solutions table is not sortable')
+  if (!page.includes("toggle('title')") || !page.includes("toggle('cost')") || !page.includes("toggle('author')") || !page.includes("toggle('date')")) fail('solutions table is not sortable')
+  if (!page.includes('data-test="solution-title"')) fail('solutions table has no title')
   const data = catalog()
   const problem = data.problems.find(item => item.id === 'factorial') ?? data.problems[0]
   const lisp = problem.versions.find(version => version.id === 'lisp') ?? problem.versions[0]
   const path = lisp.solutions[0]?.solutionPath
-  if (!path || !/^problems\/[^/]+\/solutions\/[^/]+\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\/[0-9a-f]{12}\.[a-z0-9]+$/.test(path)) fail(`solution path is not a version file: ${path}`)
+  if (!path || !/^problems\/[^/]+\/solutions\/[^/]+\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\/[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+$/.test(path)) fail(`solution path is not a version file: ${path}`)
   if (lisp.solutions.length < 2) fail('factorial lisp does not list every version')
   console.log('solutions-table ok')
 }

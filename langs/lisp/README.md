@@ -12,6 +12,8 @@ Apparently, you can write a powerful Lisp in 500 lines of Thue++.
 
 ## Supported input forms
 
+A line that starts with `;` is a comment.
+
 Atoms:
 
 - numbers matching the repository numeric literal contract: integers, decimals, and non-zero-denominator fractions;

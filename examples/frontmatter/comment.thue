@@ -1,0 +1,9 @@
+---
+title: Echo
+author: Ada
+---
+^hi\n?$ ::> stdout hi\n
+^$ ::- 0
+
+::=
+hi

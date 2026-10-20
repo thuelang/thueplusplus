@@ -4,8 +4,8 @@
 Usage: scripts/add-solution <slug> <sandbox> <file>
 
 The directory name is the current UTC time, YYYY-MM-DD_HH-MM-SS. The file name
-is the first 12 hex characters of the SHA-256 of the file bytes. An existing
-hash or timestamp is an error. Older versions are left as they are.
+is the slug of the required title. An existing timestamp is an error. Older
+versions are left as they are.
 """
 
 from __future__ import annotations
@@ -17,7 +17,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "metrics"))
 
-from versions import VersionError, file_hash, format_timestamp, versions_in  # noqa: E402
+from solution_frontmatter import SolutionFrontmatterError, slugify, split_solution  # noqa: E402
+from versions import VersionError, format_timestamp, versions_in  # noqa: E402
 
 
 def main() -> int:
@@ -41,19 +42,24 @@ def add_solution(root: Path, slug: str, sandbox: str, source: Path) -> str:
     if not ruleset.is_dir():
         raise VersionError(f"problems/{slug}/solutions/{sandbox} is missing")
     data = source.read_bytes()
-    digest = file_hash(data)
     extension = source.suffix[1:]
     if not extension:
         raise VersionError(f"{source} needs an extension")
+    try:
+        fields, _body = split_solution(data, extension)
+    except SolutionFrontmatterError as exc:
+        raise VersionError(str(exc)) from exc
+    title = fields.get("title", "")
+    if not title:
+        raise VersionError(f"{source} front matter needs title")
+    name = f"{slugify(title)}.{extension}"
     existing = versions_in(root, slug, ruleset)
-    if any(item.hash == digest for item in existing):
-        raise VersionError(f"problems/{slug}/solutions/{sandbox} already has {digest}")
     stamp = format_timestamp(datetime.now(timezone.utc))
     if any(item.timestamp == stamp for item in existing):
         raise VersionError(f"problems/{slug}/solutions/{sandbox}/{stamp} already exists")
     folder = ruleset / stamp
     folder.mkdir()
-    target = folder / f"{digest}.{extension}"
+    target = folder / name
     target.write_bytes(data)
     return target.relative_to(root).as_posix()
 

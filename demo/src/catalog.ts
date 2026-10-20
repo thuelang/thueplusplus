@@ -39,6 +39,8 @@ export interface CatalogSolution {
   ruleChars: number | null
   solution: string
   solutionPath: string
+  title: string
+  author: string | null
 }
 
 export interface CatalogVersion {
@@ -95,6 +97,7 @@ export interface CatalogImprovement {
   commit: string
   timestamp: string
   author: string
+  title: string | null
 }
 
 export interface CatalogSandboxCase {

@@ -22,6 +22,24 @@ class FrontmatterError(ValueError):
     pass
 
 
+def parse_field_content(content: str, path: str) -> tuple[str, str]:
+    """One `key: value` line. Nested values and limit keys are rejected."""
+    if content[:1].isspace():
+        raise FrontmatterError(f"{path}: nested frontmatter is invalid")
+    if ":" not in content:
+        raise FrontmatterError(f"{path}: frontmatter line {content!r} has no key")
+    key, value = content.split(":", 1)
+    key = key.strip()
+    value = value.strip()
+    if key in LIMIT_KEYS:
+        raise FrontmatterError(f"{path}: {key} is global and cannot appear in frontmatter")
+    if not key or not value:
+        raise FrontmatterError(f"{path}: frontmatter key {key!r} must be a new non-empty field")
+    if value[0] in "{[|&":
+        raise FrontmatterError(f"{path}: nested frontmatter is invalid")
+    return key, value
+
+
 def parse_frontmatter(text: str, path: str) -> tuple[dict[str, str], str]:
     if not text.startswith("---\n"):
         raise FrontmatterError(f"{path}: missing opening frontmatter")
@@ -36,19 +54,9 @@ def parse_frontmatter(text: str, path: str) -> tuple[dict[str, str], str]:
     for line in raw.split("\n"):
         if line.strip() == "":
             continue
-        if line[:1].isspace():
-            raise FrontmatterError(f"{path}: nested frontmatter is invalid")
-        if ":" not in line:
-            raise FrontmatterError(f"{path}: frontmatter line {line!r} has no key")
-        key, value = line.split(":", 1)
-        key = key.strip()
-        value = value.strip()
-        if key in LIMIT_KEYS:
-            raise FrontmatterError(f"{path}: {key} is global and cannot appear in frontmatter")
-        if not key or not value or key in fields:
+        key, value = parse_field_content(line, path)
+        if key in fields:
             raise FrontmatterError(f"{path}: frontmatter key {key!r} must be a new non-empty field")
-        if value[0] in "{[|&":
-            raise FrontmatterError(f"{path}: nested frontmatter is invalid")
         fields[key] = value
     if not fields:
         raise FrontmatterError(f"{path}: frontmatter is empty")
