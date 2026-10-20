@@ -59,7 +59,7 @@ export const sandboxSeriesFromCatalog = sandboxSeriesFromCatalogJs as (catalog: 
   sandboxCommon: string[]
   commits: { commit: string; timestamp: string }[]
   sandboxes: { id: string; name: string; total: number | null; color: string | null }[]
-  problems: { id: string; versions: { id: string; series: { commit: string; cost: number }[] }[] }[]
+  problems: { id: string; versions: { id: string; series: { commit: string; cost: number }[]; solutions?: { cost: number | null }[] }[] }[]
 }) => { id: string; label: string; color: string; points: TimePoint[] }[]
 
 export interface ChartLayout {

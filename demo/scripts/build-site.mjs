@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { sandboxSeriesFromCatalog } from '../src/charts/geometry.mjs'
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 const catalogPath = join(repoRoot, 'demo/src/generated/catalog.json')
@@ -454,6 +455,39 @@ function readSandbox(id) {
   }
 }
 
+function metricPoint(solution, commit, data) {
+  return {
+    commit,
+    solution: solution.entry,
+    cost: data.cost,
+    steps: data.applied_steps,
+    regexEvals: data.regex_evals,
+    regexMatches: data.regex_matches,
+    stateBytes: data.state_bytes,
+    statePeak: data.state_peak,
+    ruleCount: data.rule_count,
+    ruleChars: data.rule_chars,
+  }
+}
+
+function metricSeries(solution, head) {
+  const points = []
+  for (const commit of solution.history) {
+    const metricRel = `problems/${solution.problem}/solutions/${solution.ruleset}/metric.json`
+    const text = gitShow(commit.commit, metricRel)
+    if (text == null) {
+      console.log(`site: omit ${metricRel} at ${commit.commit} (blob is not in this clone)`)
+      continue
+    }
+    points.push(metricPoint(solution, commit.commit, readMetric(text, `${commit.commit}:${metricRel}`)))
+  }
+  if (points.length === 0) {
+    console.log(`site: ${solution.problem}/${solution.ruleset} has no metric history; keeping the working tree cost`)
+    points.push(metricPoint(solution, head.commit, solution.latest))
+  }
+  return points
+}
+
 function measuredAt(solution, fallback) {
   const last = solution.history.at(-1)
   if (last) return last.timestamp
@@ -508,7 +542,7 @@ function build() {
       for (const commit of historyResult.omitted) omittedBoundary.add(commit)
       const history = historyResult.rows
       const latest = readMetric(readFileSync(join(repoRoot, metricPath), 'utf8'), metricPath)
-      solutions.push({
+      const solution = {
         problem,
         ruleset: entry.name,
         name: entry.name === 'direct' ? 'direct' : langName(entry.name),
@@ -522,7 +556,9 @@ function build() {
         path: `${folder}/${meta.fields.entry}`,
         history,
         latest,
-      })
+      }
+      solution.points = metricSeries(solution, head)
+      solutions.push(solution)
     }
   }
   const ordered = rulesetOrder(present)
@@ -535,6 +571,12 @@ function build() {
       if (seen.has(commit.commit)) continue
       seen.add(commit.commit)
       commits.push(commit)
+    }
+    for (const point of solution.points) {
+      if (seen.has(point.commit)) continue
+      if (point.commit !== head.commit) throw new CatalogError(`${solution.problem}/${solution.ruleset} series commit ${point.commit} is not in the history`)
+      seen.add(head.commit)
+      commits.push(head)
     }
   }
   commits.sort((left, right) => left.timestamp.localeCompare(right.timestamp) || left.commit.localeCompare(right.commit))
@@ -605,27 +647,7 @@ function build() {
             solution: solution.source,
             solutionPath: solution.path,
           }],
-          series: solution.history.flatMap(commit => {
-            const metricRel = `problems/${id}/solutions/${ruleset}/metric.json`
-            const text = gitShow(commit.commit, metricRel)
-            if (text == null) {
-              console.log(`site: omit ${metricRel} at ${commit.commit} (blob is not in this clone)`)
-              return []
-            }
-            const data = readMetric(text, `${commit.commit}:${metricRel}`)
-            return [{
-              commit: commit.commit,
-              solution: solution.entry,
-              cost: data.cost,
-              steps: data.applied_steps,
-              regexEvals: data.regex_evals,
-              regexMatches: data.regex_matches,
-              stateBytes: data.state_bytes,
-              statePeak: data.state_peak,
-              ruleCount: data.rule_count,
-              ruleChars: data.rule_chars,
-            }]
-          }),
+          series: solution.points,
         }
       }),
     }
@@ -698,6 +720,7 @@ function build() {
     improvements: improvementEvents,
     problems: catalogProblems,
   }
+  assertChartLines(catalog)
   mkdirSync(dirname(catalogPath), { recursive: true })
   writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`)
   const summary = { schema_version: 2, entries: hostEntries() }
@@ -708,6 +731,15 @@ function build() {
     console.log(`site: omit metric history on the shallow clone boundary (${listed})`)
   }
   console.log(`site: ${catalog.problems.length} problems, ${rulesets.length} rulesets, ${summary.entries.length} host commits`)
+}
+
+export function assertChartLines(catalog) {
+  const lines = sandboxSeriesFromCatalog(catalog)
+  for (const sandbox of catalog.sandboxes) {
+    if (sandbox.total == null) continue
+    const line = lines.find(item => item.id === sandbox.id)
+    if (!line) throw new CatalogError(`${sandbox.id} has total ${sandbox.total} and no summed cost line`)
+  }
 }
 
 function langName(id) {

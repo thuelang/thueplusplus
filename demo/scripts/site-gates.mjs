@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { bestSandboxMarks, chartLayout, formatCost, runningMin, sandboxSeriesFromCatalog, textWidth } from '../src/charts/geometry.mjs'
 import { guideFor, readmeSection, sandboxGuides } from '../src/sandboxGuides.mjs'
-import { commonProblems, costDrops, discoverSandboxIds, readGeneratedCatalog } from './build-site.mjs'
+import { assertChartLines, commonProblems, costDrops, discoverSandboxIds, readGeneratedCatalog } from './build-site.mjs'
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 const demoSrc = join(repoRoot, 'demo/src')
@@ -49,6 +49,9 @@ const handlers = {
   cards,
   direct,
   description,
+  history,
+  'title-gap': titleGap,
+  live,
 }
 
 const handler = handlers[name]
@@ -56,7 +59,15 @@ if (!handler) {
   console.error(`unknown gate ${name}`)
   process.exit(1)
 }
-handler()
+try {
+  Promise.resolve(handler()).catch(error => {
+    console.error(error instanceof Error ? error.message : error)
+    process.exit(1)
+  })
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error)
+  process.exit(1)
+}
 
 function fail(message) {
   console.error(message)
@@ -471,7 +482,7 @@ function changelog() {
 
 function shots() {
   const root = '/opt/cursor/artifacts'
-  const pages = ['home', 'problems', 'problem']
+  const pages = ['home', 'problem']
   const themes = ['dark', 'light']
   const widths = ['390', '1440']
   for (const page of pages) {
@@ -496,9 +507,9 @@ function shots() {
 function pr() {
   const view = gh(['pr', 'view', '--json', 'body,mergeable,state,baseRefName'])
   const data = JSON.parse(view)
-  if (!/closes\s+#158/i.test(data.body ?? '')) fail('PR body does not close #158')
+  if (!/closes\s+#160/i.test(data.body ?? '')) fail('PR body does not close #160')
   if (data.baseRefName !== 'main') fail(`PR base is ${data.baseRefName}`)
-  if (data.mergeable !== 'MERGEABLE') fail(`PR mergeable is ${data.mergeable}`)
+  if (data.state !== 'MERGED' && data.mergeable !== 'MERGEABLE') fail(`PR mergeable is ${data.mergeable}`)
   console.log('pr ok')
 }
 
@@ -511,6 +522,61 @@ function production() {
   const productionStatus = vercel.find(status => status.state === 'success' && /completed/i.test(status.description ?? '') && !/ignored|canceled|error|fail/i.test(status.description ?? ''))
   if (!productionStatus) fail(`no completed Vercel deploy for ${sha}`)
   console.log('production ok')
+}
+
+function history() {
+  const unshallow = read('demo/scripts/unshallow.mjs')
+  if (!unshallow.includes("'pull'") || !unshallow.includes("'--ff-only'") || !unshallow.includes("'--unshallow'")) fail('the build does not pull a full history')
+  if (!unshallow.includes('https://github.com/thuelang/thueplusplus.git')) fail('the build has no GitHub history url')
+  if (/execFileSync\('git', \['fetch', '--unshallow'\]/.test(unshallow)) fail('the build still fetches with no remote')
+  const build = read('demo/scripts/build-site.mjs')
+  if (!build.includes('has no metric history; keeping the working tree cost')) fail('a metric with no history is dropped')
+  if (!build.includes('no summed cost line')) fail('the build does not reject a sandbox with no line')
+  const geometry = source('charts/geometry.mjs')
+  if (geometry.includes('has no summed cost over time')) fail('one sandbox still throws in the browser')
+  try {
+    assertChartLines({
+      sandboxCommon: ['hello-world'],
+      commits: [{ commit: 'a', timestamp: '2026-10-20T00:00:00Z' }],
+      sandboxes: [{ id: 'forth', name: 'Forth', total: 10, color: '#c2410c' }],
+      problems: [{ id: 'hello-world', versions: [{ id: 'forth', series: [], solutions: [] }] }],
+    })
+    fail('a sandbox with no line passed the build')
+  } catch (error) {
+    if (!/forth has total 10 and no summed cost line/.test(error instanceof Error ? error.message : '')) throw error
+  }
+  console.log('history ok')
+}
+
+async function live() {
+  const { chromium } = await import('@playwright/test')
+  const browser = await chromium.launch({ headless: true })
+  const page = await browser.newPage()
+  const errors = []
+  page.on('pageerror', error => errors.push(String(error)))
+  page.on('console', message => {
+    if (message.type() === 'error') errors.push(message.text())
+  })
+  try {
+    await page.goto('https://www.thuelang.org/', { waitUntil: 'networkidle', timeout: 60000 })
+    await page.waitForSelector('[data-test="end-label"]', { timeout: 15000 })
+    const labels = await page.locator('[data-test="end-label"]').allTextContents()
+    if (errors.length > 0) fail(errors.join('\n'))
+    if (labels.length !== 3) fail(`home chart has ${labels.length} lines: ${labels.join(' | ')}`)
+    for (const name of ['Forth', 'Lisp', 'BASIC']) {
+      if (!labels.some(label => label.startsWith(`${name} `))) fail(`home chart is missing ${name}: ${labels.join(' | ')}`)
+    }
+    console.log('live ok')
+  } finally {
+    await browser.close()
+  }
+}
+
+function titleGap() {
+  const css = source('style.css')
+  const rule = css.match(/\.page-screen-plain \+ \.page-details \{[^}]+\}/)
+  if (!rule || !/margin-top:\s*2\.5rem/.test(rule[0])) fail('a problem page has no gap between the title and Cost')
+  console.log('title-gap ok')
 }
 
 function rexProblem() {

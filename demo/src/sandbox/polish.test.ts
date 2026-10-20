@@ -27,8 +27,10 @@ import {
   VIEW_H,
   VIEW_W,
   beltPoint,
+  boxInColumn,
   boxInFrame,
   boxPlace,
+  columnEdge,
   inHit,
   KNOB_R,
   LEVER_PIVOT,
@@ -139,8 +141,19 @@ describe('hero polish', () => {
     expect(() => boxInFrame(Number.NaN)).toThrow(/finite/)
     const scene = readFileSync('src/components/SandboxScene.vue', 'utf8')
     expect(scene).toContain('drawnBoxes')
-    expect(scene).toContain('boxInFrame')
+    expect(scene).toContain('boxInColumn')
+    expect(scene).not.toContain('boxInFrame')
     expect(scene).not.toContain('v-for="box in game.boxes"')
+  })
+
+  it('hides a box past the page column at 1440', () => {
+    expect(columnEdge(1440)).toBeLessThan(VIEW_W)
+    expect(columnEdge(1440)).toBeCloseTo(1380, 5)
+    expect(boxInFrame(0.05)).toBe(true)
+    expect(boxInColumn(0.05, 0.5, 0, 1440)).toBe(false)
+    expect(boxInColumn(0.2, 0.5, 0, 1440)).toBe(true)
+    expect(boxInColumn(0.05, 0.5, 0, 1024)).toBe(boxInFrame(0.05))
+    expect(boxInColumn(0.05, 0.5, 0, 0)).toBe(boxInFrame(0.05))
   })
 
   it('samples the headShake keyframes', () => {

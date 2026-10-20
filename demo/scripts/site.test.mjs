@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { CatalogError, aggregateDrops, aggregateSum, commonProblems, costDrops, discoverSandboxIds, historyRows, parseFrontmatter, sitemapXml, stampForRunsDocument } from './build-site.mjs'
+import { CatalogError, aggregateDrops, aggregateSum, assertChartLines, commonProblems, costDrops, discoverSandboxIds, historyRows, parseFrontmatter, sitemapXml, stampForRunsDocument } from './build-site.mjs'
 
 describe('site data', () => {
   it('rejects limits in frontmatter', () => {
@@ -66,6 +66,15 @@ describe('site data', () => {
     assert.ok(ids.includes('basic'))
     assert.ok(ids.includes('expr'))
     assert.equal(ids.indexOf('expr') > ids.indexOf('forth'), true)
+  })
+
+  it('fails the build when a sandbox total has no summed line', () => {
+    assert.throws(() => assertChartLines({
+      sandboxCommon: ['hello-world'],
+      commits: [{ commit: 'a', timestamp: '2026-10-20T00:00:00Z' }],
+      sandboxes: [{ id: 'forth', name: 'Forth', total: 10, color: '#c2410c' }],
+      problems: [{ id: 'hello-world', versions: [{ id: 'forth', series: [], solutions: [] }] }],
+    }), /forth has total 10 and no summed cost line/)
   })
 
   it('drops shallow boundary commits instead of treating them as measurements', () => {

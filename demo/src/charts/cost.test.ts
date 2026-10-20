@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { axisLabelPad, axisTicks, chartLayout, chooseScale, costY, formatCost, polylineLength, runningMin, separateDots, summedCostSeries, textWidth, timeLabels, timeX } from './cost'
+import { axisLabelPad, axisTicks, chartLayout, chooseScale, costY, formatCost, polylineLength, runningMin, sandboxSeriesFromCatalog, separateDots, summedCostSeries, textWidth, timeLabels, timeX } from './cost'
+
+function problem(id: string, versions: Record<string, { series: { commit: string; cost: number }[]; cost: number | null }>) {
+  return {
+    id,
+    versions: Object.entries(versions).map(([versionId, version]) => ({
+      id: versionId,
+      series: version.series,
+      solutions: [{ cost: version.cost }],
+    })),
+  }
+}
 
 describe('cost chart geometry', () => {
   it('keeps the minimum cost seen so far', () => {
@@ -72,6 +83,38 @@ describe('cost chart geometry', () => {
       { time: 3, cost: 9 },
       { time: 4, cost: 9 },
     ])
+  })
+
+  it('keeps Forth when the production catalog has empty series and a working-tree cost', () => {
+    const hello = 134
+    const fizzbuzz = 13738468
+    const factorial = 1726231
+    const gcd = 1167181
+    const leap = 759319
+    const forthTotal = hello + fizzbuzz + factorial + gcd + leap
+    const catalog = {
+      sandboxCommon: ['hello-world', 'fizzbuzz', 'factorial', 'greatest-common-divisor', 'leap-year'],
+      commits: [
+        { commit: '0828521', timestamp: '2026-10-20T12:29:11Z' },
+        { commit: '53e0e39', timestamp: '2026-10-20T14:00:32Z' },
+      ],
+      sandboxes: [
+        { id: 'forth', name: 'Forth', total: forthTotal, color: 'var(--sandbox-forth)' },
+        { id: 'lisp', name: 'Lisp', total: 5, color: 'var(--sandbox-lisp)' },
+        { id: 'broken', name: 'Broken', total: 1, color: 'var(--sandbox-basic)' },
+      ],
+      problems: [
+        problem('hello-world', { forth: { series: [], cost: hello }, lisp: { series: [{ commit: '53e0e39', cost: 1 }], cost: 1 }, broken: { series: [], cost: null } }),
+        problem('fizzbuzz', { forth: { series: [{ commit: '0828521', cost: fizzbuzz }], cost: fizzbuzz }, lisp: { series: [{ commit: '0828521', cost: 1 }], cost: 1 }, broken: { series: [], cost: null } }),
+        problem('factorial', { forth: { series: [], cost: factorial }, lisp: { series: [{ commit: '53e0e39', cost: 1 }], cost: 1 }, broken: { series: [], cost: null } }),
+        problem('greatest-common-divisor', { forth: { series: [{ commit: '0828521', cost: gcd }], cost: gcd }, lisp: { series: [{ commit: '0828521', cost: 1 }], cost: 1 }, broken: { series: [], cost: null } }),
+        problem('leap-year', { forth: { series: [{ commit: '0828521', cost: leap }], cost: leap }, lisp: { series: [{ commit: '0828521', cost: 1 }], cost: 1 }, broken: { series: [], cost: null } }),
+      ],
+    }
+    const lines = sandboxSeriesFromCatalog(catalog)
+    expect(lines.map(line => line.id)).toEqual(['forth', 'lisp'])
+    expect(lines[0].points.at(-1)?.cost).toBe(forthTotal)
+    expect(lines[1].points.at(-1)?.cost).toBe(5)
   })
 
   it('drops a time label that would sit on its neighbors', () => {
