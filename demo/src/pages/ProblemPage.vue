@@ -85,8 +85,8 @@ const rows = computed(() => {
 const showTitle = computed(() => rows.value.some(row => row.solution.title.length > 0))
 const showAuthor = computed(() => rows.value.some(row => rowAuthor(row).length > 0))
 
-function shown(value: number | null): string {
-  return value == null ? 'unmeasured' : formatCost(value)
+function formatCount(value: number | null): string {
+  return value == null ? 'unmeasured' : value.toLocaleString('en-US')
 }
 
 function ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
@@ -127,11 +127,11 @@ function ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
               <a data-test="solution-link" class="underline underline-offset-4" :href="sourceUrl(row.solution.solutionPath)" rel="noreferrer">{{ row.version.id === 'direct' ? 'Direct Thue' : row.version.name }}</a>
             </TableCell>
             <TableCell v-if="showTitle" data-test="solution-title">{{ row.solution.title }}</TableCell>
-            <TableCell class="font-mono">{{ shown(row.solution.cost) }}</TableCell>
+            <TableCell data-test="solution-cost" class="font-mono">{{ row.solution.cost == null ? 'unmeasured' : formatCost(row.solution.cost) }}</TableCell>
             <TableCell v-if="showAuthor">{{ authorName(rowAuthor(row)) }}</TableCell>
             <TableCell class="font-mono">{{ row.measured.slice(0, 10) }}</TableCell>
-            <TableCell class="font-mono">{{ shown(row.solution.steps) }}</TableCell>
-            <TableCell class="font-mono">{{ shown(row.solution.ruleCount) }}</TableCell>
+            <TableCell class="font-mono">{{ formatCount(row.solution.steps) }}</TableCell>
+            <TableCell class="font-mono">{{ formatCount(row.solution.ruleCount) }}</TableCell>
           </TableRow>
         </TableBody>
       </Table>

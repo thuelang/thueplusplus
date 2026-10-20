@@ -13,9 +13,32 @@ export function runningMin(points) {
   })
 }
 
+const SI_SUFFIX = ['', 'k', 'M', 'G', 'T']
+
 export function formatCost(value) {
-  assertCost(value)
-  return value.toLocaleString('en-US')
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`cost ${value} is not a finite number`)
+  if (value === 0) return '0'
+  const sign = value < 0 ? '-' : ''
+  let abs = Math.abs(value)
+  const nearest = Math.round(abs)
+  if (Math.abs(abs - nearest) <= 1e-6 * Math.max(1, nearest)) abs = nearest
+  if (abs < 1000) {
+    const whole = Math.round(abs)
+    if (whole < 1000) return sign + String(whole)
+    abs = whole
+  }
+  const exp = Math.floor(Math.log10(abs) + 1e-10)
+  const scale = 10 ** (exp - 2)
+  const rounded = Math.round(abs / scale) * scale
+  if (!(rounded > 0)) throw new Error(`cost ${value} did not round`)
+  const exp2 = Math.floor(Math.log10(rounded) + 1e-10)
+  const group = Math.floor(exp2 / 3)
+  const suffix = SI_SUFFIX[group]
+  if (!suffix) throw new Error(`cost ${value} is outside k, M, G, and T`)
+  const scaled = rounded / 10 ** (group * 3)
+  const text = scaled.toFixed(2 - (exp2 % 3))
+  if (Number(text) >= 1000) throw new Error(`cost ${value} rounded to ${text}${suffix}`)
+  return sign + text + suffix
 }
 
 export function solutionLink(fields) {

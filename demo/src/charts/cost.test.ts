@@ -117,7 +117,20 @@ describe('cost chart geometry', () => {
     expect(sandboxSeriesFromCatalog(missing).map(line => line.id)).toEqual(['forth'])
   })
 
-  it('formats costs', () => {
-    expect(formatCost(27470323)).toBe('27,470,323')
+  it('formats costs in SI', () => {
+    expect(formatCost(134)).toBe('134')
+    expect(formatCost(2450)).toBe('2.45k')
+    expect(formatCost(6440)).toBe('6.44k')
+    expect(formatCost(13200)).toBe('13.2k')
+    expect(formatCost(1300000)).toBe('1.30M')
+    expect(formatCost(87698224)).toBe('87.7M')
+    expect(formatCost(119000000)).toBe('119M')
+    expect(formatCost(1180000000)).toBe('1.18G')
+    expect(formatCost(1180000000000)).toBe('1.18T')
+    expect(formatCost(999950)).toBe('1.00M')
+    expect(formatCost(999950000000)).toBe('1.00T')
+    expect(formatCost(0)).toBe('0')
+    expect(formatCost(-5)).toBe('-5')
+    expect(formatCost(-61200000)).toBe('-61.2M')
   })
 })

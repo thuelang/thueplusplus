@@ -52,6 +52,7 @@ const handlers = {
   history,
   'title-gap': titleGap,
   live,
+  'comma-costs': commaCosts,
 }
 
 const handler = handlers[name]
@@ -67,6 +68,24 @@ try {
 } catch (error) {
   console.error(error instanceof Error ? error.message : error)
   process.exit(1)
+}
+
+function commaCosts() {
+  const bad = []
+  for (const path of walk(demoSrc)) {
+    if (!/\.(vue|ts|mjs|js)$/.test(path)) continue
+    const text = readFileSync(path, 'utf8')
+    const formatCost = text.includes('export function formatCost') ? text.split('export function formatCost')[1].split('\nexport function')[0] : ''
+    if (text.includes('Intl.NumberFormat')) bad.push(path)
+    const grouped = "toLocaleString('en-US')"
+    if (text.includes(grouped)) {
+      if (!path.endsWith('pages/ProblemPage.vue')) bad.push(path)
+      else if ((text.split(grouped).length - 1) !== 1 || !text.includes('function formatCount') || !text.includes('formatCost(row.solution.cost)') || text.includes('formatCount(row.solution.cost)')) bad.push(path)
+    }
+    if (formatCost.includes('toLocaleString')) bad.push(`${path} formatCost`)
+  }
+  if (bad.length > 0) fail(bad.join('\n'))
+  console.log('no comma costs')
 }
 
 function fail(message) {
@@ -593,6 +612,16 @@ async function live() {
     for (const name of ['Forth', 'Lisp', 'BASIC', 'Direct Thue']) {
       if (!labels.some(label => label.startsWith(`${name} `))) fail(`home chart is missing ${name}: ${labels.join(' | ')}`)
     }
+    if (labels.some(label => /\d,\d{3}/.test(label))) fail(`home cost still uses commas: ${labels.join(' | ')}`)
+    if (!labels.some(label => /\d(?:\.\d+)?[kMGT]/.test(label))) fail(`home cost is not SI: ${labels.join(' | ')}`)
+    const feed = (await page.locator('[data-test="improvement-before"], [data-test="improvement-after"]').allTextContents()).map(item => item.trim())
+    if (feed.length === 0 || feed.some(item => /\d,\d{3}/.test(item)) || !feed.some(item => /\d(?:\.\d+)?[kMGT]|\b\d{1,3}\b/.test(item))) {
+      fail(`feed costs are not SI: ${feed.join(' | ')}`)
+    }
+    await page.goto('https://www.thuelang.org/problems', { waitUntil: 'networkidle', timeout: 60000 })
+    await page.waitForSelector('[data-test="card-chart"] [data-test="end-label"]', { timeout: 15000 })
+    const cards = (await page.locator('[data-test="card-chart"] [data-test="end-label"]').allTextContents()).map(item => item.trim())
+    if (cards.some(item => /\d,\d{3}/.test(item)) || !cards.some(item => /\d/.test(item))) fail(`card costs are not SI: ${cards.slice(0, 8).join(' | ')}`)
     await page.goto('https://www.thuelang.org/problems/factorial', { waitUntil: 'networkidle', timeout: 60000 })
     await page.waitForSelector('[data-test="end-label"][data-sandbox="direct"]', { timeout: 15000 })
     const directLabel = (await page.locator('[data-test="end-label"][data-sandbox="direct"]').evaluate(node => node.textContent ?? '')).trim()
@@ -600,6 +629,11 @@ async function live() {
     await page.waitForSelector('[data-test="solution-link"]', { timeout: 15000 })
     const links = await page.locator('[data-test="solution-link"]').count()
     if (links < 1) fail('problem page has no solution links')
+    await page.waitForSelector('[data-test="solution-cost"]', { timeout: 15000 })
+    const costs = (await page.locator('[data-test="solution-cost"]').allTextContents()).map(item => item.trim()).filter(item => item !== 'unmeasured')
+    if (costs.length === 0 || costs.some(item => /\d,\d{3}/.test(item)) || !costs.some(item => /\d(?:\.\d+)?[kMGT]|\b\d{1,3}\b/.test(item))) {
+      fail(`solution costs are not SI: ${costs.join(' | ')}`)
+    }
     if (errors.length > 0) fail(errors.join('\n'))
     console.log('live ok')
   } finally {

@@ -105,7 +105,7 @@
       <span data-test="playground-status">{{ statusText }}</span>
       <span aria-hidden="true">·</span>
       <span data-test="playground-applied-limits">steps {{ appliedSteps }}/{{ maxSteps }} · probes {{ probeCount }}/{{ maxEvals }} · state {{ stateBytes }}/{{ maxStateBytes }}</span>
-      <span data-test="playground-cost">cost {{ runCost === null ? '—' : runCost }}</span>
+      <span data-test="playground-cost">cost {{ runCost === null ? '—' : formatCost(runCost) }}</span>
       <span v-if="shareState" class="text-ash ml-auto">{{ shareState }}</span>
     </footer>
   </div>
@@ -130,6 +130,7 @@ import StateDiffs from './StateDiffs.vue'
 import TestCaseMenu from './TestCaseMenu.vue'
 import { flattenTestManifests, type TestCaseOption } from './testCases'
 import { caseInput, problemById, versionById } from '@/catalog'
+import { formatCost } from '@/charts/cost'
 import { analyzeRules, type ResourceUsage } from './ruleResources'
 import { splitProgramSource } from './thueSource'
 import { runWithWorker, type DemoTraceEvent } from './wasm'
