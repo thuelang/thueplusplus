@@ -71,7 +71,8 @@ describe('problem series', () => {
     const direct = problemSeries(leap).find(item => item.id === 'direct')
     const point = direct?.points[0]
     if (!point?.link) throw new Error('leap-year direct point has no link')
-    expect(point.link.blobUrl).toMatch(/^https:\/\/github\.com\/thuelang\/thueplusplus\/blob\/[0-9a-f]{40}\/problems\/leap-year\/solutions\/direct\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\/[0-9a-f]{12}\.[a-z0-9]+$/)
+    expect(point.link.solutionPath).toMatch(/^problems\/leap-year\/solutions\/direct\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\/[^/]+$/)
+    expect(point.link.blobUrl).toBe(`https://github.com/thuelang/thueplusplus/blob/${point.link.sha}/${point.link.solutionPath}`)
     expect(point.link.commitUrl).toBe(`https://github.com/thuelang/thueplusplus/commit/${point.link.sha}`)
     expect(point.link.label).toBe('Direct Thue')
     expect(point.link.problem).toBe('Leap year')
