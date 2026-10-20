@@ -38,4 +38,17 @@ describe('problem series', () => {
       expect.objectContaining({ id: 'direct', label: 'Direct Thue', color: 'var(--direct)' }),
     ])
   })
+
+  it('plots factorial lisp cost over commits and keeps the version files separate', () => {
+    const factorial = catalog.problems.find(problem => problem.id === 'factorial')
+    const lisp = factorial?.versions.find(version => version.id === 'lisp')
+    if (!factorial || !lisp) throw new Error('factorial lisp is missing')
+    expect(lisp.series.map(point => point.cost)).toEqual([27470323, 15456012])
+    expect(lisp.series.every(point => /^[0-9a-f]{40}$/.test(point.commit))).toBe(true)
+    expect(lisp.series.some(point => point.commit.includes('T'))).toBe(false)
+    expect(lisp.solutions.length).toBeGreaterThan(1)
+    expect(lisp.solutions.some(solution => solution.cost == null)).toBe(true)
+    const commits = new Set(catalog.commits.map(commit => commit.commit))
+    for (const point of lisp.series) expect(commits.has(point.commit)).toBe(true)
+  })
 })

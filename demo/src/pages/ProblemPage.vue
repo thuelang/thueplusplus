@@ -8,7 +8,7 @@ const CostChart = lazyComponent('src/components/CostChart.vue', () => import('@/
 import MarkdownBody from '@/components/MarkdownBody.vue'
 import NotFoundPage from '@/pages/NotFoundPage.vue'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { authorName, catalog, problemById, sourceUrl, type CatalogSolution, type CatalogVersion } from '@/catalog'
+import { authorName, problemById, sourceUrl, type CatalogSolution, type CatalogVersion } from '@/catalog'
 import { formatCost } from '@/charts/cost'
 import { problemSeries } from '@/charts/series'
 
@@ -38,12 +38,7 @@ type SolutionRow = {
   current: boolean
 }
 
-function measuredAt(version: CatalogVersion, solution: CatalogSolution): string {
-  const point = version.series.find(item => item.solution === solution.id)
-  if (point) {
-    const commit = catalog.commits.find(item => item.commit === point.commit)
-    if (commit) return commit.timestamp
-  }
+function measuredAt(solution: CatalogSolution): string {
   const match = solution.solutionPath.match(/(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})/)
   if (!match) throw new Error(`${solution.solutionPath} has no version timestamp`)
   return `${match[1]}T${match[2]}:${match[3]}:${match[4]}Z`
@@ -65,7 +60,7 @@ const rows = computed(() => {
     key: `${version.id}/${solution.solutionPath}`,
     version,
     solution,
-    measured: measuredAt(version, solution),
+    measured: measuredAt(solution),
     current: index === 0,
   })))
   const sorted = [...flat].sort((left, right) => {

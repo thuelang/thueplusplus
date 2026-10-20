@@ -69,6 +69,24 @@ class VersionTest(unittest.TestCase):
                 assert_immutable(root, "problems/hello-world/solutions/lisp/2026-10-20_14-34-00/ba7816bf8f01.lisp")
             self.assertIn("modified after it was added", str(caught.exception))
 
+    def test_discover_returns_only_the_newest_version(self) -> None:
+        from layout import discover
+        from versions import current_version
+
+        found = discover()
+        self.assertGreater(len(found), 0)
+        seen: set[tuple[str, str]] = set()
+        for solution in found:
+            key = (solution.problem, solution.ruleset)
+            self.assertNotIn(key, seen)
+            seen.add(key)
+            directory = ROOT / "problems" / solution.problem / "solutions" / solution.ruleset
+            versions = versions_in(ROOT, solution.problem, directory)
+            current = current_version(versions)
+            self.assertEqual(solution.hash, current.hash)
+            self.assertEqual(solution.timestamp, current.timestamp)
+            self.assertTrue(all(item.timestamp < current.timestamp for item in versions if item.hash != current.hash))
+
     def test_history_count_matches_follow_and_rejects_a_tie(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

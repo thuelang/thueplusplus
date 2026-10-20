@@ -101,7 +101,7 @@ for each applied step: cost += len(rhs)
 
 Rule count and rule chars come from the `.thue` source. The Go engine counts them when it parses the file.
 
-`metrics/versions.json` sums the Go case costs for each solution hash. State peak is the maximum. Rule count and rule chars are the program that ran. `commit` on that entry stays when a rerun produces the same counters. The entry for the current hash is marked `current`.
+`metrics/versions.json` sums the Go case costs for each solution hash. State peak is the maximum. Rule count and rule chars are the program that ran. `commit` on that entry stays when a rerun produces the same counters. The entry for the current hash is marked `current`. `points` records a cost only when the value changes, one object per measured commit. A push to main re-measures the newest version of every ruleset. An older version directory is not measured again. The cost stays out of the version directory.
 
 A ruleset's cost is the sum of its passing solution costs on the common problems: the problems every ruleset with at least one passing solution also passes. Coverage is how many problems that ruleset passes. The common set can change as solutions are added. The sum is the aggregate because it moves only when a cost moves.
 
@@ -129,7 +129,7 @@ Lower the Go cost of one solution. Cost is UTF-8 bytes: each regex eval adds len
 
 A push to `main` runs the same suite as `github-actions[bot]` with `contents: write`. It commits the files whose results changed. No change means no commit. The workflow skips a push whose actor or pusher is the bot. The job timeout is 45 minutes.
 
-The dated archives already in the tree stay. The recorder does not add a new bench. Problem charts read the version directories. One point is one version, at that directory's timestamp, with the cost recorded for its hash. Host charts read those archives plus the current `metrics/latest.json`. Schema 2 and 3 benches stay valid. A schema 4 bench without `runs` is the older problem and language record. A schema 4 runs document stores `stdin` and stays valid. The site reads `runs` and ignores the older keys.
+The dated archives already in the tree stay. The recorder does not add a new bench. Problem charts plot cost over commits. A point is a measured cost that differed from the previous one, at the commit that caused it. A new solution version is one reason that can happen. Host charts read those archives plus the current `metrics/latest.json`. Schema 2 and 3 benches stay valid. A schema 4 bench without `runs` is the older problem and language record. A schema 4 runs document stores `stdin` and stays valid. The site reads `runs` and ignores the older keys.
 
 ## Tests
 

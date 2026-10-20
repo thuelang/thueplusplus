@@ -297,6 +297,23 @@ def _same_metric(existing: dict, document: dict) -> bool:
     return all(existing.get(key) == document[key] for key in METRIC_FIELDS if key != "commit")
 
 
+def _valid_cost_point(point: object) -> bool:
+    if not isinstance(point, dict):
+        return False
+    recorded = point.get("commit")
+    cost = point.get("cost")
+    return (
+        isinstance(point.get("problem"), str)
+        and isinstance(point.get("ruleset"), str)
+        and isinstance(recorded, str)
+        and len(recorded) == 40
+        and all(character in "0123456789abcdef" for character in recorded)
+        and isinstance(cost, int)
+        and not isinstance(cost, bool)
+        and cost >= 0
+    )
+
+
 def load_versions(root: Path = ROOT) -> dict:
     path = root / VERSIONS_REL
     if not path.is_file():
@@ -304,14 +321,48 @@ def load_versions(root: Path = ROOT) -> dict:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict) or data.get("schema_version") != 1 or not isinstance(data.get("versions"), dict):
         raise RunError(f"{VERSIONS_REL} is not schema 1")
+    points = data.get("points", [])
+    if not isinstance(points, list) or any(not _valid_cost_point(point) for point in points):
+        raise RunError(f"{VERSIONS_REL} points must be cost changes tied to a commit")
     return data
+
+
+def _last_recorded_cost(document: dict, problem: str, ruleset: str) -> int | None:
+    for point in reversed(document.get("points") or []):
+        if point.get("problem") == problem and point.get("ruleset") == ruleset:
+            return point["cost"]
+    for entry in document["versions"].values():
+        if (
+            isinstance(entry, dict)
+            and entry.get("problem") == problem
+            and entry.get("ruleset") == ruleset
+            and entry.get("current") is True
+            and isinstance(entry.get("cost"), int)
+            and not isinstance(entry.get("cost"), bool)
+        ):
+            return entry["cost"]
+    return None
+
+
+def _cost_point(solution: Solution, entry: dict) -> dict:
+    point = {
+        "problem": solution.problem,
+        "ruleset": solution.ruleset,
+        "hash": solution.hash,
+        "version": solution.timestamp,
+    }
+    for key in ("pass", "cost", "commit", *DIAGNOSTICS):
+        point[key] = entry[key]
+    return point
 
 
 def _write_metrics(solutions: list[Solution], runs: list[dict], commit: str, *, root: Path = ROOT) -> list[str]:
     """Write metrics/versions.json when a current version's pass, cost, or diagnostics changed.
 
-    `commit` is recorded on an entry that is written. It is not a change by itself.
-    Returns repo-relative paths that were written. A failing Go run writes nothing.
+    A cost point is appended only when the cost differs from the last recorded value.
+    `commit` is the commit that was measured. It is not a change by itself, and it is
+    not written into the version directory. Returns repo-relative paths that were written.
+    A failing Go run writes nothing.
     """
     grouped: dict[tuple[str, str], list[dict]] = {}
     for run in runs:
@@ -331,6 +382,7 @@ def _write_metrics(solutions: list[Solution], runs: list[dict], commit: str, *, 
     changed = False
     for solution, rows in pending:
         entry = _metric_document(solution, rows, commit)
+        last_cost = _last_recorded_cost(document, solution.problem, solution.ruleset)
         for other_hash, other in versions.items():
             if other_hash == solution.hash or not isinstance(other, dict):
                 continue
@@ -342,6 +394,10 @@ def _write_metrics(solutions: list[Solution], runs: list[dict], commit: str, *, 
             continue
         versions[solution.hash] = entry
         changed = True
+        if last_cost is None or entry["cost"] != last_cost:
+            if not _valid_cost_point(_cost_point(solution, entry)):
+                raise RunError(f"{solution.problem}/{solution.ruleset} cost point at {commit} is not a commit")
+            document.setdefault("points", []).append(_cost_point(solution, entry))
     if not changed:
         return []
     path = root / VERSIONS_REL
