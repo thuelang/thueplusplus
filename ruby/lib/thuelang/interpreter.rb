@@ -57,6 +57,7 @@ module Thuelang
     :mids,
     :source,
     :literal_prefix,
+    :group_aliases,
     keyword_init: true
   )
 
@@ -617,7 +618,8 @@ module Thuelang
 
         Mid.new(pattern: pattern_text)
       end
-      pattern = compile_rule(lhs, line_number)
+      rewritten, aliases = rewrite_duplicate_groups(lhs)
+      pattern = compile_rule(rewritten, line_number)
       builtin_name = ""
       builtin_args = []
       if operator == "::!"
@@ -636,7 +638,8 @@ module Thuelang
         builtin_args: builtin_args,
         mids: mids,
         source: line.strip,
-        literal_prefix: Prefix.literal_prefix(lhs)
+        literal_prefix: Prefix.literal_prefix(lhs),
+        group_aliases: aliases
       )
     end
 
@@ -669,14 +672,105 @@ module Thuelang
       @last_re_error
     end
 
-    def search_pattern(pattern, text)
+    def search_pattern(pattern, text, aliases = [])
       count = pattern.number_of_capturing_groups
       found = pattern.match(text, submatches: count.positive? ? count : 1)
       return nil if found.nil? || found == true || found == false
 
       groups = {}
       found.named_captures.each { |name, value| groups[name] = value }
+      aliases.each do |synth, original|
+        value = groups.delete(synth)
+        groups[original] = value unless value.nil?
+      end
       Found.new(start_at: found.begin(0), finish: found.end(0), groups: groups)
+    end
+
+    def rewrite_duplicate_groups(pattern)
+      groups = scan_named_groups(pattern)
+      seen = {}
+      taken = groups.to_h { |_start, _finish, name| [name, true] }
+      aliases = []
+      serial = 0
+      out = +""
+      cursor = 0
+      groups.each do |name_start, name_end, name|
+        unless seen[name]
+          seen[name] = true
+          next
+        end
+        synth = "_d#{serial}"
+        while taken[synth]
+          serial += 1
+          synth = "_d#{serial}"
+        end
+        serial += 1
+        taken[synth] = true
+        aliases << [synth, name]
+        out << pattern[cursor...name_start] << synth
+        cursor = name_end
+      end
+      return [pattern, aliases] if aliases.empty?
+
+      [out + pattern[cursor..], aliases]
+    end
+
+    def scan_named_groups(pattern)
+      groups = []
+      index = 0
+      while index < pattern.length
+        if pattern[index] == "\\"
+          index += index + 1 < pattern.length ? 2 : 1
+          next
+        end
+        if pattern[index] == "["
+          index = skip_char_class(pattern, index)
+          next
+        end
+        prefix = if pattern[index, 4] == "(?P<"
+                   4
+                 elsif pattern[index, 3] == "(?<"
+                   3
+                 else
+                   0
+                 end
+        if prefix.zero?
+          index += 1
+          next
+        end
+        name_start = index + prefix
+        name_end = name_start
+        if name_end < pattern.length && name_start?(pattern[name_end])
+          name_end += 1
+          name_end += 1 while name_end < pattern.length && name_cont?(pattern[name_end])
+          if name_end < pattern.length && pattern[name_end] == ">"
+            groups << [name_start, name_end, pattern[name_start...name_end]]
+            index = name_end + 1
+            next
+          end
+        end
+        index += 1
+      end
+      groups
+    end
+
+    def name_start?(char)
+      !char.nil? && char.match?(/[A-Za-z_]/)
+    end
+
+    def name_cont?(char)
+      !char.nil? && char.match?(/[A-Za-z0-9_]/)
+    end
+
+    def skip_char_class(pattern, index)
+      cursor = index + 1
+      cursor += 1 if pattern[cursor] == "^"
+      cursor += 1 if pattern[cursor] == "]"
+      while cursor < pattern.length && pattern[cursor] != "]"
+        cursor += pattern[cursor] == "\\" && cursor + 1 < pattern.length ? 2 : 1
+      end
+      cursor += 1 if pattern[cursor] == "]"
+      cursor
     end
 
     def parse_builtin_call(rhs, line_number, capture_names)
@@ -701,7 +795,7 @@ module Thuelang
       return nil if !rule.literal_prefix.empty? && !@state.include?(rule.literal_prefix)
 
       charge_eval(rule.lhs)
-      found = search_pattern(rule.pattern, @state)
+      found = search_pattern(rule.pattern, @state, rule.group_aliases)
       return nil if found.nil?
 
       @regex_matches += 1
@@ -719,11 +813,12 @@ module Thuelang
         rescue RuntimeError => error
           raise "Line #{rule.line_number}: #{error.message}"
         end
-        compiled = compile_pattern("(?m)#{translate_lhs(expanded)}")
+        rewritten, aliases = rewrite_duplicate_groups(expanded)
+        compiled = compile_pattern("(?m)#{translate_lhs(rewritten)}")
         raise "Line #{rule.line_number}: Invalid ::| regex '#{expanded}'" if compiled.nil?
 
         charge_eval(rule.lhs)
-        found = search_pattern(compiled, @state)
+        found = search_pattern(compiled, @state, aliases)
         return [groups, false] if found.nil?
 
         @regex_matches += 1

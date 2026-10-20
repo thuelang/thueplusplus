@@ -1,0 +1,7 @@
+name = "duplicate capture names match the participating group"
+program = "../duplicate.thue"
+
+[expect]
+stdout = "[bde]"
+stderr = ""
+exit_code = 0

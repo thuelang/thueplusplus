@@ -48,13 +48,11 @@ READER_DATUM <- (?:\([^()]*\)|$OPSYM|$EXPR)
 
 STREQ<(?<a>$NAME),(?<b>$NAME)> ::! eq a b
 
-Numeric calls whose nearest binding is still the original primitive skip the generic call walker. A shadowed binding falls back to ordinary application. The core environment always contains these primitives, so the scan ends on a binding.
-^EENV<(?<op>add|sub|mul|div|mod|eq|lt|lte|gt|gte) (?<a>$EXPR) (?<b>$EXPR)\|(?<env>[^|]*)\|(?<k>.*)>$ ::= NFAST<{{op}}|{{a}}|{{b}}|{{env}}|{{env}}|{{k}}>
-^NFAST<(?<op>$NAME)\|(?<a>[^|]*)\|(?<b>[^|]*)\|(?<name>$NAME)=(?<val>[^;]*);(?<rest>[^|]*)\|(?<full>[^|]*)\|(?<k>.*)>$ ::= NFASTEQ<STREQ<{{op}},{{name}}>|{{op}}|{{a}}|{{b}}|{{val}}|{{rest}}|{{full}}|{{k}}>
-^NFASTEQ<0\|(?<op>$NAME)\|(?<a>[^|]*)\|(?<b>[^|]*)\|(?<val>[^|]*)\|(?<rest>[^|]*)\|(?<full>[^|]*)\|(?<k>.*)>$ ::= NFAST<{{op}}|{{a}}|{{b}}|{{rest}}|{{full}}|{{k}}>
-^NFASTEQ<1\|(?<op>$NAME)\|(?<a>[^|]*)\|(?<b>[^|]*)\|VPRIM%3C(?<prim>$NAME)%3E\|(?<rest>[^|]*)\|(?<full>[^|]*)\|(?<k>.*)>$ ::= NFASTPR<STREQ<{{op}},{{prim}}>|{{op}}|{{a}}|{{b}}|{{full}}|{{k}}>
+Numeric calls whose nearest binding is still the original primitive skip the generic call walker. A shadowed binding falls back to ordinary application. Bindings are nearest-first. The step is anchored to this frame, so the first name= inside the environment is the innermost binding and a continuation cannot supply it.
+^EENV<(?<op>add|sub|mul|div|mod|eq|lt|lte|gt|gte) (?<a>$EXPR) (?<b>$EXPR)\|(?<env>[^|]*)\|(?<k>.*)>$ ::| \AEENV<{{op|quote}} [^|]*\|(?:$NAME=[^;]*;)*?{{op|quote}}=(?<hit>[^;]*); ::= NFASTGOT<{{op}}|{{a}}|{{b}}|{{hit}}|{{env}}|{{k}}>
+^NFASTGOT<(?<op>$NAME)\|(?<a>[^|]*)\|(?<b>[^|]*)\|VPRIM%3C(?<prim>$NAME)%3E\|(?<env>[^|]*)\|(?<k>.*)>$ ::= NFASTPR<STREQ<{{op}},{{prim}}>|{{op}}|{{a}}|{{b}}|{{env}}|{{k}}>
+^NFASTGOT<(?<op>$NAME)\|(?<a>[^|]*)\|(?<b>[^|]*)\|(?<val>[^|]*)\|(?<env>[^|]*)\|(?<k>.*)>$ ::= ARGENV<{{op}}|{{env}}|KENVCALL<{{a|pctenc}}%20{{b|pctenc}}|{{env}}> {{k}}>
 ^NFASTPR<1\|(?<op>$NAME)\|(?<a>[^|]*)\|(?<b>[^|]*)\|(?<full>[^|]*)\|(?<k>.*)>$ ::= ARGENV<{{a}}|{{full}}|KFAST<{{op}}|{{b|pctenc}}|{{full}}> {{k}}>
-^NFASTEQ<1\|(?<op>$NAME)\|(?<a>[^|]*)\|(?<b>[^|]*)\|(?<val>[^|]*)\|(?<rest>[^|]*)\|(?<full>[^|]*)\|(?<k>.*)>$ ::= ARGENV<{{op}}|{{full}}|KENVCALL<{{a|pctenc}}%20{{b|pctenc}}|{{full}}> {{k}}>
 ^RET<(?<av>$VAL)\|KFAST<(?<op>add|sub|mul|div|mod|eq|lt|lte|gt|gte)\|(?<b>$PCT)\|(?<env>[^>]*)> (?<k>.*)>$ ::= ARGENV<{{b|pctdec}}|{{env}}|KFAST2<{{op}}|{{av|pctenc}}> {{k}}>
 ^RET<(?<bv>$VAL)\|KFAST2<(?<op>add|sub|mul|div|mod|eq|lt|lte|gt|gte)\|(?<a>$PCT)> (?<k>.*)>$ ::= BNUM2<{{op}}|{{a|pctdec}}|{{bv}}|{{k}}>
 
@@ -79,13 +77,9 @@ ARG turns already decoded scalar nodes into typed runtime values. Lists are deco
 ^ARG<VSTR<(?<s>$PCT)>\|(?<k>.*)>$ ::= RET<VSTR<{{s}}>|{{k}}>
 
 Environment lookup and closures
-LOOK scans name bindings from left to right. Closures carry parameter source, body source, and the captured lexical environment in a single framed value.
-^LOOK<(?<want>$NAME)\|\|(?<k>.*)>$ ::= ERR<unbound_name>
-^LOOK<(?<want>$NAME)\|(?<got>$NAME)=(?<val>[^;]*);(?<rest>[^|]*)\|(?<k>.*)>$ ::= LOOKEQTEST<{{want}}|{{got}}|{{val}}|{{rest}}|{{k}}>
-^LOOKEQTEST<(?<a>$NAME)\|(?<b>$NAME)\|(?<val>[^|]*)\|(?<rest>[^|]*)\|(?<k>.*)>$ ::= LOOKEQ<STREQ<{{a}},{{b}}>|{{a}}|{{val}}|{{rest}}|{{k}}>
-
-^LOOKEQ<1\|(?<want>$NAME)\|(?<val>[^|]*)\|(?<rest>[^|]*)\|(?<k>.*)>$ ::= RET<{{val|pctdec}}|{{k}}>
-^LOOKEQ<0\|(?<want>$NAME)\|(?<val>[^|]*)\|(?<rest>[^|]*)\|(?<k>.*)>$ ::= LOOK<{{want}}|{{rest}}|{{k}}>
+LOOK finds the nearest binding in one step. Bindings are nearest-first. The step is anchored to this frame and stops at the environment field, so the first name= is the innermost binding and a name that exists only in the continuation stays unbound. Closures carry parameter source, body source, and the captured lexical environment in a single framed value.
+^LOOK<(?<want>$NAME)\|(?<env>[^|]*)\|(?<k>.*)>$ ::| \ALOOK<{{want|quote}}\|(?:$NAME=[^;]*;)*?{{want|quote}}=(?<val>[^;]*); ::= RET<{{val|pctdec}}|{{k}}>
+^LOOK<(?<want>$NAME)\|(?<env>[^|]*)\|(?<k>.*)>$ ::= ERR<unbound_name>
 
 ^BNUM2<add\|VNUM<(?<a>$NUM)>\|VNUM<(?<b>$NUM)>\|(?<k>.*)>$ ::= RET<VNUM<ADD<{{a}},{{b}}>>|{{k}}>
 ^BNUM2<sub\|VNUM<(?<a>$NUM)>\|VNUM<(?<b>$NUM)>\|(?<k>.*)>$ ::= RET<VNUM<SUB<{{a}},{{b}}>>|{{k}}>
@@ -150,12 +144,9 @@ While reevaluates one or more body expressions until the condition is false. Set
 
 ^EENV<set (?<name>$NAME) (?<expr>$EXPR)\|(?<env>[^|]*)\|(?<k>.*)>$ ::= ARGENV<{{expr}}|{{env}}|KSET<{{name}}^{{env}}> {{k}}>
 ^EENV<set (?<args>.*)\|(?<env>[^|]*)\|(?<k>.*)>$ ::= ERR<wrong_arity>
-^RET<(?<v>$VAL)\|KSET<(?<name>$NAME)\^(?<env>[^>]*)> (?<k>.*)>$ ::= SETENV<{{name}}|{{v}}|{{env}}|{{k}}|>
-^SETENV<(?<name>$NAME)\|(?<v>$VAL)\|\|(?<k>.*)\|(?<prefix>(?:$NAME=[^;]*;)*)>$ ::= ERR<unbound_name>
-^SETENV<(?<want>$NAME)\|(?<v>$VAL)\|(?<got>$NAME)=(?<old>[^;]*);(?<rest>[^|]*)\|(?<k>.*)\|(?<prefix>(?:$NAME=[^;]*;)*)>$ ::= SETEQTEST<{{want}}|{{got}}|{{v}}|{{old}}|{{rest}}|{{k}}|{{prefix}}>
-^SETEQTEST<(?<a>$NAME)\|(?<b>$NAME)\|(?<v>$VAL)\|(?<old>[^|]*)\|(?<rest>[^|]*)\|(?<k>.*)\|(?<prefix>(?:$NAME=[^;]*;)*)>$ ::= SETEQ<STREQ<{{a}},{{b}}>|{{a}}|{{b}}|{{v}}|{{old}}|{{rest}}|{{k}}|{{prefix}}>
-^SETEQ<1\|(?<want>$NAME)\|(?<got>$NAME)\|(?<v>$VAL)\|(?<old>[^|]*)\|(?<rest>[^|]*)\|(?<k>.*)\|(?<prefix>(?:$NAME=[^;]*;)*)>$ ::= RETENV<{{v}}|{{prefix}}{{got}}={{v|pctenc}};{{rest}}|{{k}}>
-^SETEQ<0\|(?<want>$NAME)\|(?<got>$NAME)\|(?<v>$VAL)\|(?<old>[^|]*)\|(?<rest>[^|]*)\|(?<k>.*)\|(?<prefix>(?:$NAME=[^;]*;)*)>$ ::= SETENV<{{want}}|{{v}}|{{rest}}|{{k}}|{{prefix}}{{got}}={{old}};>
+^RET<(?<v>$VAL)\|KSET<(?<name>$NAME)\^(?<env>[^>]*)> (?<k>.*)>$ ::= SETENV<{{name}}|{{v}}|{{env}}|{{k}}>
+^SETENV<(?<name>$NAME)\|(?<v>$VAL)\|(?<env>[^|]*)\|(?<k>.*)>$ ::| \ASETENV<{{name|quote}}\|[^|]*\|(?<prefix>(?:$NAME=[^;]*;)*?){{name|quote}}=(?<old>[^;]*);(?<rest>[^|]*)\| ::= RETENV<{{v}}|{{prefix}}{{name}}={{v|pctenc}};{{rest}}|{{k}}>
+^SETENV<(?<name>$NAME)\|(?<v>$VAL)\|(?<env>[^|]*)\|(?<k>.*)>$ ::= ERR<unbound_name>
 
 
 ^APPLY<VPRIM<rev>\|(?<s>[^;]*);\|(?<k>.*)>$ ::= BREV<{{s|pctdec}}|{{k}}>
@@ -417,6 +408,9 @@ VALKEYEQ<(?<a>$PCT),(?<b>$PCT)> ::! eq a b
 ^ALISTWALK<HAS\|(?<want>$PCT)\|\|(?<payload>$PCT)\|(?<acc>$ITEMS)\|(?<k>.*)>$ ::= RET<VBOOL<false>|{{k}}>
 ^ALISTWALK<PUT\|(?<want>$PCT)\|\|(?<newval>$PCT)\|(?<acc>$ITEMS)\|(?<k>.*)>$ ::= ALISTPUTPREPEND<VLIST<{{want}};{{newval}};>|{{acc}}|{{k}}>
 ^ALISTWALK<DEL\|(?<want>$PCT)\|\|(?<payload>$PCT)\|(?<acc>$ITEMS)\|(?<k>.*)>$ ::= RET<VLIST<{{acc}}>|{{k}}>
+^ALISTWALK<GET\|(?<want>$PCT)\|(?<items>$ITEMS)\|(?<default>$PCT)\|(?<acc>$ITEMS)\|(?<k>.*)>$ ::| \AALISTWALK<GET\|{{want|quote}}\|(?:[^;|]*;)*?VLIST%3C{{want|pctenc|quote}}%3B(?<val>[^;|]*?)%3B ::= ALISTHIT<{{val|pctdec}}|{{k}}>
+^ALISTHIT<(?<val>$PCT)\|(?<k>.*)>$ ::= RET<{{val|pctdec}}|{{k}}>
+^ALISTWALK<HAS\|(?<want>$PCT)\|(?<items>$ITEMS)\|(?<payload>$PCT)\|(?<acc>$ITEMS)\|(?<k>.*)>$ ::| \AALISTWALK<HAS\|{{want|quote}}\|(?:[^;|]*;)*?VLIST%3C{{want|pctenc|quote}}%3B ::= RET<VBOOL<true>|{{k}}>
 ^ALISTWALK<(?<op>GET|HAS|PUT|DEL)\|(?<want>$PCT)\|(?<item>[^;]*);(?<rest>$ITEMS)\|(?<payload>$PCT)\|(?<acc>$ITEMS)\|(?<k>.*)>$ ::= ALISTENTRY<{{item|pctdec}}|{{item}}|{{op}}|{{want}}|{{rest}}|{{payload}}|{{acc}}|{{k}}>
 ^ALISTENTRY<VLIST<>\|(?<raw>[^|]*)\|(?<op>GET|HAS|PUT|DEL)\|(?<want>$PCT)\|(?<rest>$ITEMS)\|(?<payload>$PCT)\|(?<acc>$ITEMS)\|(?<k>.*)>$ ::= ALISTSKIP<{{op}}|{{want}}|{{rest}}|{{payload}}|{{acc}}|{{raw}}|{{k}}>
 ^ALISTENTRY<VLIST<(?<head>[^;]*);(?<tail>$ITEMS)>\|(?<raw>[^|]*)\|(?<op>GET|HAS|PUT|DEL)\|(?<want>$PCT)\|(?<rest>$ITEMS)\|(?<payload>$PCT)\|(?<acc>$ITEMS)\|(?<k>.*)>$ ::= ALISTMATCH<VALKEYEQ<{{head}},{{want}}>|{{op}}|{{want}}|{{tail}}|{{rest}}|{{payload}}|{{acc}}|{{raw}}|{{k}}>
@@ -427,8 +421,6 @@ VALKEYEQ<(?<a>$PCT),(?<b>$PCT)> ::! eq a b
 ^ALISTSKIP<DEL\|(?<want>$PCT)\|(?<rest>$ITEMS)\|(?<payload>$PCT)\|(?<acc>$ITEMS)\|(?<raw>[^|]*)\|(?<k>.*)>$ ::= ALISTWALK<DEL|{{want}}|{{rest}}|{{payload}}|{{acc}}{{raw}};|{{k}}>
 ^ALISTMATCH<0\|(?<op>GET|HAS|PUT|DEL)\|(?<want>$PCT)\|(?<tail>$ITEMS)\|(?<rest>$ITEMS)\|(?<payload>$PCT)\|(?<acc>$ITEMS)\|(?<raw>[^|]*)\|(?<k>.*)>$ ::= ALISTSKIP<{{op}}|{{want}}|{{rest}}|{{payload}}|{{acc}}|{{raw}}|{{k}}>
 ^ALISTMATCH<1\|GET\|(?<want>$PCT)\|\|(?<rest>$ITEMS)\|(?<default>$PCT)\|(?<acc>$ITEMS)\|(?<raw>[^|]*)\|(?<k>.*)>$ ::= ALISTWALK<GET|{{want}}|{{rest}}|{{default}}|{{acc}}|{{k}}>
-^ALISTMATCH<1\|GET\|(?<want>$PCT)\|(?<val>[^;]*);(?<extra>$ITEMS)\|(?<rest>$ITEMS)\|(?<default>$PCT)\|(?<acc>$ITEMS)\|(?<raw>[^|]*)\|(?<k>.*)>$ ::= RET<{{val|pctdec}}|{{k}}>
-^ALISTMATCH<1\|HAS\|(?<want>$PCT)\|(?<tail>$ITEMS)\|(?<rest>$ITEMS)\|(?<payload>$PCT)\|(?<acc>$ITEMS)\|(?<raw>[^|]*)\|(?<k>.*)>$ ::= RET<VBOOL<true>|{{k}}>
 ^ALISTMATCH<1\|PUT\|(?<want>$PCT)\|\|(?<rest>$ITEMS)\|(?<newval>$PCT)\|(?<acc>$ITEMS)\|(?<raw>[^|]*)\|(?<k>.*)>$ ::= ALISTPUTDONE<VLIST<{{want}};{{newval}};>|{{acc}}|{{rest}}|{{k}}>
 ^ALISTMATCH<1\|PUT\|(?<want>$PCT)\|(?<old>[^;]*);(?<extra>$ITEMS)\|(?<rest>$ITEMS)\|(?<newval>$PCT)\|(?<acc>$ITEMS)\|(?<raw>[^|]*)\|(?<k>.*)>$ ::= ALISTPUTDONE<VLIST<{{want}};{{newval}};{{extra}}>|{{acc}}|{{rest}}|{{k}}>
 ^ALISTPUTDONE<(?<entry>$VLIST)\|(?<acc>$ITEMS)\|(?<rest>$ITEMS)\|(?<k>.*)>$ ::= RET<VLIST<{{acc}}{{entry|pctenc}};{{rest}}>|{{k}}>
