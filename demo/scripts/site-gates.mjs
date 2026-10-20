@@ -588,7 +588,7 @@ async function live() {
   try {
     await page.goto('https://www.thuelang.org/', { waitUntil: 'networkidle', timeout: 60000 })
     await page.waitForSelector('[data-test="end-label"]', { timeout: 15000 })
-    const labels = await page.locator('[data-test="end-label"]').allTextContents()
+    const labels = (await page.locator('[data-test="end-label"]').allTextContents()).map(label => label.trim())
     for (const name of ['Forth', 'Lisp', 'BASIC', 'Direct Thue']) {
       if (!labels.some(label => label.startsWith(`${name} `))) fail(`home chart is missing ${name}: ${labels.join(' | ')}`)
     }
