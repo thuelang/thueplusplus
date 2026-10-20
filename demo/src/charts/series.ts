@@ -13,18 +13,21 @@ export function sandboxCostSeries(): ChartSeries[] {
 }
 
 export function problemSeries(problem: CatalogProblem): ChartSeries[] {
-  return problem.versions.filter(version => version.id !== 'direct').map(version => ({
-    id: version.id,
-    label: version.name,
-    color: version.color,
-    points: version.series.map(point => {
-      const commit = catalog.commits.find(item => item.commit === point.commit)
-      if (!commit) throw new Error(`${problem.id} commit ${point.commit} is not in the catalog`)
-      const time = Date.parse(commit.timestamp)
-      if (Number.isNaN(time)) throw new Error(`${problem.id} commit ${point.commit} has no time`)
-      return { time, cost: point.cost }
-    }),
-  }))
+  return problem.versions.flatMap(version => {
+    if (version.id === 'direct' && version.series.length === 0) return []
+    return [{
+      id: version.id,
+      label: version.id === 'direct' ? 'Direct Thue' : version.name,
+      color: version.color,
+      points: version.series.map(point => {
+        const commit = catalog.commits.find(item => item.commit === point.commit)
+        if (!commit) throw new Error(`${problem.id} commit ${point.commit} is not in the catalog`)
+        const time = Date.parse(commit.timestamp)
+        if (Number.isNaN(time)) throw new Error(`${problem.id} commit ${point.commit} has no time`)
+        return { time, cost: point.cost }
+      }),
+    }]
+  })
 }
 
 export function problemTitle(id: string): string {

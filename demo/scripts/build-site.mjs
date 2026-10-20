@@ -17,7 +17,7 @@ const SANDBOX_COLORS = {
 
 function chartColor(id) {
   if (SANDBOX_COLORS[id]) return SANDBOX_COLORS[id]
-  if (id === 'direct') return 'var(--ash)'
+  if (id === 'direct') return 'var(--direct)'
   throw new CatalogError(`${id} has no chart color`)
 }
 const SITE = 'https://thuelang.org'

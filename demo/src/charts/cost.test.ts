@@ -6,6 +6,7 @@ function problem(id: string, versions: Record<string, { series: { commit: string
     id,
     versions: Object.entries(versions).map(([versionId, version]) => ({
       id: versionId,
+      color: versionId === 'direct' ? 'var(--direct)' : `var(--sandbox-${versionId})`,
       series: version.series,
       solutions: [{ cost: version.cost }],
     })),
@@ -115,6 +116,30 @@ describe('cost chart geometry', () => {
     expect(lines.map(line => line.id)).toEqual(['forth', 'lisp'])
     expect(lines[0].points.at(-1)?.cost).toBe(forthTotal)
     expect(lines[1].points.at(-1)?.cost).toBe(5)
+  })
+
+  it('adds Direct Thue to the home sum only when every common problem has a direct cost', () => {
+    const withDirect = {
+      sandboxCommon: ['hello-world', 'fizzbuzz'],
+      commits: [{ commit: 'a', timestamp: '2026-10-17T14:16:44Z' }, { commit: 'b', timestamp: '2026-10-20T00:00:00Z' }],
+      sandboxes: [{ id: 'forth', name: 'Forth', total: 30, color: 'var(--sandbox-forth)' }],
+      problems: [
+        problem('hello-world', { forth: { series: [{ commit: 'a', cost: 10 }], cost: 10 }, direct: { series: [{ commit: 'a', cost: 4 }], cost: 4 } }),
+        problem('fizzbuzz', { forth: { series: [{ commit: 'a', cost: 20 }], cost: 20 }, direct: { series: [{ commit: 'a', cost: 6 }], cost: 6 } }),
+      ],
+    }
+    const lines = sandboxSeriesFromCatalog(withDirect)
+    expect(lines.map(line => line.id)).toEqual(['forth', 'direct'])
+    expect(lines[1]).toMatchObject({ label: 'Direct Thue', color: 'var(--direct)' })
+    expect(lines[1].points.at(-1)?.cost).toBe(10)
+    const missing = {
+      ...withDirect,
+      problems: [
+        withDirect.problems[0],
+        problem('fizzbuzz', { forth: { series: [{ commit: 'a', cost: 20 }], cost: 20 } }),
+      ],
+    }
+    expect(sandboxSeriesFromCatalog(missing).map(line => line.id)).toEqual(['forth'])
   })
 
   it('drops a time label that would sit on its neighbors', () => {
