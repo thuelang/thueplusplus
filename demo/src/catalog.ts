@@ -13,6 +13,9 @@ export interface CatalogCommit {
 export interface CatalogPoint {
   commit: string
   solution: string
+  sha?: string
+  author?: string
+  solutionPath?: string
   cost: number
   steps: number
   regexEvals: number
@@ -217,20 +220,23 @@ export function versionById(problem: CatalogProblem, solutionId: string): Catalo
   return problem.versions.find(version => version.id === solutionId)
 }
 
+function bestMeasuredCost(version: CatalogVersion): number | null {
+  const costs = version.solutions.flatMap(solution => typeof solution.cost === 'number' ? [solution.cost] : [])
+  if (costs.length === 0) return null
+  return Math.min(...costs)
+}
+
 export function bestVersion(problem: CatalogProblem): CatalogVersion {
-  const ranked = problem.versions.filter(version => {
-    const cost = version.solutions[0]?.cost
-    return version.solutions[0]?.status === 'pass' && cost != null
+  const ranked = problem.versions.flatMap(version => {
+    const cost = bestMeasuredCost(version)
+    return cost == null ? [] : [{ version, cost }]
   })
   if (ranked.length === 0) throw new Error(`${problem.id} has no passing solution`)
-  return ranked.reduce((best, version) => {
-    const cost = version.solutions[0].cost
-    const bestCost = best.solutions[0].cost
-    if (cost == null || bestCost == null) throw new Error(`${problem.id} cost is missing`)
-    if (cost < bestCost) return version
-    if (cost === bestCost && version.id === 'direct') return version
+  return ranked.reduce((best, item) => {
+    if (item.cost < best.cost) return item
+    if (item.cost === best.cost && item.version.id === 'direct') return item
     return best
-  })
+  }).version
 }
 
 export function authorName(author: string): string {

@@ -797,3 +797,20 @@ html.rex-shattered .rex-rubble [data-shard] {
   --vis-axis-tick-label-font-size: 11px;
   --vis-scatter-stroke-width: 0px;
 }
+
+.cost-tip a {
+  color: inherit;
+  text-decoration: underline;
+  pointer-events: auto;
+}
+
+.cost-tip-body {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.cost-tip-parts {
+  margin: 0.4rem 0 0;
+  padding-left: 1rem;
+}

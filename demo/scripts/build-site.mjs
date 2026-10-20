@@ -349,15 +349,25 @@ function costsAt(iso, rulesets, problems, index) {
     costs[ruleset] = {}
     for (const problem of problems) {
       const versions = index.get(`${ruleset}\0${problem}`) ?? []
-      let cost = null
+      let best = null
       for (const version of versions) {
-        if (version.iso <= iso) cost = version.cost
-        else break
+        if (version.iso > iso) break
+        best = best == null ? version.cost : Math.min(best, version.cost)
       }
-      if (cost != null) costs[ruleset][problem] = cost
+      if (best != null) costs[ruleset][problem] = best
     }
   }
   return costs
+}
+
+function bestCostOf(solution) {
+  let best = null
+  for (const item of solution.versions) {
+    if (!item.metric || !Number.isInteger(item.metric.cost) || item.metric.cost < 0) continue
+    best = best == null ? item.metric.cost : Math.min(best, item.metric.cost)
+  }
+  if (best == null) throw new CatalogError(`${solution.problem}/${solution.ruleset} has no measured cost`)
+  return best
 }
 
 function hostEntries() {
@@ -471,10 +481,17 @@ function stampToIso(stamp) {
   return `${match[1]}T${match[2]}:${match[3]}:${match[4]}Z`
 }
 
-function metricPoint(name, commit, data) {
+function metricPoint(item) {
+  if (!/^[0-9a-f]{40}$/.test(item.chartSha)) throw new CatalogError(`${item.rel} has no chart commit`)
+  if (!item.chartAuthor || !item.chartAuthor.trim()) throw new CatalogError(`${item.rel} has no chart author`)
+  if (!item.rel || item.rel.startsWith('/') || item.rel.split('/').includes('..')) throw new CatalogError(`${item.name} has no solution path`)
+  const data = item.metric
   return {
-    commit,
-    solution: name,
+    commit: item.iso,
+    solution: item.name,
+    sha: item.chartSha,
+    author: item.chartAuthor,
+    solutionPath: item.rel,
     cost: data.cost,
     steps: data.applied_steps,
     regexEvals: data.regex_evals,
@@ -484,6 +501,22 @@ function metricPoint(name, commit, data) {
     ruleCount: data.rule_count,
     ruleChars: data.rule_chars,
   }
+}
+
+const pathCommits = new Map()
+function chartCommit(rel) {
+  const cached = pathCommits.get(rel)
+  if (cached) return cached
+  const line = git(['log', '-1', '--format=%H%x09%an <%ae>', '--', rel])
+  const tab = line.indexOf('\t')
+  const sha = tab < 0 ? '' : line.slice(0, tab)
+  const author = tab < 0 ? '' : line.slice(tab + 1).trim()
+  if (!/^[0-9a-f]{40}$/.test(sha)) throw new CatalogError(`${rel} has no commit`)
+  if (!author) throw new CatalogError(`${rel} has no author`)
+  if (!gitShowBuffer(sha, rel)) throw new CatalogError(`${rel} is not in ${sha}`)
+  const row = { sha, author }
+  pathCommits.set(rel, row)
+  return row
 }
 
 function listVersionFiles(problem, ruleset) {
@@ -650,14 +683,15 @@ function build() {
       for (const file of files) {
         file.problem = problem
         file.ruleset = entry.name
+        const chart = chartCommit(file.rel)
         const pricedVersion = costForVersion(file, historical, latest, shallow, file === newest)
         if (!pricedVersion) {
           if (!shallow && file === newest) throw new CatalogError(`${file.rel} has no recorded cost`)
           console.log(`site: omit ${file.rel} from the cost chart (no recorded cost)`)
-          priced.push({ ...file, metric: null, gitCommit: head.commit })
+          priced.push({ ...file, metric: null, gitCommit: head.commit, chartSha: chart.sha, chartAuthor: chart.author })
           continue
         }
-        priced.push({ ...file, metric: pricedVersion.metric, gitCommit: pricedVersion.gitCommit || head.commit })
+        priced.push({ ...file, metric: pricedVersion.metric, gitCommit: pricedVersion.gitCommit || head.commit, chartSha: chart.sha, chartAuthor: chart.author })
       }
       if (shallow && priced.filter(item => item.metric).length < files.length) historyTruncated = true
       const measured = priced.filter(item => item.metric)
@@ -675,7 +709,7 @@ function build() {
         versions: priced,
         latest: current.metric,
         history: measured.map(item => ({ commit: item.iso, timestamp: item.iso, author: meta.fields.author })),
-        points: measured.map(item => metricPoint(item.name, item.iso, item.metric)),
+        points: measured.map(item => metricPoint(item)),
       }
       solutions.push(solution)
     }
@@ -710,7 +744,7 @@ function build() {
   const costsNow = {}
   for (const ruleset of ordered) {
     passingNow[ruleset] = solutions.filter(solution => solution.ruleset === ruleset).map(solution => solution.problem)
-    costsNow[ruleset] = Object.fromEntries(solutions.filter(solution => solution.ruleset === ruleset).map(solution => [solution.problem, solution.latest.cost]))
+    costsNow[ruleset] = Object.fromEntries(solutions.filter(solution => solution.ruleset === ruleset).map(solution => [solution.problem, bestCostOf(solution)]))
   }
   const common = commonProblems(passingNow)
   const totals = aggregateSum(costsNow, common)
@@ -786,7 +820,7 @@ function build() {
     if (solved.length > 0) passingSandboxes[id] = solved
   }
   const sandboxCommon = commonProblems(passingSandboxes)
-  const sandboxCosts = Object.fromEntries(sandboxIds.map(id => [id, Object.fromEntries(solutions.filter(solution => solution.ruleset === id).map(solution => [solution.problem, solution.latest.cost]))]))
+  const sandboxCosts = Object.fromEntries(sandboxIds.map(id => [id, Object.fromEntries(solutions.filter(solution => solution.ruleset === id).map(solution => [solution.problem, bestCostOf(solution)]))]))
   const sandboxTotals = aggregateSum(sandboxCosts, sandboxCommon)
   const listed = sandboxes.map(sandbox => ({
     ...sandbox,

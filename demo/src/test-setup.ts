@@ -32,6 +32,13 @@ registry.set('src/RulesMonacoEditor.vue', monaco)
 ;(globalThis as { __testModules?: typeof registry }).__testModules = registry
 
 if (typeof window !== 'undefined') {
+  if (typeof window.ResizeObserver !== 'function') {
+    window.ResizeObserver = class {
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+  }
   window.matchMedia = (query: string): MediaQueryList => ({
     matches: query.includes('prefers-reduced-motion'),
     media: query,

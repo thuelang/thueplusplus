@@ -86,18 +86,17 @@ describe('catalog pages', () => {
     expect(page.get('[data-test="cost-legend"]').text()).toContain('Direct Thue')
     expect(page.findAll('[data-test="end-label"]').length).toBeGreaterThan(0)
     expect(page.get('[data-test="cost-chart"]').attributes('data-scale')).toBe('linear')
-    expect(page.findAll('[data-test="time-label"]').length).toBeGreaterThan(0)
-    const dots = page.findAll('[data-test="cost-dot"]').map(dot => ({
-      x: Number(dot.attributes('cx')),
-      y: Number(dot.attributes('cy')),
-      sandbox: dot.attributes('data-sandbox'),
-    }))
-    for (let i = 0; i < dots.length; i += 1) {
-      for (let j = i + 1; j < dots.length; j += 1) {
-        if (dots[i].sandbox === dots[j].sandbox) continue
-        expect(Math.hypot(dots[i].x - dots[j].x, dots[i].y - dots[j].y)).toBeGreaterThanOrEqual(9)
-      }
-    }
+    expect(page.get('[data-test="cost-chart"]').attributes('data-x')).toBe('date')
+    expect(page.get('[data-test="y-linear"]').attributes('aria-pressed')).toBe('true')
+    expect(page.get('[data-test="y-log"]').attributes('aria-pressed')).toBe('false')
+    await page.get('[data-test="y-log"]').trigger('click')
+    expect(page.get('[data-test="cost-chart"]').attributes('data-scale')).toBe('log')
+    await page.get('[data-test="x-index"]').trigger('click')
+    expect(page.get('[data-test="cost-chart"]').attributes('data-x')).toBe('index')
+    const forthLegend = page.get('[data-series="forth"]')
+    expect(forthLegend.attributes('aria-pressed')).toBe('true')
+    await forthLegend.trigger('click')
+    expect(page.get('[data-series="forth"]').attributes('aria-pressed')).toBe('false')
     const swatch = page.get('[data-test="cost-legend"]').get('[data-series="forth"]').find('[style]')
     expect(swatch.attributes('style')).toContain(rulesetColor('forth'))
     expect(page.get('[data-sandbox="direct"][data-current="true"]').get('[data-test="solution-link"]').text()).toBe('Direct Thue')

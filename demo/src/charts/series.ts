@@ -1,5 +1,5 @@
-import { catalog, type CatalogProblem } from '@/catalog'
-import { sandboxSeriesFromCatalog, type TimePoint } from './cost'
+import { catalog, type CatalogPoint, type CatalogProblem, type CatalogVersion } from '@/catalog'
+import { sandboxSeriesFromCatalog, solutionLink, type ChartLink, type TimePoint } from './cost'
 
 export interface ChartSeries {
   id: string
@@ -12,6 +12,24 @@ export function sandboxCostSeries(): ChartSeries[] {
   return sandboxSeriesFromCatalog(catalog)
 }
 
+function pointAt(problem: CatalogProblem, version: CatalogVersion, point: CatalogPoint): TimePoint {
+  const commit = catalog.commits.find(item => item.commit === point.commit)
+  if (!commit) throw new Error(`${problem.id} commit ${point.commit} is not in the catalog`)
+  const time = Date.parse(commit.timestamp)
+  if (Number.isNaN(time)) throw new Error(`${problem.id} commit ${point.commit} has no time`)
+  const link: ChartLink = solutionLink({
+    problemId: problem.id,
+    problem: problem.title,
+    label: version.id === 'direct' ? 'Direct Thue' : version.name,
+    cost: point.cost,
+    time,
+    sha: point.sha ?? '',
+    author: point.author || version.author,
+    solutionPath: point.solutionPath ?? '',
+  })
+  return { time, cost: point.cost, version: point.solution, link }
+}
+
 export function problemSeries(problem: CatalogProblem): ChartSeries[] {
   return problem.versions.flatMap(version => {
     if (version.id === 'direct' && version.series.length === 0) return []
@@ -19,13 +37,7 @@ export function problemSeries(problem: CatalogProblem): ChartSeries[] {
       id: version.id,
       label: version.id === 'direct' ? 'Direct Thue' : version.name,
       color: version.color,
-      points: version.series.map(point => {
-        const commit = catalog.commits.find(item => item.commit === point.commit)
-        if (!commit) throw new Error(`${problem.id} commit ${point.commit} is not in the catalog`)
-        const time = Date.parse(commit.timestamp)
-        if (Number.isNaN(time)) throw new Error(`${problem.id} commit ${point.commit} has no time`)
-        return { time, cost: point.cost }
-      }),
+      points: version.series.map(point => pointAt(problem, version, point)),
     }]
   })
 }
