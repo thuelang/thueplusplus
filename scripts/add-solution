@@ -3,9 +3,10 @@
 
 Usage: scripts/add-solution <slug> <sandbox> <file>
 
-The directory name is the current UTC time, YYYY-MM-DD_HH-MM-SS. The file name
-is the slug of the required title. An existing timestamp is an error. Older
-versions are left as they are.
+The directory name is the current UTC time, YYYY-MM-DD_HH-MM-SS. The file is
+the program. README.md in the same directory as that file supplies the required
+title and the optional author. The file name is the slug of the title. An
+existing timestamp is an error. Older versions are left as they are.
 """
 
 from __future__ import annotations
@@ -17,8 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "metrics"))
 
-from solution_frontmatter import SolutionFrontmatterError, slugify, split_solution  # noqa: E402
-from versions import VersionError, format_timestamp, versions_in  # noqa: E402
+from frontmatter import FrontmatterError, parse_frontmatter  # noqa: E402
+from versions import VERSION_KEYS, VersionError, format_timestamp, slugify, versions_in  # noqa: E402
 
 
 def main() -> int:
@@ -41,17 +42,25 @@ def add_solution(root: Path, slug: str, sandbox: str, source: Path) -> str:
     ruleset = root / "problems" / slug / "solutions" / sandbox
     if not ruleset.is_dir():
         raise VersionError(f"problems/{slug}/solutions/{sandbox} is missing")
+    if source.name == "README.md":
+        raise VersionError(f"{source} is the version README, not the program")
     data = source.read_bytes()
     extension = source.suffix[1:]
     if not extension:
         raise VersionError(f"{source} needs an extension")
+    readme = source.parent / "README.md"
+    if not readme.is_file():
+        raise VersionError(f"{readme} is missing")
     try:
-        fields, _body = split_solution(data, extension)
-    except SolutionFrontmatterError as exc:
+        fields, _body = parse_frontmatter(readme.read_text(encoding="utf-8"), readme.as_posix())
+    except FrontmatterError as exc:
         raise VersionError(str(exc)) from exc
+    unknown = sorted(set(fields) - VERSION_KEYS)
+    if unknown:
+        raise VersionError(f"{readme}: unknown front matter key {unknown[0]!r}")
     title = fields.get("title", "")
     if not title:
-        raise VersionError(f"{source} front matter needs title")
+        raise VersionError(f"{readme} front matter needs title")
     name = f"{slugify(title)}.{extension}"
     existing = versions_in(root, slug, ruleset)
     stamp = format_timestamp(datetime.now(timezone.utc))
@@ -61,6 +70,7 @@ def add_solution(root: Path, slug: str, sandbox: str, source: Path) -> str:
     folder.mkdir()
     target = folder / name
     target.write_bytes(data)
+    (folder / "README.md").write_bytes(readme.read_bytes())
     return target.relative_to(root).as_posix()
 
 

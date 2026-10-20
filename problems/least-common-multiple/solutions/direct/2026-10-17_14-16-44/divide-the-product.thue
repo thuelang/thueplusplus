@@ -1,7 +1,3 @@
----
-title: Divide the product
-author: Cursor Agent <cursoragent@cursor.com>
----
 ^say:(?<v>0|[1-9][0-9]*)\n?$ ::> stdout {{v}}\n
 \A\z ::- 0
 \Ax:(?<x>0|[1-9][0-9]*)\ny:(?<y>0|[1-9][0-9]*)\na:0\nb:(?<b>0|[1-9][0-9]*)\n?\z ::= say:0

@@ -1,7 +1,3 @@
-REM ---
-REM title: Loop with mod 15
-REM author: Cursor Agent <cursoragent@cursor.com>
-REM ---
 INPUT N
 FOR I=1 TO 20
 LET M15:=I%15

@@ -564,7 +564,6 @@ LANG_DIRS = frozenset({"forth", "lisp", "basic", "expr"})
 # One case per core feature. Guest languages are not in this list.
 CORE_CASES: tuple[tuple[str, str | None], ...] = (
     ("examples/hello/tests/basic.toml", None),
-    ("examples/frontmatter/tests/basic.toml", None),
     ("examples/pattern-order/tests/basic.toml", None),
     ("examples/mid/tests/literal.toml", "captured dot is a wildcard"),
     ("examples/mid/tests/filter.toml", "pctenc text is inserted as regex source"),

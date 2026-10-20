@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { sandboxSeriesFromCatalog } from '../src/charts/geometry.mjs'
-import { slugify, splitSolution, SolutionFrontmatterError } from './solution-frontmatter.mjs'
+import { slugify } from './solution-frontmatter.mjs'
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 const catalogPath = join(repoRoot, 'demo/src/generated/catalog.json')
@@ -529,28 +529,28 @@ function listVersionFiles(problem, ruleset) {
   for (const entry of readdirSync(join(repoRoot, folder), { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
     if (!VERSION_STAMP.test(entry.name)) throw new CatalogError(`${folder}/${entry.name} is not a UTC timestamp like 2026-10-20_14-34-00`)
-    const names = readdirSync(join(repoRoot, folder, entry.name)).filter(name => VERSION_FILE.test(name) && !name.endsWith('.md'))
-    if (names.length !== 1) throw new CatalogError(`${folder}/${entry.name} needs one solution file`)
-    const match = VERSION_FILE.exec(names[0])
-    const rel = `${folder}/${entry.name}/${names[0]}`
-    const bytes = readFileSync(join(repoRoot, rel))
-    let parsed
-    try {
-      parsed = splitSolution(bytes, match[2])
-    } catch (error) {
-      if (error instanceof SolutionFrontmatterError) throw new CatalogError(`${rel}: ${error.message}`)
-      throw error
-    }
+    const names = readdirSync(join(repoRoot, folder, entry.name))
+    const readmeName = 'README.md'
+    if (!names.includes(readmeName)) throw new CatalogError(`${folder}/${entry.name} needs README.md`)
+    const programs = names.filter(name => name !== readmeName)
+    if (programs.length !== 1 || !VERSION_FILE.test(programs[0])) throw new CatalogError(`${folder}/${entry.name} needs one solution file`)
+    const match = VERSION_FILE.exec(programs[0])
+    const rel = `${folder}/${entry.name}/${programs[0]}`
+    const readmeRel = `${folder}/${entry.name}/${readmeName}`
+    const parsed = parseFrontmatter(readFileSync(join(repoRoot, readmeRel), 'utf8'), readmeRel)
+    const unknown = Object.keys(parsed.fields).filter(key => key !== 'title' && key !== 'author')
+    if (unknown.length) throw new CatalogError(`${readmeRel}: unknown front matter key ${unknown[0]}`)
     const title = parsed.fields.title
-    if (!title) throw new CatalogError(`${rel}: front matter needs title`)
+    if (!title) throw new CatalogError(`${readmeRel}: front matter needs title`)
     const slug = slugify(title)
     if (match[1] !== slug) throw new CatalogError(`${rel}: file name must be ${slug}.${match[2]}`)
+    const bytes = readFileSync(join(repoRoot, rel))
     versions.push({
       timestamp: entry.name,
       iso: stampToIso(entry.name),
       slug,
       extension: match[2],
-      name: names[0],
+      name: programs[0],
       rel,
       title,
       author: parsed.fields.author || null,

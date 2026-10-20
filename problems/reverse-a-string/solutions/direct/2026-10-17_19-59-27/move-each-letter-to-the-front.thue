@@ -1,7 +1,3 @@
----
-title: Move each letter to the front
-author: Cursor Agent <cursoragent@cursor.com>
----
 ^rev:(?<c>[A-Za-z])(?<rest>[A-Za-z]*)\|(?<out>.*)\n?$ ::= rev:{{rest}}|{{c}}{{out}}
 ^rev:\|(?<out>.*)\n?$ ::> stdout {{out}}\n
 ^$ ::- 0

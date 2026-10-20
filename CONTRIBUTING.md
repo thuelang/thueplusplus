@@ -8,26 +8,25 @@
 - `cases/` holds the committed cases, one `NN-name.json` per case. Each file is `name`, `reads`, `writes`, and `exit_code`. `problem_test.go` is the spec those files must match.
 - `solutions/<ruleset>/` is one sandbox. `direct` is Thue++. Any other ruleset is an interpreter in `langs/<ruleset>/`. The folder holds `README.md` and one directory per solution version.
 
-A version is `solutions/<ruleset>/<timestamp>/<title-slug>.<ext>`. The timestamp is UTC `YYYY-MM-DD_HH-MM-SS`, for example `2026-10-20_14-34-00`. The file name is the slug of the required `title`: lowercase ASCII, with runs of non-alphanumerics turned into one `-`, and no leading or trailing `-`. An optional `<title-slug>.md` sits beside that file. The newest timestamp is the current solution. A timestamp tie is an error. Old version directories are not edited and not deleted. Metrics are not stored next to the solution. CI records them in `metrics/versions.json`.
+A version is `solutions/<ruleset>/<timestamp>/`. The timestamp is UTC `YYYY-MM-DD_HH-MM-SS`, for example `2026-10-20_14-34-00`. The directory holds the program and `README.md`. The newest timestamp is the current solution. A timestamp tie is an error. Old version directories are not edited and not deleted. Metrics are not stored next to the solution. CI records them in `metrics/versions.json`.
 
-The solution file starts with that title and an optional author, in the language's comment syntax:
+The version `README.md` starts with front matter. `title` is required. `author` is optional. Unknown keys are rejected. The program file is named with the slug of that title: lowercase ASCII, with runs of non-alphanumerics turned into one `-`, and no leading or trailing `-`. The file is the program. CI fails when the file name is not that slug plus the extension.
 
 ```text
+problems/fizzbuzz/solutions/lisp/2026-10-20_13-33-22/README.md
+problems/fizzbuzz/solutions/lisp/2026-10-20_13-33-22/loop-with-mod-15.lisp
+```
+
+```yaml
 ---
 title: Loop with mod 15
 author: Name <email>
 ---
 ```
 
-Direct Thue uses plain lines. Lisp uses `; `, Forth uses `\ `, BASIC uses `REM `, and Expr uses `// `. A value must not contain `::`. Unknown keys are rejected. CI fails when the file name is not that slug plus the extension.
+Add a version with `scripts/add-solution <slug> <sandbox> <file>`. The file is the program. `README.md` beside that file supplies the title and the optional author. The script names the program with the title slug, names the directory with the current UTC time, copies both files, and refuses a timestamp that is already there.
 
-```text
-problems/fizzbuzz/solutions/lisp/2026-10-20_13-33-22/loop-with-mod-15.lisp
-```
-
-Add a version with `scripts/add-solution <slug> <sandbox> <file>`. The script reads the title, names the file with that slug, names the directory with the current UTC time, and refuses a timestamp that is already there.
-
-A solution `README.md` starts with frontmatter:
+The sandbox `solutions/<ruleset>/README.md` starts with frontmatter:
 
 ```yaml
 ---

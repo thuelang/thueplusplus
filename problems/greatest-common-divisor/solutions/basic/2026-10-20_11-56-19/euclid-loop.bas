@@ -1,7 +1,3 @@
-REM ---
-REM title: Euclid loop
-REM author: Cursor Agent <cursoragent@cursor.com>
-REM ---
 INPUT A
 INPUT B
 FOR I=1 TO 20

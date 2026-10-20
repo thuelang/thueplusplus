@@ -1,7 +1,3 @@
----
-title: Sum the values
-author: Cursor Agent <cursoragent@cursor.com>
----
 ^say:(?<s>0|[1-9][0-9]*)\n?$ ::> stdout {{s}}\n
 \A\z ::- 0
 \Aleft:0\nsum:(?<s>0|[1-9][0-9]*)\n?\z ::= say:{{s}}

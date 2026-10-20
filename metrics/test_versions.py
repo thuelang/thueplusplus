@@ -17,6 +17,7 @@ from versions import (  # noqa: E402
     compare_history,
     format_timestamp,
     parse_timestamp,
+    slugify,
     versions_in,
 )
 
@@ -47,6 +48,44 @@ class VersionTest(unittest.TestCase):
         with self.assertRaises(VersionError):
             parse_timestamp("2026-02-31_00-00-00")
 
+    def test_slug_is_lowercase_ascii_with_single_hyphens(self) -> None:
+        self.assertEqual(slugify("Loop with mod 15"), "loop-with-mod-15")
+        self.assertEqual(slugify("Hard-coded lines"), "hard-coded-lines")
+        self.assertEqual(slugify("  Mod 400, 4, and 100  "), "mod-400-4-and-100")
+        with self.assertRaises(VersionError):
+            slugify("---")
+
+    def test_readme_title_must_match_the_file_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ruleset = Path(tmp) / "problems" / "hello-world" / "solutions" / "lisp"
+            folder = ruleset / "2026-10-20_14-34-00"
+            folder.mkdir(parents=True)
+            (folder / "sample.lisp").write_text("(add 1 2)\n", encoding="utf-8")
+            with self.assertRaises(VersionError) as missing:
+                versions_in(Path(tmp), "hello-world", ruleset)
+            self.assertIn("needs README.md", str(missing.exception))
+            (folder / "README.md").write_text("---\nauthor: Ada <ada@example.com>\n---\n", encoding="utf-8")
+            with self.assertRaises(VersionError) as untitled:
+                versions_in(Path(tmp), "hello-world", ruleset)
+            self.assertIn("needs title", str(untitled.exception))
+            (folder / "README.md").write_text("---\ntitle: Other name\n---\n", encoding="utf-8")
+            with self.assertRaises(VersionError) as mismatch:
+                versions_in(Path(tmp), "hello-world", ruleset)
+            self.assertIn("file name must be other-name.lisp", str(mismatch.exception))
+            (folder / "README.md").write_text("---\ntitle: Sample\nnote: extra\n---\n", encoding="utf-8")
+            with self.assertRaises(VersionError) as unknown:
+                versions_in(Path(tmp), "hello-world", ruleset)
+            self.assertIn("unknown front matter key 'note'", str(unknown.exception))
+            (folder / "README.md").write_text("---\ntitle: A :: pair\n---\n", encoding="utf-8")
+            (folder / "sample.lisp").rename(folder / "a-pair.lisp")
+            self.assertEqual(versions_in(Path(tmp), "hello-world", ruleset)[0].slug, "a-pair")
+            (folder / "a-pair.lisp").rename(folder / "sample.lisp")
+            (folder / "README.md").write_text("---\ntitle: Sample\n---\n", encoding="utf-8")
+            (folder / "extra.txt").write_text("nope\n", encoding="utf-8")
+            with self.assertRaises(VersionError) as extra:
+                versions_in(Path(tmp), "hello-world", ruleset)
+            self.assertIn("unexpected", str(extra.exception))
+
     def test_a_version_edited_after_it_was_added_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -61,8 +100,21 @@ class VersionTest(unittest.TestCase):
             assert_immutable(root, rel)
             program.write_bytes(b"abcd")
             with self.assertRaises(VersionError) as caught:
-                assert_immutable(root, rel)
+                assert_immutable(root, rel, program=True)
             self.assertIn("modified after it was added", str(caught.exception))
+            program.write_bytes(b"; ---\n; title: Sample\n; ---\nabc")
+            _git(root, "add", ".")
+            _git(root, "commit", "-m", "header")
+            program.write_bytes(b"abc")
+            _git(root, "add", ".")
+            _git(root, "commit", "-m", "strip")
+            assert_immutable(root, rel, program=True)
+            program.write_bytes(b"abcd")
+            _git(root, "add", ".")
+            _git(root, "commit", "-m", "edit")
+            with self.assertRaises(VersionError) as edited:
+                assert_immutable(root, rel, program=True)
+            self.assertIn("modified after it was added", str(edited.exception))
 
     def test_history_count_matches_follow_and_rejects_a_tie(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

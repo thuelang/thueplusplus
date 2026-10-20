@@ -8,8 +8,6 @@ NB <- #<$NUM>|b<$BOOL>
 NBS <- (?:$NB;)*
 BIN <- \+|-|\*|/|=|<|>|mod
 
-^SOLUTIONCOMMENT<(?<payload>$PCT)> ::= {{payload|pctdec}}
-
 ^OUT<(?<s>$PCT)> ::> stdout {{s|pctdec}}
 ^@ERR<(?<e>[A-Za-z0-9_]+)>@ ::> stderr {{e}}
 ^@EXIT2@$ ::- 2
@@ -26,7 +24,6 @@ BIN <- \+|-|\*|/|=|<|>|mod
 @E\[(?<body>[^|\n]*)\]END@ ::! pctenc body
 \A\s*\." (?<s>[^"]*)"\s*\z ::> stdout {{s}}\n
 \A\s*(?<src>[^\n]*\S)\s*\z ::= ~AZ<ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz>\nF|{{src}} |||0|
-^\\[^\n]*\n(?<rest>[\s\S]*) ::= SOLUTIONCOMMENT<{{rest|pctenc}}>
 \A[^~\n][^\n]*\n[\s\S]*\z ::= ERR<unsupported_form>
 @@IN@@$ ::< 30 stdin
 
