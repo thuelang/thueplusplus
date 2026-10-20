@@ -96,7 +96,7 @@ This program reads `a` and `b` out of one map line:
 Example source (`examples/mid/chain.thue`):
 
 Run it now in the browser playground:
-https://thuelang.org/playground?file=./examples/mid/chain.thue
+https://thuelang.org/embed?file=./examples/mid/chain.thue
 
 See the source: [examples/mid/chain.thue](https://github.com/thuelang/thueplusplus/blob/main/examples/mid/chain.thue)
 
@@ -140,7 +140,7 @@ This program writes one line, then exits:
 Example source (`examples/hello/hello.thue`):
 
 Run it now in the browser playground:
-https://thuelang.org/playground?file=./examples/hello/hello.thue
+https://thuelang.org/embed?file=./examples/hello/hello.thue
 
 See the source: [examples/hello/hello.thue](https://github.com/thuelang/thueplusplus/blob/main/examples/hello/hello.thue)
 
@@ -202,7 +202,7 @@ printf 'x\n3\n8\n7\n' | \
 Example source excerpt (`examples/guess-number/guess-number.thue`, lines 1-30):
 
 Run it now in the browser playground:
-https://thuelang.org/playground?file=./examples/guess-number/guess-number.thue
+https://thuelang.org/embed?file=./examples/guess-number/guess-number.thue
 
 See the source: [examples/guess-number/guess-number.thue](https://github.com/thuelang/thueplusplus/blob/main/examples/guess-number/guess-number.thue)
 
