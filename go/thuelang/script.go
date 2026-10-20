@@ -128,6 +128,28 @@ func (i *Interpreter) ScriptWrites() (map[string]string, error) {
 	return out, nil
 }
 
+// AddLineBinding binds one extra readable line. It leaves stdin, stdout, and
+// stderr in place. A second read is EOF. A write fails.
+func (i *Interpreter) AddLineBinding(name, line string) error {
+	if !validResourceName(name) {
+		return fmt.Errorf("invalid resource %q", name)
+	}
+	if name == "stdin" || name == "stdout" || name == "stderr" {
+		return fmt.Errorf("resource %s is reserved", name)
+	}
+	if _, ok := i.Bindings[name]; ok {
+		return fmt.Errorf("duplicate resource %s", name)
+	}
+	if strings.ContainsAny(line, "\r\n") {
+		return fmt.Errorf("resource %s line contains a newline", name)
+	}
+	i.Bindings[name] = &Binding{
+		Name: name, PathOrCommand: name,
+		Resource: newScriptResource([]string{line}, true, false),
+	}
+	return nil
+}
+
 func validResourceName(name string) bool {
 	if name == "" {
 		return false

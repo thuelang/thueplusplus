@@ -324,6 +324,32 @@ impl Interpreter {
             .insert(name.into(), Binding::Process(ProcessResource::new(command)));
     }
 
+    /// Bind one extra readable line. stdin, stdout, and stderr stay.
+    pub fn add_line_binding(&mut self, name: &str, line: &str) -> Result<(), Error> {
+        if !is_name(name) {
+            return Err(Error::new(format!("invalid resource {name:?}")));
+        }
+        if name == "stdin" || name == "stdout" || name == "stderr" {
+            return Err(Error::new(format!("resource {name} is reserved")));
+        }
+        if self.bindings.contains_key(name) {
+            return Err(Error::new(format!("duplicate resource {name}")));
+        }
+        if line.contains('\n') || line.contains('\r') {
+            return Err(Error::new(format!("resource {name} line contains a newline")));
+        }
+        self.bindings.insert(
+            name.to_string(),
+            Binding::Script(ScriptResource {
+                lines: vec![line.to_string()],
+                index: 0,
+                readable: true,
+                recorded: None,
+            }),
+        );
+        Ok(())
+    }
+
     /// Replace every binding with in-memory scripts. No process is started.
     pub fn bind_scripts(
         &mut self,

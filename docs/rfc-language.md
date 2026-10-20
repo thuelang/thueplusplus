@@ -225,7 +225,7 @@ Trim `RHS`; if wrapped in `{...}`, remove braces. If it parses as integer, exit 
 
 ## 9. Resources
 
-Standard resources: readable `stdin`, writable `stdout`/`stderr`. Reading non-readable resources errors. Writes to unknown/failed resources follow `::>` marker behavior. Hosts may bind more line-read/string-write resources.
+Standard resources: readable `stdin`, writable `stdout`/`stderr`. Reading non-readable resources errors. Writes to unknown/failed resources follow `::>` marker behavior. Hosts may bind more line-read/string-write resources. The host CLI `--line:NAME TEXT` binds one extra readable line without replacing stdin, stdout, or stderr.
 
 ## 10. Builtins
 

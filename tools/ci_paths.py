@@ -9,7 +9,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-LANG_DIRS = frozenset({"forth", "lisp", "basic"})
+LANG_DIRS = frozenset({"forth", "lisp", "basic", "expr"})
 HOST_JOBS = ("python", "go", "wasm", "js", "rust", "cpp", "ruby", "csharp", "java", "guests", "solutions")
 
 

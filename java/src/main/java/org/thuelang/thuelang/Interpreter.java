@@ -114,6 +114,23 @@ public final class Interpreter {
         bindings.put(name, new Binding(name, new Resources.Process(command)));
     }
 
+    /** Binds one extra readable line. stdin, stdout, and stderr stay. */
+    public void addLineBinding(String name, String line) {
+        if (!validResourceName(name)) {
+            throw new ThueException("invalid resource " + JsonText.goQuote(name));
+        }
+        if ("stdin".equals(name) || "stdout".equals(name) || "stderr".equals(name)) {
+            throw new ThueException("resource " + name + " is reserved");
+        }
+        if (bindings.containsKey(name)) {
+            throw new ThueException("duplicate resource " + name);
+        }
+        if (line.indexOf('\n') >= 0 || line.indexOf('\r') >= 0) {
+            throw new ThueException("resource " + name + " line contains a newline");
+        }
+        bindings.put(name, new Binding(name, new Resources.Script(java.util.List.of(line), true, false)));
+    }
+
     /** Replaces every binding, including stdin, stdout, and stderr, with in-memory scripts. */
     public void bindScripts(Map<String, List<String>> reads, List<String> writes) {
         if (reads == null) {

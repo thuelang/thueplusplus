@@ -1,0 +1,10 @@
+name = "line resource echoes its text"
+program = "../line.thue"
+
+[bindings.lines]
+note = "alpha"
+
+[expect]
+stdout = "alpha"
+stderr = ""
+exit_code = 0

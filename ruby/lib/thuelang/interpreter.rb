@@ -202,6 +202,17 @@ module Thuelang
       @bindings[name] = Binding.new(name: name, is_process: true, command: command, line_at: 0)
     end
 
+    def add_line_binding(name, line)
+      raise "invalid resource #{name.inspect}" unless name.is_a?(String) && RESOURCE_NAME_RE.match?(name)
+      raise "resource #{name} is reserved" if %w[stdin stdout stderr].include?(name)
+      raise "duplicate resource #{name}" if @bindings.key?(name)
+      raise "resource #{name} line contains a newline" if line.include?("\n") || line.include?("\r")
+
+      binding = Binding.new(name: name, is_process: false, command: name, line_at: 0)
+      binding.lines = [line]
+      @bindings[name] = binding
+    end
+
     def bind_scripts(reads, writes)
       raise "resources file needs reads and writes" unless reads.is_a?(Hash) && writes.is_a?(Array)
       raise "duplicate writable resource" unless writes.uniq.length == writes.length

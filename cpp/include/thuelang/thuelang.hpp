@@ -107,6 +107,8 @@ class Interpreter {
   void set_rule_coverage_path(std::string path);
 
   void AddProcBinding(const std::string& name, const std::string& command);
+  // Bind one extra readable line. stdin, stdout, and stderr stay.
+  void AddLineBinding(const std::string& name, const std::string& line);
   // Replace every binding with in-memory scripts. No process is started.
   void BindScripts(const std::map<std::string, std::vector<std::string>>& reads,
                    const std::vector<std::string>& writes);

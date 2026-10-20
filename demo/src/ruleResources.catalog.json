@@ -212,6 +212,22 @@
     "errors": []
   },
   {
+    "path": "examples/line/line.thue",
+    "resources": [
+      {
+        "name": "note",
+        "reads": true,
+        "writes": false
+      },
+      {
+        "name": "stdout",
+        "reads": false,
+        "writes": true
+      }
+    ],
+    "errors": []
+  },
+  {
     "path": "examples/mid/alias.thue",
     "resources": [
       {
@@ -787,6 +803,32 @@
       },
       {
         "name": "stderr",
+        "reads": false,
+        "writes": true
+      }
+    ],
+    "errors": []
+  },
+  {
+    "path": "langs/expr/expr.thue",
+    "resources": [
+      {
+        "name": "stderr",
+        "reads": false,
+        "writes": true
+      },
+      {
+        "name": "expr",
+        "reads": true,
+        "writes": false
+      },
+      {
+        "name": "env",
+        "reads": true,
+        "writes": false
+      },
+      {
+        "name": "stdout",
         "reads": false,
         "writes": true
       }

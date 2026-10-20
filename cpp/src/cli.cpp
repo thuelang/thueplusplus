@@ -13,12 +13,13 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
 
 void Usage() {
-  std::cerr << "usage: thue <program> [--proc:<name> <command>]... [--input <state>] [options]\n";
+  std::cerr << "usage: thue <program> [--proc:<name> <command>]... [--line:<name> <text>]... [--input <state>] [options]\n";
 }
 
 bool IsFlag(const std::string& arg, const std::string& name) { return arg == name || arg.rfind(name + "=", 0) == 0; }
@@ -385,6 +386,7 @@ int main(int argc, char** argv) {
   std::string resource_out;
   bool list_rules = false;
   bool saw_input = false;
+  std::vector<std::pair<std::string, std::string>> lines;
 
   for (int index = 2; index < argc;) {
     std::string arg = argv[index];
@@ -439,6 +441,14 @@ int main(int argc, char** argv) {
         }
         interp.AddProcBinding(name, argv[index + 1]);
         index += 2;
+      } else if (arg.rfind("--line:", 0) == 0) {
+        std::string name = arg.substr(std::string("--line:").size());
+        if (index + 1 >= argc) {
+          std::cerr << "Error: --line:" << name << " requires a text argument\n";
+          return 1;
+        }
+        lines.emplace_back(name, argv[index + 1]);
+        index += 2;
       } else {
         std::cerr << "Error: Unknown argument: " << arg << "\n";
         return 1;
@@ -470,6 +480,9 @@ int main(int argc, char** argv) {
         interp.BindScripts(file.reads, file.writes);
       } else if (!resource_out.empty()) {
         throw std::runtime_error("--resource-out requires --resources");
+      }
+      for (const auto& line : lines) {
+        interp.AddLineBinding(line.first, line.second);
       }
       ran = true;
       code = interp.Run();

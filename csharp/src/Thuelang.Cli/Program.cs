@@ -10,7 +10,7 @@ static class Program
     {
         if (args.Length == 0)
         {
-            ErrLine("usage: thue <program> [--proc:<name> <command>]... [--input <state>] [options]");
+            ErrLine("usage: thue <program> [--proc:<name> <command>]... [--line:<name> <text>]... [--input <state>] [options]");
             return 2;
         }
         using var interp = new Interpreter();
@@ -20,6 +20,7 @@ static class Program
         string? resourcesPath = null;
         string? resourceOutPath = null;
         var listRules = false;
+        var lines = new List<(string Name, string Text)>();
         var index = 1;
         while (index < args.Length)
         {
@@ -92,6 +93,17 @@ static class Program
                 interp.AddProcBinding(name, args[index + 1]);
                 index += 2;
             }
+            else if (arg.StartsWith("--line:", StringComparison.Ordinal))
+            {
+                var name = arg["--line:".Length..];
+                if (index + 1 >= args.Length)
+                {
+                    ErrLine($"Error: --line:{name} requires a text argument");
+                    return 1;
+                }
+                lines.Add((name, args[index + 1]));
+                index += 2;
+            }
             else
             {
                 ErrLine($"Error: Unknown argument: {arg}");
@@ -142,6 +154,17 @@ static class Program
             else if (resourceOutPath is not null)
             {
                 ErrLine("Error: --resource-out requires --resources");
+                interp.Cleanup();
+                return 1;
+            }
+            try
+            {
+                foreach (var line in lines)
+                    interp.AddLineBinding(line.Name, line.Text);
+            }
+            catch (ThueException ex)
+            {
+                ErrLine($"Error: {ex.Message}");
                 interp.Cleanup();
                 return 1;
             }
