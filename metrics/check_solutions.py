@@ -2,8 +2,8 @@
 """Rerun every solution on every host.
 
 A solution that fails, or a host whose pass or cost differs from Go, fails.
-Cost drift against the committed metric.json is not a failure. The metrics
-workflow warns, and the main branch records a new metric.json when the result changed.
+Cost drift against the committed versions.json is not a failure. The metrics
+workflow warns, and the main branch records metrics/versions.json when the result changed.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ def main() -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
     print(f"solutions: {len(runs)} runs passed with host parity")
-    print("solutions: runs match metric.json")
+    print("solutions: current versions measured")
     return 0
 
 

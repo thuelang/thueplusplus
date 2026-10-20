@@ -44,9 +44,21 @@ class RunsTest(unittest.TestCase):
     def test_a_single_host_must_match_the_committed_cost(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            path = root / "problems" / "hello-world" / "solutions" / "direct"
-            path.mkdir(parents=True)
-            (path / "metric.json").write_text(json.dumps({"pass": True, "cost": 4}) + "\n", encoding="utf-8")
+            path = root / "metrics" / "versions.json"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({
+                "schema_version": 1,
+                "versions": {
+                    "abc123abc123": {
+                        "problem": "hello-world",
+                        "ruleset": "direct",
+                        "timestamp": "2026-10-20_14-34-00",
+                        "pass": True,
+                        "cost": 4,
+                        "current": True,
+                    }
+                },
+            }) + "\n", encoding="utf-8")
             check_committed([_run("python", 4)], root=root)
             with self.assertRaises(RunError) as caught:
                 check_committed([_run("python", 9)], root=root)

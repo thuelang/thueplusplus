@@ -266,9 +266,28 @@ def _show(sha: str, path: str) -> str | None:
     return completed.stdout
 
 
+def _cost_entry(data: dict, label: str) -> int:
+    cost = data.get("cost")
+    if data.get("pass") is not True or isinstance(cost, bool) or not isinstance(cost, int):
+        raise RuntimeError(f"{label} must pass with an integer cost")
+    return cost
+
+
 def base_costs(sha: str) -> dict[tuple[str, str], int]:
+    versions_text = _show(sha, "metrics/versions.json")
+    if versions_text is not None:
+        document = json.loads(versions_text)
+        versions = document.get("versions") if isinstance(document, dict) else None
+        if isinstance(versions, dict):
+            costs: dict[tuple[str, str], int] = {}
+            for digest, entry in versions.items():
+                if not isinstance(entry, dict) or entry.get("current") is not True:
+                    continue
+                costs[(entry["problem"], entry["ruleset"])] = _cost_entry(entry, f"{sha}:metrics/versions.json#{digest}")
+            if costs:
+                return costs
     listing = _git(["ls-tree", "-r", "--name-only", sha, "problems"])
-    costs: dict[tuple[str, str], int] = {}
+    metric_costs: dict[tuple[str, str], int] = {}
     for name in listing.splitlines():
         parts = name.split("/")
         if len(parts) != 5 or parts[2] != "solutions" or parts[4] != "metric.json":
@@ -276,11 +295,27 @@ def base_costs(sha: str) -> dict[tuple[str, str], int]:
         text = _show(sha, name)
         if text is None:
             continue
-        data = json.loads(text)
-        if data.get("pass") is not True or isinstance(data.get("cost"), bool) or not isinstance(data.get("cost"), int):
-            raise RuntimeError(f"{sha}:{name} must pass with an integer cost")
-        costs[(parts[1], parts[3])] = data["cost"]
-    return costs
+        metric_costs[(parts[1], parts[3])] = _cost_entry(json.loads(text), f"{sha}:{name}")
+    if metric_costs:
+        return metric_costs
+    latest_text = _show(sha, "metrics/latest.json")
+    if latest_text is None:
+        return {}
+    latest = json.loads(latest_text)
+    runs = latest.get("runs") if isinstance(latest, dict) else None
+    if not isinstance(runs, list):
+        return {}
+    grouped: dict[tuple[str, str], list[dict]] = {}
+    for run in runs:
+        if not isinstance(run, dict) or run.get("host") != "go":
+            continue
+        grouped.setdefault((run.get("problem"), run.get("ruleset")), []).append(run)
+    summed: dict[tuple[str, str], int] = {}
+    for key, rows in grouped.items():
+        if not all(row.get("pass") is True and isinstance(row.get("cost"), int) and not isinstance(row.get("cost"), bool) for row in rows):
+            continue
+        summed[key] = sum(row["cost"] for row in rows)
+    return summed
 
 
 def measure_report(base: str) -> Report:

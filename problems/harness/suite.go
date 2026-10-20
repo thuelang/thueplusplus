@@ -219,15 +219,20 @@ func loadSolutions(root, problemID string) ([]Solution, error) {
 		return nil, err
 	}
 	var names []string
+	programs := map[string]string{}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			return nil, fmt.Errorf("%s/solutions: %s is not a ruleset directory", problemID, entry.Name())
 		}
-		program := filepath.Join(dir, entry.Name(), "solution.thue")
-		if _, err := os.Stat(program); err != nil {
+		program, err := currentProgram(filepath.Join(dir, entry.Name()), "thue")
+		if err != nil {
+			return nil, fmt.Errorf("%s/%s: %w", problemID, entry.Name(), err)
+		}
+		if program == "" {
 			continue
 		}
 		names = append(names, entry.Name())
+		programs[entry.Name()] = program
 	}
 	if len(names) == 0 {
 		return nil, fmt.Errorf("%s: no solution.thue", problemID)
@@ -235,18 +240,85 @@ func loadSolutions(root, problemID string) ([]Solution, error) {
 	sort.Strings(names)
 	out := make([]Solution, 0, len(names))
 	for _, name := range names {
-		program := filepath.Join(dir, name, "solution.thue")
+		program := programs[name]
 		data, err := os.ReadFile(program)
 		if err != nil {
 			return nil, err
 		}
 		if len(data) == 0 || data[len(data)-1] != '\n' {
-			return nil, fmt.Errorf("%s/solution.thue must end with a newline", name)
+			return nil, fmt.Errorf("%s/%s must end with a newline", name, filepath.Base(program))
 		}
-		rel := filepath.ToSlash(filepath.Join("problems", problemID, "solutions", name, "solution.thue"))
-		out = append(out, Solution{Name: name, Path: rel, PathAbs: program})
+		rel, err := filepath.Rel(root, program)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, Solution{Name: name, Path: filepath.ToSlash(rel), PathAbs: program})
 	}
 	return out, nil
+}
+
+func currentProgram(rulesetDir, extension string) (string, error) {
+	entries, err := os.ReadDir(rulesetDir)
+	if err != nil {
+		return "", err
+	}
+	best := ""
+	program := ""
+	for _, entry := range entries {
+		if !entry.IsDir() || !isTimestamp(entry.Name()) {
+			continue
+		}
+		files, err := os.ReadDir(filepath.Join(rulesetDir, entry.Name()))
+		if err != nil {
+			return "", err
+		}
+		var matched []string
+		for _, file := range files {
+			if file.IsDir() || !isHashFile(file.Name(), extension) {
+				continue
+			}
+			matched = append(matched, file.Name())
+		}
+		if len(matched) == 0 {
+			continue
+		}
+		if len(matched) != 1 {
+			return "", fmt.Errorf("%s has %d .%s files", entry.Name(), len(matched), extension)
+		}
+		if entry.Name() > best {
+			best = entry.Name()
+			program = filepath.Join(rulesetDir, entry.Name(), matched[0])
+		}
+	}
+	return program, nil
+}
+
+func isTimestamp(name string) bool {
+	if len(name) != 19 || name[4] != '-' || name[7] != '-' || name[10] != '_' || name[13] != '-' || name[16] != '-' {
+		return false
+	}
+	for i := 0; i < len(name); i++ {
+		if i == 4 || i == 7 || i == 10 || i == 13 || i == 16 {
+			continue
+		}
+		if name[i] < '0' || name[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func isHashFile(name, extension string) bool {
+	suffix := "." + extension
+	if len(name) != 12+len(suffix) || !strings.HasSuffix(name, suffix) {
+		return false
+	}
+	for _, c := range name[:12] {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func RequireNativeGo(root string) error {

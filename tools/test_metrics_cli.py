@@ -16,13 +16,22 @@ sys.path.insert(0, str(ROOT / "metrics"))
 
 import historylib  # noqa: E402
 from hosts import build_registered  # noqa: E402
+from layout import discover  # noqa: E402
+
+
+def current_direct(problem: str) -> str:
+    for solution in discover():
+        if solution.problem == problem and solution.direct:
+            return solution.program
+    raise SystemExit(f"{problem} has no direct solution")
+
 
 # Existing programs keep their names. The limit case is a new file, so it uses .thue.
 PROGRAMS = (
-    ("problems/hello-world/solutions/direct/solution.thue", None, ""),
-    ("problems/99-bottles-of-beer/solutions/direct/solution.thue", None, "4\n"),
-    ("problems/fizzbuzz/solutions/direct/solution.thue", None, "5\n"),
-    ("problems/factorial/solutions/direct/solution.thue", None, "6\n"),
+    ("hello-world", None, ""),
+    ("99-bottles-of-beer", None, "4\n"),
+    ("fizzbuzz", None, "5\n"),
+    ("factorial", None, "6\n"),
     ("metrics/workloads/probe-cost.thue", None, ""),
     ("metrics/workloads/state-rewrite.thue", None, ""),
     ("metrics/workloads/regex.thue", None, ""),
@@ -97,6 +106,8 @@ def main() -> None:
     if not any(item.name == "go" for item in interpreters):
         raise SystemExit("the metrics check runs the go host")
     for program, input_text, stdin in PROGRAMS:
+        if program in {"hello-world", "99-bottles-of-beer", "fizzbuzz", "factorial"}:
+            program = current_direct(program)
         compare(interpreters, program, input_text, stdin, [])
     with tempfile.TemporaryDirectory() as tmp:
         program = Path(tmp) / "limit.thue"
@@ -114,7 +125,7 @@ def main() -> None:
             target = Path(tmp) / f"list-{interpreter.name}.json"
             completed = run(
                 interpreter,
-                "problems/hello-world/solutions/direct/solution.thue",
+                current_direct("hello-world"),
                 None,
                 "",
                 target,

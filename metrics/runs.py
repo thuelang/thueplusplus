@@ -262,10 +262,52 @@ def _require_parity(runs: list[dict]) -> None:
                 )
 
 
-def _write_metrics(solutions: list[Solution], runs: list[dict], commit: str, *, root: Path = ROOT) -> list[str]:
-    """Write metric.json files whose pass, cost, or diagnostics changed.
+VERSIONS_REL = "metrics/versions.json"
 
-    `commit` is recorded on a file that is written. It is not a change by itself.
+
+def _metric_document(solution: Solution, rows: list[dict], commit: str) -> dict:
+    return {
+        "problem": solution.problem,
+        "ruleset": solution.ruleset,
+        "timestamp": solution.timestamp,
+        "pass": True,
+        "cost": sum(row["cost"] for row in rows),
+        "commit": commit,
+        "applied_steps": sum(row["applied_steps"] for row in rows),
+        "regex_evals": sum(row["regex_evals"] for row in rows),
+        "regex_matches": sum(row["regex_matches"] for row in rows),
+        "state_bytes": sum(row["state_bytes"] for row in rows),
+        "state_peak": max(row["state_peak"] for row in rows),
+        "rule_count": rows[-1]["rule_count"],
+        "rule_chars": rows[-1]["rule_chars"],
+        "current": True,
+    }
+
+
+def _same_metric(existing: dict, document: dict) -> bool:
+    if existing.get("current") is not True:
+        return False
+    if existing.get("problem") != document["problem"] or existing.get("ruleset") != document["ruleset"]:
+        return False
+    if existing.get("timestamp") != document["timestamp"]:
+        return False
+    return all(existing.get(key) == document[key] for key in METRIC_FIELDS if key != "commit")
+
+
+def load_versions(root: Path = ROOT) -> dict:
+    path = root / VERSIONS_REL
+    if not path.is_file():
+        return {"schema_version": 1, "versions": {}}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or data.get("schema_version") != 1 or not isinstance(data.get("versions"), dict):
+        raise RunError(f"{VERSIONS_REL} is not schema 1")
+    return data
+
+
+def _write_metrics(solutions: list[Solution], runs: list[dict], commit: str, *, root: Path = ROOT) -> list[str]:
+    """Write metrics/versions.json when a current version's pass, cost, or diagnostics changed.
+
+    `commit` is recorded on an entry that is written. It is not a change by itself.
     Returns repo-relative paths that were written. A failing Go run writes nothing.
     """
     grouped: dict[tuple[str, str], list[dict]] = {}
@@ -275,34 +317,34 @@ def _write_metrics(solutions: list[Solution], runs: list[dict], commit: str, *, 
         grouped.setdefault((run["problem"], run["ruleset"]), []).append(run)
     pending: list[tuple[Solution, list[dict]]] = []
     for solution in solutions:
+        if not solution.hash:
+            raise RunError(f"{solution.problem}/{solution.ruleset} has no version hash")
         rows = grouped[(solution.problem, solution.ruleset)]
         if any(row["pass"] is not True for row in rows):
             raise RunError(f"{solution.problem}/{solution.ruleset} did not pass")
         pending.append((solution, rows))
-    written: list[str] = []
+    document = load_versions(root)
+    versions = document["versions"]
+    changed = False
     for solution, rows in pending:
-        document = {
-            "pass": True,
-            "cost": sum(row["cost"] for row in rows),
-            "commit": commit,
-            "applied_steps": sum(row["applied_steps"] for row in rows),
-            "regex_evals": sum(row["regex_evals"] for row in rows),
-            "regex_matches": sum(row["regex_matches"] for row in rows),
-            "state_bytes": sum(row["state_bytes"] for row in rows),
-            "state_peak": max(row["state_peak"] for row in rows),
-            "rule_count": rows[-1]["rule_count"],
-            "rule_chars": rows[-1]["rule_chars"],
-        }
-        path = root / "problems" / solution.problem / "solutions" / solution.ruleset / "metric.json"
-        if path.is_file():
-            existing = json.loads(path.read_text(encoding="utf-8"))
-            same = all(existing.get(key) == document[key] for key in METRIC_FIELDS if key != "commit")
-            if same:
+        entry = _metric_document(solution, rows, commit)
+        for other_hash, other in versions.items():
+            if other_hash == solution.hash or not isinstance(other, dict):
                 continue
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-        written.append(path.relative_to(root).as_posix())
-    return written
+            if other.get("problem") == solution.problem and other.get("ruleset") == solution.ruleset and other.get("current") is True:
+                other["current"] = False
+                changed = True
+        existing = versions.get(solution.hash)
+        if isinstance(existing, dict) and _same_metric(existing, entry):
+            continue
+        versions[solution.hash] = entry
+        changed = True
+    if not changed:
+        return []
+    path = root / VERSIONS_REL
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    return [VERSIONS_REL]
 
 
 def check_committed(runs: list[dict], *, root: Path = ROOT) -> None:
@@ -311,15 +353,19 @@ def check_committed(runs: list[dict], *, root: Path = ROOT) -> None:
         grouped.setdefault((run["problem"], run["ruleset"], run["host"]), []).append(run)
     if not grouped:
         raise RunError("no runs")
+    versions = load_versions(root)["versions"]
     for problem, ruleset, host in sorted(grouped):
         rows = grouped[(problem, ruleset, host)]
-        path = root / "problems" / problem / "solutions" / ruleset / "metric.json"
-        relative = path.relative_to(root)
-        if not path.is_file():
-            raise RunError(f"{relative.as_posix()} is missing")
         if any(row["pass"] is not True for row in rows):
             raise RunError(f"{problem}/{ruleset} failed on {host}")
-        data = json.loads(path.read_text(encoding="utf-8"))
+        current = [
+            entry
+            for entry in versions.values()
+            if isinstance(entry, dict) and entry.get("problem") == problem and entry.get("ruleset") == ruleset and entry.get("current") is True
+        ]
+        if len(current) != 1:
+            raise RunError(f"{VERSIONS_REL} needs one current {problem}/{ruleset}")
         cost = sum(row["cost"] for row in rows)
-        if data.get("pass") is not True or data.get("cost") != cost:
-            raise RunError(f"{relative.as_posix()} cost {data.get('cost')} != {host} measured {cost}")
+        recorded = current[0].get("cost")
+        if current[0].get("pass") is not True or recorded != cost:
+            raise RunError(f"{VERSIONS_REL} cost {recorded} != {host} measured {cost}")

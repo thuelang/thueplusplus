@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -342,16 +343,18 @@ function readResources(problem) {
   return resources
 }
 
-function costsAt(sha, rulesets, problems) {
+function costsAt(iso, rulesets, problems, index) {
   const costs = {}
   for (const ruleset of rulesets) {
     costs[ruleset] = {}
     for (const problem of problems) {
-      const path = `problems/${problem}/solutions/${ruleset}/metric.json`
-      const text = gitShow(sha, path)
-      if (text == null) continue
-      const data = readMetric(text, `${sha}:${path}`)
-      costs[ruleset][problem] = data.cost
+      const versions = index.get(`${ruleset}\0${problem}`) ?? []
+      let cost = null
+      for (const version of versions) {
+        if (version.iso <= iso) cost = version.cost
+        else break
+      }
+      if (cost != null) costs[ruleset][problem] = cost
     }
   }
   return costs
@@ -455,10 +458,23 @@ function readSandbox(id) {
   }
 }
 
-function metricPoint(solution, commit, data) {
+const VERSION_STAMP = /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/
+const VERSION_FILE = /^([0-9a-f]{12})\.([a-z0-9]+)$/
+
+function fileHash(buffer) {
+  return createHash('sha256').update(buffer).digest('hex').slice(0, 12)
+}
+
+function stampToIso(stamp) {
+  const match = /^(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})$/.exec(stamp)
+  if (!match) throw new CatalogError(`${stamp} is not a UTC timestamp like 2026-10-20_14-34-00`)
+  return `${match[1]}T${match[2]}:${match[3]}:${match[4]}Z`
+}
+
+function metricPoint(name, commit, data) {
   return {
     commit,
-    solution: solution.entry,
+    solution: name,
     cost: data.cost,
     steps: data.applied_steps,
     regexEvals: data.regex_evals,
@@ -470,43 +486,135 @@ function metricPoint(solution, commit, data) {
   }
 }
 
-function metricSeries(solution, head) {
-  const points = []
-  for (const commit of solution.history) {
-    const metricRel = `problems/${solution.problem}/solutions/${solution.ruleset}/metric.json`
-    const text = gitShow(commit.commit, metricRel)
-    if (text == null) {
-      console.log(`site: omit ${metricRel} at ${commit.commit} (blob is not in this clone)`)
+function listVersionFiles(problem, ruleset) {
+  const folder = `problems/${problem}/solutions/${ruleset}`
+  const versions = []
+  for (const entry of readdirSync(join(repoRoot, folder), { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    if (!VERSION_STAMP.test(entry.name)) throw new CatalogError(`${folder}/${entry.name} is not a UTC timestamp like 2026-10-20_14-34-00`)
+    const names = readdirSync(join(repoRoot, folder, entry.name)).filter(name => VERSION_FILE.test(name) && !name.endsWith('.md'))
+    if (names.length !== 1) throw new CatalogError(`${folder}/${entry.name} needs one solution file`)
+    const match = VERSION_FILE.exec(names[0])
+    const rel = `${folder}/${entry.name}/${names[0]}`
+    const bytes = readFileSync(join(repoRoot, rel))
+    const digest = fileHash(bytes)
+    if (digest !== match[1]) throw new CatalogError(`${rel} hash is ${digest}`)
+    versions.push({
+      timestamp: entry.name,
+      iso: stampToIso(entry.name),
+      hash: digest,
+      extension: match[2],
+      name: names[0],
+      rel,
+      text: bytes.toString('utf8'),
+    })
+  }
+  versions.sort((left, right) => left.timestamp.localeCompare(right.timestamp))
+  if (versions.length === 0) throw new CatalogError(`${folder} has no solution versions`)
+  return versions
+}
+
+function gitShowBuffer(sha, path) {
+  try {
+    return execFileSync('git', ['show', `${sha}:${path}`], { cwd: repoRoot, encoding: 'buffer', stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch {
+    return null
+  }
+}
+
+function historicalCosts(problem, ruleset, extension) {
+  const solutionPath = `problems/${problem}/solutions/${ruleset}/solution.${extension}`
+  const metricPath = `problems/${problem}/solutions/${ruleset}/metric.json`
+  const log = git(['log', '--format=%H', '--', solutionPath, metricPath], { missing: true })
+  const costs = new Map()
+  if (!log) return costs
+  for (const commit of log.split('\n').filter(Boolean)) {
+    const blob = gitShowBuffer(commit, solutionPath)
+    if (!blob) continue
+    const hash = fileHash(blob)
+    if (costs.has(hash)) continue
+    const text = gitShow(commit, metricPath)
+    if (text == null) continue
+    try {
+      costs.set(hash, { metric: readMetric(text, `${commit}:${metricPath}`), gitCommit: commit })
+    } catch {
       continue
     }
-    points.push(metricPoint(solution, commit.commit, readMetric(text, `${commit.commit}:${metricRel}`)))
   }
-  if (points.length === 0) {
-    console.log(`site: ${solution.problem}/${solution.ruleset} has no metric history; keeping the working tree cost`)
-    points.push(metricPoint(solution, head.commit, solution.latest))
-  }
-  return points
+  return costs
 }
 
-function measuredAt(solution, fallback) {
-  const last = solution.history.at(-1)
-  if (last) return last.timestamp
-  const stamp = gitStamp(solution.latest.commit)
-  if (stamp) return stamp.timestamp
-  console.log(`site: ${solution.problem}/${solution.ruleset} measurement commit is not in this clone`)
-  return fallback
+let versionsDocument
+function versionsByHash() {
+  if (versionsDocument) return versionsDocument
+  versionsDocument = new Map()
+  const path = join(repoRoot, 'metrics/versions.json')
+  if (!existsSync(path)) return versionsDocument
+  const data = JSON.parse(readFileSync(path, 'utf8'))
+  const versions = data.versions
+  if (!versions || typeof versions !== 'object') throw new CatalogError('metrics/versions.json is not schema 1')
+  for (const [hash, entry] of Object.entries(versions)) {
+    if (entry.pass === true && Number.isInteger(entry.cost) && entry.cost >= 0) versionsDocument.set(hash, entry)
+  }
+  return versionsDocument
 }
 
-function seriesCosts(solution) {
-  const points = []
-  for (const row of solution.history) {
-    const metricRel = `problems/${solution.problem}/solutions/${solution.ruleset}/metric.json`
-    const text = gitShow(row.commit, metricRel)
-    if (text == null) continue
-    const data = readMetric(text, `${row.commit}:${metricRel}`)
-    points.push({ commit: row.commit, timestamp: row.timestamp, author: row.author, cost: data.cost })
+let latestDocument
+function latestGo(problem, ruleset) {
+  if (latestDocument === undefined) {
+    const path = join(repoRoot, 'metrics/latest.json')
+    latestDocument = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null
   }
-  return points
+  if (!latestDocument || !Array.isArray(latestDocument.runs)) return null
+  const rows = latestDocument.runs.filter(run => run.host === 'go' && run.problem === problem && run.ruleset === ruleset)
+  if (rows.length === 0 || rows.some(row => row.pass !== true || !Number.isInteger(row.cost) || row.cost < 0)) return null
+  const state = rows[0].state
+  if (rows.some(row => row.state !== state)) return null
+  return {
+    state,
+    commit: latestDocument.commit,
+    metric: {
+      pass: true,
+      cost: rows.reduce((sum, row) => sum + row.cost, 0),
+      applied_steps: rows.reduce((sum, row) => sum + row.applied_steps, 0),
+      regex_evals: rows.reduce((sum, row) => sum + row.regex_evals, 0),
+      regex_matches: rows.reduce((sum, row) => sum + row.regex_matches, 0),
+      state_bytes: rows.reduce((sum, row) => sum + row.state_bytes, 0),
+      state_peak: Math.max(...rows.map(row => row.state_peak)),
+      rule_count: rows.at(-1).rule_count,
+      rule_chars: rows.at(-1).rule_chars,
+    },
+  }
+}
+
+function solutionState(ruleset, text, rel) {
+  if (ruleset === 'direct') {
+    const lines = text.split('\n')
+    const index = lines.findIndex(line => line.trim() === '::=')
+    if (index < 0) throw new CatalogError(`${rel}: no ::= state separator`)
+    return lines.slice(index + 1).join('\n')
+  }
+  if (!text.endsWith('\n')) throw new CatalogError(`${rel} must end with a newline`)
+  return text.slice(0, -1)
+}
+
+function cloneIsShallow() {
+  return git(['rev-parse', '--is-shallow-repository']) === 'true'
+}
+
+function costForVersion(version, historical, latest, shallow, newest) {
+  const recorded = versionsByHash().get(version.hash)
+  if (recorded) return { metric: recorded, gitCommit: recorded.commit }
+  const past = historical.get(version.hash)
+  if (past && newest && latest && latest.state === solutionState(version.ruleset, version.text, version.rel) && latest.metric.cost !== past.metric.cost) {
+    return { metric: latest.metric, gitCommit: latest.commit }
+  }
+  if (past) return past
+  if (newest && latest && (shallow || latest.state === solutionState(version.ruleset, version.text, version.rel))) {
+    console.log(`site: ${version.problem}/${version.ruleset} has no metric history; keeping the working tree cost`)
+    return { metric: latest.metric, gitCommit: latest.commit }
+  }
+  return null
 }
 
 function build() {
@@ -532,16 +640,29 @@ function build() {
       present.add(entry.name)
       const folder = `problems/${problem}/solutions/${entry.name}`
       const meta = parseFrontmatter(readFileSync(join(repoRoot, folder, 'README.md'), 'utf8'), `${folder}/README.md`)
-      const metricPath = `${folder}/metric.json`
-      if (!existsSync(join(repoRoot, metricPath))) {
-        console.log(`site: omit ${metricPath} (recorded when the metrics job commits it)`)
-        continue
+      if (!meta.fields.author) throw new CatalogError(`${folder}/README.md: frontmatter needs author`)
+      const files = listVersionFiles(problem, entry.name)
+      const shallow = cloneIsShallow()
+      const historical = historicalCosts(problem, entry.name, files[0].extension)
+      const latest = latestGo(problem, entry.name)
+      const newest = files.at(-1)
+      const priced = []
+      for (const file of files) {
+        file.problem = problem
+        file.ruleset = entry.name
+        const pricedVersion = costForVersion(file, historical, latest, shallow, file === newest)
+        if (!pricedVersion) {
+          if (!shallow && file === newest) throw new CatalogError(`${file.rel} has no recorded cost`)
+          console.log(`site: omit ${file.rel} from the cost chart (no recorded cost)`)
+          priced.push({ ...file, metric: null, gitCommit: head.commit })
+          continue
+        }
+        priced.push({ ...file, metric: pricedVersion.metric, gitCommit: pricedVersion.gitCommit || head.commit })
       }
-      const historyResult = metricHistory(metricPath, boundary)
-      if (historyResult.truncated) historyTruncated = true
-      for (const commit of historyResult.omitted) omittedBoundary.add(commit)
-      const history = historyResult.rows
-      const latest = readMetric(readFileSync(join(repoRoot, metricPath), 'utf8'), metricPath)
+      if (shallow && priced.filter(item => item.metric).length < files.length) historyTruncated = true
+      const measured = priced.filter(item => item.metric)
+      if (measured.length === 0) throw new CatalogError(`${folder} has no recorded cost`)
+      const current = measured.at(-1)
       const solution = {
         problem,
         ruleset: entry.name,
@@ -549,15 +670,13 @@ function build() {
         title: readme.fields.title,
         description: prose.description,
         credit: prose.credit,
-        entry: meta.fields.entry,
         author: meta.fields.author,
         notes: meta.body.trim(),
-        source: readFileSync(join(repoRoot, folder, meta.fields.entry), 'utf8'),
-        path: `${folder}/${meta.fields.entry}`,
-        history,
-        latest,
+        versions: priced,
+        latest: current.metric,
+        history: measured.map(item => ({ commit: item.iso, timestamp: item.iso, author: meta.fields.author })),
+        points: measured.map(item => metricPoint(item.name, item.iso, item.metric)),
       }
-      solution.points = metricSeries(solution, head)
       solutions.push(solution)
     }
   }
@@ -580,6 +699,13 @@ function build() {
     }
   }
   commits.sort((left, right) => left.timestamp.localeCompare(right.timestamp) || left.commit.localeCompare(right.commit))
+  const versionIndex = new Map()
+  for (const solution of solutions) {
+    versionIndex.set(
+      `${solution.ruleset}\0${solution.problem}`,
+      solution.versions.filter(item => item.metric).map(item => ({ iso: item.iso, cost: item.metric.cost })),
+    )
+  }
   const passingNow = {}
   const costsNow = {}
   for (const ruleset of ordered) {
@@ -589,9 +715,9 @@ function build() {
   const common = commonProblems(passingNow)
   const totals = aggregateSum(costsNow, common)
   const rulesets = ordered.map(id => {
-    const solved = solvedSeries(id, problems, commits, historyTruncated)
+    const solved = solvedSeries(id, problems, commits, versionIndex, historyTruncated)
     const aggregateSeries = commits.map(commit => {
-      const costs = costsAt(commit.commit, ordered, problems)
+      const costs = costsAt(commit.timestamp, ordered, problems, versionIndex)
       const then = commonProblems(Object.fromEntries(ordered.map(ruleset => [ruleset, Object.keys(costs[ruleset] ?? {})])))
       const sums = aggregateSum(costs, then)
       return sums[id] === undefined ? null : { ...commit, cost: sums[id] }
@@ -632,21 +758,21 @@ function build() {
           missing: false,
           notes: solution.notes,
           author: solution.author,
-          measured: measuredAt(solution, head.timestamp),
-          solutions: [{
-            id: solution.entry,
+          measured: solution.history.at(-1).timestamp,
+          solutions: [...solution.versions].reverse().map(item => ({
+            id: item.name,
             status: 'pass',
-            steps: solution.latest.applied_steps,
-            cost: solution.latest.cost,
-            regexEvals: solution.latest.regex_evals,
-            regexMatches: solution.latest.regex_matches,
-            stateBytes: solution.latest.state_bytes,
-            statePeak: solution.latest.state_peak,
-            ruleCount: solution.latest.rule_count,
-            ruleChars: solution.latest.rule_chars,
-            solution: solution.source,
-            solutionPath: solution.path,
-          }],
+            steps: item.metric ? item.metric.applied_steps : null,
+            cost: item.metric ? item.metric.cost : null,
+            regexEvals: item.metric ? item.metric.regex_evals : null,
+            regexMatches: item.metric ? item.metric.regex_matches : null,
+            stateBytes: item.metric ? item.metric.state_bytes : null,
+            statePeak: item.metric ? item.metric.state_peak : null,
+            ruleCount: item.metric ? item.metric.rule_count : null,
+            ruleChars: item.metric ? item.metric.rule_chars : null,
+            solution: item.text,
+            solutionPath: item.rel,
+          })),
           series: solution.points,
         }
       }),
@@ -669,7 +795,12 @@ function build() {
   }))
   const improvementEvents = []
   for (const solution of solutions) {
-    const points = seriesCosts(solution)
+    const points = solution.versions.filter(item => item.metric).map(item => ({
+      commit: /^[0-9a-f]{40}$/.test(item.gitCommit) ? item.gitCommit : head.commit,
+      timestamp: item.iso,
+      author: solution.author,
+      cost: item.metric.cost,
+    }))
     for (const drop of costDrops(points)) {
       const row = points.find(item => item.commit === drop.commit)
       improvementEvents.push({
@@ -685,7 +816,7 @@ function build() {
     }
   }
   const snapshots = commits.map(commit => {
-    const at = costsAt(commit.commit, sandboxIds, problems)
+    const at = costsAt(commit.timestamp, sandboxIds, problems, versionIndex)
     const passing = {}
     for (const id of sandboxIds) {
       const solved = problems.filter(problem => Number.isInteger(at[id]?.[problem]))
@@ -694,6 +825,12 @@ function build() {
     const then = commonProblems(passing)
     return { ...commit, common: then, totals: aggregateSum(at, then) }
   })
+  const commitSha = new Map()
+  for (const solution of solutions) {
+    for (const version of solution.versions) {
+      if (/^[0-9a-f]{40}$/.test(version.gitCommit) && !commitSha.has(version.iso)) commitSha.set(version.iso, version.gitCommit)
+    }
+  }
   for (const drop of aggregateDrops(snapshots)) {
     const row = commits.find(item => item.commit === drop.commit)
     improvementEvents.push({
@@ -702,7 +839,7 @@ function build() {
       problem: null,
       before: drop.before,
       after: drop.after,
-      commit: drop.commit,
+      commit: commitSha.get(row.timestamp) ?? head.commit,
       timestamp: row.timestamp,
       author: row.author,
     })
@@ -749,16 +886,14 @@ function langName(id) {
   return meta.fields.name
 }
 
-function solvedSeries(ruleset, problems, commits, truncated) {
+function solvedSeries(ruleset, problems, commits, index, truncated) {
   let previous = null
   const series = []
   for (const commit of commits) {
     const passing = []
     for (const problem of problems) {
-      const text = gitShow(commit.commit, `problems/${problem}/solutions/${ruleset}/metric.json`)
-      if (text == null) continue
-      const data = JSON.parse(text)
-      if (data.pass === true) passing.push(problem)
+      const versions = index.get(`${ruleset}\0${problem}`) ?? []
+      if (versions.some(version => version.iso <= commit.timestamp)) passing.push(problem)
     }
     const added = previous == null ? (truncated ? null : [...passing]) : passing.filter(problem => !previous.has(problem))
     previous = new Set(passing)

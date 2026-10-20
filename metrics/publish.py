@@ -81,16 +81,7 @@ def latest_materially_same(current: dict, runs: list) -> bool:
 
 
 def committable(path: str) -> bool:
-    if path == historylib.LATEST_REL:
-        return True
-    parts = path.split("/")
-    return (
-        len(parts) == 5
-        and parts[0] == "problems"
-        and parts[2] == "solutions"
-        and parts[4] == "metric.json"
-        and ".." not in parts
-    )
+    return path in {historylib.LATEST_REL, "metrics/versions.json"}
 
 
 def apply_files(

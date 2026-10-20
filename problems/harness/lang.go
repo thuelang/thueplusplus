@@ -166,7 +166,10 @@ func executeLang(id, extension string) (LangPart, error) {
 		if err != nil {
 			return LangPart{}, fmt.Errorf("%s: %w", item.Name, err)
 		}
-		script := scriptPath(root, id, extension, item.Script)
+		script, err := scriptPath(root, id, extension, item.Script)
+		if err != nil {
+			return LangPart{}, err
+		}
 		text, err := os.ReadFile(script)
 		if err != nil {
 			return LangPart{}, err
@@ -200,13 +203,24 @@ func executeLang(id, extension string) (LangPart, error) {
 	return LangPart{ID: id, Program: programRel, Rows: rows, Duration: time.Since(started).Milliseconds()}, nil
 }
 
-func scriptPath(root, id, extension, script string) string {
+func scriptPath(root, id, extension, script string) (string, error) {
 	switch script {
 	case "hello":
-		return filepath.Join(root, "problems", "hello-world", "solutions", id, "solution."+extension)
+		return currentLangScript(root, "hello-world", id, extension)
 	case "factorial":
-		return filepath.Join(root, "problems", "factorial", "solutions", id, "solution."+extension)
+		return currentLangScript(root, "factorial", id, extension)
 	default:
-		return filepath.Join(root, "langs", id, "cases", script+"."+extension)
+		return filepath.Join(root, "langs", id, "cases", script+"."+extension), nil
 	}
+}
+
+func currentLangScript(root, problem, id, extension string) (string, error) {
+	program, err := currentProgram(filepath.Join(root, "problems", problem, "solutions", id), extension)
+	if err != nil {
+		return "", err
+	}
+	if program == "" {
+		return "", fmt.Errorf("problems/%s/solutions/%s has no current .%s", problem, id, extension)
+	}
+	return program, nil
 }
