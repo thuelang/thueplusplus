@@ -36,6 +36,7 @@ A direct run has to pass `--line:env`. An empty line and `{}` are both an empty 
 - `!` and `not`. `&&` and `and`. `||` and `or`. These three are lazy.
 - Ternary `? :`, elvis `?:`, and `??`.
 - Decimal, hex (`0x`), octal (`0o`), and binary (`0b`) integers, plus ordinary floats (`1.5`, `1e2`).
+- A float stays an exact rational until output. Output rounds it to the nearest float64 and prints Go's shortest JSON form: `1/3` is `0.3333333333333333`, `2/3` is `0.6666666666666666`, `10/3` is `3.3333333333333335`. Magnitudes below `1e-6` or at least `1e21` use exponent form (`1e-7`, `1e+21`). A magnitude past float64 is `unsupported_float: overflow`.
 - Names looked up in `env`. An unknown name is an error.
 
 ## Errors
@@ -64,7 +65,7 @@ Stderr is a short code, or `code: plain words` when the extra words are cheap. T
 | `type_error: condition must be a bool` | `&&`, `or`, `?:`, or ternary has a non-bool condition. |
 | `type_error: exponent must be an integer` | `**` or `^` has a non-integer exponent. |
 | `division_by_zero` | `/` or `%` by zero, or a negative power of zero, when that operation actually runs. |
-| `unsupported_float: non-terminating decimal` | A float does not have a finite decimal expansion. |
+| `unsupported_float: overflow` | A float magnitude does not fit in float64. |
 | `invalid_env: expected JSON object` | `env` is not a JSON object. |
 | `invalid_json: malformed JSON` | The object is not valid JSON. |
 | `invalid_json: nested object members are unsupported` | A nested object has fields. Empty nested objects are fine. |
@@ -76,12 +77,12 @@ These are intentional. The curated cases stay on everyday expressions. The wider
 
 - Evaluated division or modulo by zero is `division_by_zero`. expr produces an infinity that JSON cannot encode.
 - A non-integer exponent is `type_error: exponent must be an integer`. expr uses float64 `math.Pow`.
-- A fraction whose decimal does not terminate, such as `1/3`, is `unsupported_float`.
+- `0.1 + 0.2` prints `0.3`. Arithmetic stays exact, so that sum is the rational 3/10. expr rounds each operand to float64 before adding.
 - An unknown name is `unknown_name`, not `nil`.
 - `1 < 2 < 1/0` evaluates the division and errors. expr treats `2 < +Inf` as true and skips the failure.
 - `1 ?? 2 + 3` is a syntax error. Parentheses decide the grouping: `(1 ?? 2) + 3` and `1 ?? (2 + 3)`.
 - `&&`, `||`, `?:`, and `??` check the condition, then the branch they actually run. expr also resolves names and types in the branch it skips, so `false ?? foo` is an unknown-name error there and `false` here.
-- int64 wrap, exotic numeric spellings, and float64 rounding are not the goal. A few literals and one wrap case are in the suite because the rules exist. Signed zero prints as `0`. Do not expect bit-identical float64.
+- int64 wrap and exotic numeric spellings are not the goal. A few literals and one wrap case are in the suite because the rules exist. Signed zero prints as `0`. Output rounds to float64. Intermediate sums such as `0.1 + 0.2` stay exact.
 - `true != 0` is `type_error: cannot compare bool and int`. expr treats a bool and a number as unequal. The wider score lists these as `cross_type_compare`.
 - `\u` escapes above U+007F, nested objects that have fields, and strings inside arrays are rejected.
 - String literals, `let`, collections, predicates, pipes, and dates are out of scope.

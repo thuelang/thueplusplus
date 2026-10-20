@@ -50,6 +50,16 @@ func main() {
 		}
 		work = append(work, line)
 	}
+	for _, extra := range []string{
+		"1/3", "2/3", "10/3", "1/7", "-1/3", "-2/3",
+		"1/16777216", "2.5**2", "10**21", "1e-7", "1e20", "1e-6",
+	} {
+		if seen[extra] {
+			continue
+		}
+		seen[extra] = true
+		work = append(work, extra)
+	}
 	src, err := os.ReadFile("expr/expr.thue")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -144,12 +154,12 @@ func readLines(path string) []string {
 }
 
 var (
-	callPat   = regexp.MustCompile(`\b[A-Za-z_][A-Za-z0-9_]*\s*\(`)
-	divZero   = regexp.MustCompile(`(?:/|%)\s*0(?:\b|[^0-9.])`)
-	powFloat  = regexp.MustCompile(`(?:\*\*|\^)\s*-?(?:[0-9]+\.[0-9]+|\.[0-9]+)`)
-	mixPat    = regexp.MustCompile(`\?\?[^()]*[+*/%<>=!-]`)
-	chainDiv  = regexp.MustCompile(`[<>]=?\s*[^<>]*[<>]=?[^<>]*(?:/|%)\s*0`)
-	floatLit  = regexp.MustCompile(`(?:[0-9]+\.[0-9]+|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+`)
+	callPat  = regexp.MustCompile(`\b[A-Za-z_][A-Za-z0-9_]*\s*\(`)
+	divZero  = regexp.MustCompile(`(?:/|%)\s*0(?:\b|[^0-9.])`)
+	powFloat = regexp.MustCompile(`(?:\*\*|\^)\s*-?(?:[0-9]+\.[0-9]+|\.[0-9]+)`)
+	mixPat   = regexp.MustCompile(`\?\?[^()]*[+*/%<>=!-]`)
+	chainDiv = regexp.MustCompile(`[<>]=?\s*[^<>]*[<>]=?[^<>]*(?:/|%)\s*0`)
+	floatLit = regexp.MustCompile(`(?:[0-9]+\.[0-9]+|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+`)
 )
 
 func exclude(line string) string {
