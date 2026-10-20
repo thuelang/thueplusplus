@@ -16,6 +16,24 @@ INT <- -?[0-9]+
 ^@W@(?<e>[^@\n]+)@ ::> stderr {{e}}
 ^@X@ ::- 2
 ^@ERR@(?<e>[^@\n]+)@[\s\S]*\z ::= @W@{{e}}@@X@
+^@BS@L@0@(?<op>[^@]*)@(?<acc>[^@]*)@,(?<right>.*)\}@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @EV@{{acc}}@A{{op}}{{right}}~{{frames}}@{{env}}|
+^@BS@L@0@(?<op>[\+\-!])@(?<acc>[^@]*)@\}@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @EV@{{acc}}@U{{op}}~{{frames}}@{{env}}|
+^@BS@L@(?<d>[0-9]+)@(?<op>[^@]*)@(?<acc>[^@]*)@\{(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @BD@@add@{{d}},1@@{{op}}@{{acc}}{@{{rest}}@{{frames}}@{{env}}|
+^@BD@(?<d>[0-9]+)@(?<op>[^@]*)@(?<acc>[^@]*)@(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @BS@L@{{d}}@{{op}}@{{acc}}@{{rest}}@{{frames}}@{{env}}|
+^@BS@L@(?<d>[1-9][0-9]*)@(?<op>[^@]*)@(?<acc>[^@]*)@\}(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @SD@@sub@{{d}},1@@{{op}}@{{acc}}}@{{rest}}@{{frames}}@{{env}}|
+^@SD@(?<d>[0-9]+)@(?<op>[^@]*)@(?<acc>[^@]*)@(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @BS@L@{{d}}@{{op}}@{{acc}}@{{rest}}@{{frames}}@{{env}}|
+^@BS@L@(?<d>[1-9][0-9]*)@(?<op>[^@]*)@(?<acc>[^@]*)@,(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @BS@L@{{d}}@{{op}}@{{acc}},@{{rest}}@{{frames}}@{{env}}|
+^@BS@L@(?<d>[0-9]+)@(?<op>[^@]*)@(?<acc>[^@]*)@(?<c>[^{},])(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @BS@L@{{d}}@{{op}}@{{acc}}{{c}}@{{rest}}@{{frames}}@{{env}}|
+
+^@TS@(?<d>[0-9]+)\|(?<c>[^|]*)\|(?<t>[^|]*)\|(?<a>[^|]*)\|\{(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TD@@add@{{d}},1@@{{c}}|{{t}}|{{a}}{|{{rest}}@{{frames}}@{{env}}|
+^@TD@(?<d>[0-9]+)@(?<c>[^|]*)\|(?<t>[^|]*)\|(?<a>[^|]*)\|(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TS@{{d}}|{{c}}|{{t}}|{{a}}|{{rest}}@{{frames}}@{{env}}|
+^@TS@(?<d>[1-9][0-9]*)\|(?<c>[^|]*)\|(?<t>[^|]*)\|(?<a>[^|]*)\|\}(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TU@@sub@{{d}},1@@{{c}}|{{t}}|{{a}}}|{{rest}}@{{frames}}@{{env}}|
+^@TU@(?<d>[0-9]+)@(?<c>[^|]*)\|(?<t>[^|]*)\|(?<a>[^|]*)\|(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TS@{{d}}|{{c}}|{{t}}|{{a}}|{{rest}}@{{frames}}@{{env}}|
+^@TS@0\|(?<c>[^|]*)\|(?<t>[^|]*)\|(?<a>[^|]*)\|\}@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @EV@{{c}}@AT{{t}};{{a}}~{{frames}}@{{env}}|
+^@TS@0\|\|\|(?<a>[^|]*)\|,(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TS@0|{{a}}|||{{rest}}@{{frames}}@{{env}}|
+^@TS@0\|(?<c>[^|]*)\|\|(?<a>[^|]*)\|,(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TS@0|{{c}}|{{a}}||{{rest}}@{{frames}}@{{env}}|
+^@TS@(?<d>[1-9][0-9]*)\|(?<c>[^|]*)\|(?<t>[^|]*)\|(?<a>[^|]*)\|,(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TS@{{d}}|{{c}}|{{t}}|{{a}},|{{rest}}@{{frames}}@{{env}}|
+^@TS@(?<d>[0-9]+)\|(?<c>[^|]*)\|(?<t>[^|]*)\|(?<a>[^|]*)\|(?<ch>[^{},])(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TS@{{d}}|{{c}}|{{t}}|{{a}}{{ch}}|{{rest}}@{{frames}}@{{env}}|
 
 ^@RN@\{d:(?<n>-?[0-9]+)/(?<den>[0-9]+)\}\|(?<env>[^|]*)\| ::= @QU@{{n}}|{{den}}|
 ^@RN@\{d:(?<n>-?[0-9]+)\}\|(?<env>[^|]*)\| ::= @QU@{{n}}|1|
@@ -270,6 +288,45 @@ INT <- -?[0-9]+
 ^@QPR@1@(?<e>[0-9]+)\|(?<base>[0-9]+)\|(?<acc>[0-9]+)\|(?<tag>[A-Z])\|(?<p>[^@]*)\|$ ::= @QPT@@sub@{{e}},1@|{{base}}|{{acc}}|{{tag}}|{{p}}|
 ^@QPT@(?<e>[0-9]+)\|(?<base>[0-9]+)\|(?<acc>[0-9]+)\|(?<tag>[A-Z])\|(?<p>[^@]*)\|$ ::= @QPW@{{e}}|{{base}}|@mul@{{acc}},{{base}}@|{{tag}}|{{p}}|
 
+^@HXSQ@(?<o>$PCT)\|%22(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@o|{{rest}}|{{tok}}s{{o}};|{{env}}|
+^@HXSQ@(?<o>$PCT)\|%5C%22(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%22|{{rest}}|{{tok}}|{{env}}|
+^@HXSQ@(?<o>$PCT)\|%5C%5C(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%5C|{{rest}}|{{tok}}|{{env}}|
+^@HXSQ@(?<o>$PCT)\|%5C%2F(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%2F|{{rest}}|{{tok}}|{{env}}|
+^@HXSQ@(?<o>$PCT)\|%5Cn(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%0A|{{rest}}|{{tok}}|{{env}}|
+^@HXSQ@(?<o>$PCT)\|%5Ct(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%09|{{rest}}|{{tok}}|{{env}}|
+^@HXSQ@(?<o>$PCT)\|%5Cr(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%0D|{{rest}}|{{tok}}|{{env}}|
+^@HXSQ@(?<o>$PCT)\|%5Cb(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%08|{{rest}}|{{tok}}|{{env}}|
+^@HXSQ@(?<o>$PCT)\|%5Cf(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%0C|{{rest}}|{{tok}}|{{env}}|
+^@HXSQ@(?<o>$PCT)\|%5Cu(?<h>[0-9A-Fa-f]{4})(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSU@0|{{h}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSQ@(?<o>$PCT)\|%5C(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: bad string escape@
+^@HXSQ@(?<o>$PCT)\|%(?<h>[0-9A-F]{2})(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%{{h}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSQ@(?<o>$PCT)\|(?<c>[A-Za-z0-9_.-])(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}{{c}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSQ@(?<o>$PCT)\|\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unclosed string@
+^@HXSU@(?<n>[0-9]+)\|(?<d>[0-9])(?<h>[0-9A-Fa-f]*)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSV@@mul@{{n}},16@|{{d}}|{{h}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSU@(?<n>[0-9]+)\|(?<d>[aA])(?<h>[0-9A-Fa-f]*)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSV@@mul@{{n}},16@|10|{{h}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSU@(?<n>[0-9]+)\|(?<d>[bB])(?<h>[0-9A-Fa-f]*)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSV@@mul@{{n}},16@|11|{{h}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSU@(?<n>[0-9]+)\|(?<d>[cC])(?<h>[0-9A-Fa-f]*)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSV@@mul@{{n}},16@|12|{{h}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSU@(?<n>[0-9]+)\|(?<d>[dD])(?<h>[0-9A-Fa-f]*)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSV@@mul@{{n}},16@|13|{{h}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSU@(?<n>[0-9]+)\|(?<d>[eE])(?<h>[0-9A-Fa-f]*)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSV@@mul@{{n}},16@|14|{{h}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSU@(?<n>[0-9]+)\|(?<d>[fF])(?<h>[0-9A-Fa-f]*)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSV@@mul@{{n}},16@|15|{{h}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSV@(?<m>[0-9]+)\|(?<d>[0-9]+)\|(?<h>[0-9A-Fa-f]*)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSW@@add@{{m}},{{d}}@|{{h}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSW@(?<n>[0-9]+)\|(?<h>[0-9A-Fa-f]*)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSU@{{n}}|{{h}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSU@(?<n>[0-9]+)\|\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSX@@ge@{{n}}@128@@{{n}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSX@1@(?<n>[0-9]+)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: bad string escape@
+^@HXSX@0@(?<n>[0-9]+)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSY@@ge@{{n}}@16@@{{n}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSY@0@(?<n>[0-9]+)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSH@0|{{n}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSY@1@(?<n>[0-9]+)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSL@@mod@{{n}},16@|{{n}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSL@(?<lo>[0-9]+)\|(?<n>[0-9]+)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSG@@sub@{{n}},{{lo}}@|{{lo}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSG@(?<m>[0-9]+)\|(?<lo>[0-9]+)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSI@@div@{{m}},16@|{{lo}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSI@(?<hi>[0-9]+)\|(?<lo>[0-9]+)\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSH@{{hi}}|{{lo}}|{{o}}|{{rest}}|{{tok}}|{{env}}|
+^@HXSH@(?<hi>[0-9])\|10\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%{{hi}}A|{{rest}}|{{tok}}|{{env}}|
+^@HXSH@(?<hi>[0-9])\|11\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%{{hi}}B|{{rest}}|{{tok}}|{{env}}|
+^@HXSH@(?<hi>[0-9])\|12\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%{{hi}}C|{{rest}}|{{tok}}|{{env}}|
+^@HXSH@(?<hi>[0-9])\|13\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%{{hi}}D|{{rest}}|{{tok}}|{{env}}|
+^@HXSH@(?<hi>[0-9])\|14\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%{{hi}}E|{{rest}}|{{tok}}|{{env}}|
+^@HXSH@(?<hi>[0-9])\|15\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%{{hi}}F|{{rest}}|{{tok}}|{{env}}|
+^@HXSH@(?<hi>[0-9])\|(?<lo>[0-9])\|(?<o>$PCT)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@{{o}}%{{hi}}{{lo}}|{{rest}}|{{tok}}|{{env}}|
+
 
 ^@0@ ::= @1@@RD@
 @RD@ ::< 30 expr
@@ -314,6 +371,7 @@ INT <- -?[0-9]+
 ^@NB@(?<base>16|8|2)\|(?<flag>Z|S)\|(?<acc>[0-9]+)\|(?<d>[0-9])(?<rest>[0-9A-Fa-f]*)\|(?<r>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @NM@@mul@{{acc}},{{base}}@|{{base}}|{{d}}|{{rest}}|{{r}}|{{tok}}|{{env}}|
 ^@NM@(?<m>[0-9]+)\|(?<base>16|8|2)\|(?<d>[0-9]+)\|(?<rest>[0-9A-Fa-f]*)\|(?<r>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @NA@@add@{{m}},{{d}}@|{{base}}|{{rest}}|{{r}}|{{tok}}|{{env}}|
 ^@NA@(?<acc>[0-9]+)\|(?<base>16|8|2)\|(?<rest>[0-9A-Fa-f]*)\|(?<r>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @NB@{{base}}|S|{{acc}}|{{rest}}|{{r}}|{{tok}}|{{env}}|
+^@FE@(?<n>[0-9][0-9_]*)\.\|(?<sg>[^|]*)\|(?<ex>[0-9]*)\|\.(?<rest>[^|]*)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @US@{{n}}|..{{rest}}|{{tok}}|{{env}}|
 ^@FE@(?<a>[^_|]*)_(?<b>[^|]*)\|(?<sg>[^|]*)\|(?<ex>[^|]*)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @FE@{{a}}{{b}}|{{sg}}|{{ex}}|{{rest}}|{{tok}}|{{env}}|
 ^@FE@(?<m>[^|]*)\|(?<sg>[^|]*)\|(?<a>[0-9]*)_(?<b>[0-9_]*)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @FE@{{m}}|{{sg}}|{{a}}{{b}}|{{rest}}|{{tok}}|{{env}}|
 ^@FE@(?<ip>[0-9]*)\.(?<fp>[0-9]*)\|(?<sg>[^|]*)\|(?<ex>[0-9]+)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @FG@{{ip}}|{{fp}}|0|{{sg}}|{{ex}}|{{rest}}|{{tok}}|{{env}}|
@@ -333,6 +391,7 @@ INT <- -?[0-9]+
 ^@DF@(?<n>$NUM)\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@o|{{rest}}|{{tok}}d{{n}};|{{env}}|
 
 ^@TN@v\|(?<id>[A-Za-z_][A-Za-z0-9_]*)(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ID@{{id}}|{{rest}}|{{tok}}|{{env}}|
+^@ID@let\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}W;|{{env}}|
 ^@ID@true\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@o|{{rest}}|{{tok}}t;|{{env}}|
 ^@ID@false\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@o|{{rest}}|{{tok}}f;|{{env}}|
 ^@ID@nil\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@o|{{rest}}|{{tok}}n;|{{env}}|
@@ -350,6 +409,7 @@ INT <- -?[0-9]+
 ^@IW@and\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}O15L&;|{{env}}|
 ^@IW@or\|(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}O10Lo;|{{env}}|
 ^@TN@o\|%3D%3D(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}O20Lq;|{{env}}|
+^@TN@o\|%3D(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}Q;|{{env}}|
 ^@TN@o\|%21%3D(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}O20LQ;|{{env}}|
 ^@TN@o\|%3C%3D(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}O20Ll;|{{env}}|
 ^@TN@o\|%3E%3D(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}O20Lg;|{{env}}|
@@ -369,10 +429,26 @@ INT <- -?[0-9]+
 ^@TN@o\|%2F(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}O60L/;|{{env}}|
 ^@TN@o\|%25(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}O60L%;|{{env}}|
 ^@TN@o\|%29(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@o|{{rest}}|{{tok}}R;|{{env}}|
+^@TN@o\|%28(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}P;|{{env}}|
+^@TN@o\|\.\.(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}O25Lr;|{{env}}|
+^@TN@o\|%2C(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}M;|{{env}}|
+^@TN@o\|%3B(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}S;|{{env}}|
+^@TN@o\|%5B(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}L;|{{env}}|
+^@TN@o\|%5D(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@o|{{rest}}|{{tok}}K;|{{env}}|
 ^@TN@v\|%29(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unexpected ')'@
 ^@TN@v\|%3A(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unexpected ':'@
+^@TN@v\|%23acc(?<c>[A-Za-z0-9_])(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unexpected token@
+^@TN@v\|%23acc(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@o|{{rest}}|{{tok}}v_a;|{{env}}|
+^@TN@v\|%23(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@o|{{rest}}|{{tok}}v_h;|{{env}}|
+^@TN@v\|%22(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXSQ@|{{rest}}|{{tok}}|{{env}}|
+^@TN@v\|%0A(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}|{{env}}|
+^@TN@o\|%0A(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@o|{{rest}}|{{tok}}|{{env}}|
+^@TN@v\|%0D(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@v|{{rest}}|{{tok}}|{{env}}|
+^@TN@o\|%0D(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@o|{{rest}}|{{tok}}|{{env}}|
 ^@TN@(?<f>v|o)\|(?<c>(?:%[0-9A-F]{2}|[A-Za-z0-9_.-]))(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unexpected token@
 ^@TN@v\|\|\|(?<env>[^|]*)\| ::= @ERR@syntax_error: empty expression@
+^@TN@o\|\|W;v(?<id>[A-Za-z_][A-Za-z0-9_]*);Q;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXLT@{{id}}||0|{{tok}}|{{env}}|
+^@TN@v\|\|W;v(?<id>[A-Za-z_][A-Za-z0-9_]*);Q;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXLT@{{id}}||0|{{tok}}|{{env}}|
 ^@TN@v\|\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@.|||{{tok}}|{{env}}|
 ^@TN@o\|\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@.|||{{tok}}|{{env}}|
 
@@ -381,10 +457,12 @@ INT <- -?[0-9]+
 ^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|t;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@{{prev}}|t~{{fr}}|{{ops}}|{{tok}}|{{env}}|
 ^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|f;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@{{prev}}|f~{{fr}}|{{ops}}|{{tok}}|{{env}}|
 ^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|n;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@{{prev}}|n~{{fr}}|{{ops}}|{{tok}}|{{env}}|
-^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|v(?<id>[A-Za-z_][A-Za-z0-9_]*);(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@{{prev}}|v{{id}}~{{fr}}|{{ops}}|{{tok}}|{{env}}|
+^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|v(?<id>[A-Za-z_][A-Za-z0-9_]*);(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@c{{prev}}|v{{id}}~{{fr}}|{{ops}}|{{tok}}|{{env}}|
 ^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|U!;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@{{prev}}|{{fr}}|U50R!~{{ops}}|{{tok}}|{{env}}|
 ^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|U-;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@{{prev}}|{{fr}}|U90R-~{{ops}}|{{tok}}|{{env}}|
 ^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|U\+;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@{{prev}}|{{fr}}|U90R+~{{ops}}|{{tok}}|{{env}}|
+^@YN@c(?<old>\.|b|\?)\|v(?<name>[A-Za-z_][A-Za-z0-9_]*)~(?<fr>[^|]*)\|(?<ops>[^|]*)\|P;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXFN@{{name}}|||{{tok}}|{{fr}}|{{ops}}|{{env}}|0|
+^@YN@c(?<old>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@{{old}}|{{fr}}|{{ops}}|{{tok}}|{{env}}|
 ^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|P;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@.|{{fr}}|P{{prev}}~{{ops}}|{{tok}}|{{env}}|
 ^@YN@\?\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|O(?<ip>[0-9]+)(?<ia>L|R)\?;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YP@?|{{fr}}|{{ops}}|{{ip}}|{{ia}}|?|{{tok}}|{{env}}|
 ^@YN@\?\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|O(?<ip>[0-9]+)(?<ia>L|R)(?<in>[^;]+);(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: '??' cannot mix with that operator@
@@ -392,9 +470,24 @@ INT <- -?[0-9]+
 ^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|C;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @CL@{{fr}}|{{ops}}|{{tok}}|{{env}}|
 ^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|R;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @FU@{{fr}}|{{ops}}|{{tok}}|{{env}}|
 ^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|\|(?<env>[^|]*)\| ::= @YF@{{fr}}|{{ops}}|{{env}}|
+^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|s(?<p>$PCT);(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@{{prev}}|s{{p}}~{{fr}}|{{ops}}|{{tok}}|{{env}}|
+^@YN@.\|v(?<id>[A-Za-z_][A-Za-z0-9_]*)~(?<fr>[^|]*)\|(?<ops>[^|]*)\|L;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@.|v{{id}}~{{fr}}|H~{{ops}}|{{tok}}|{{env}}|
+^@YN@b\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|L;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@.|{{fr}}|H~{{ops}}|{{tok}}|{{env}}|
+^@YN@.\|(?<idx>[^~]*)~(?<arr>[^~]*)~(?<more>[^|]*)\|H~(?<ops>[^|]*)\|K;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@b|{I{{arr}},{{idx}}}~{{more}}|{{ops}}|{{tok}}|{{env}}|
+^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|W;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unexpected token@
+^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|Q;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unexpected token@
+^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|S;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unexpected token@
+^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|M;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unexpected token@
+^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|K;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unexpected ']'@
+^@YN@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<ops>[^|]*)\|L;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unexpected '['@
 
 ^@YP@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|\|(?<ip>[0-9]+)\|(?<ia>L|R)\|(?<in>[^|]*)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @PU@{{fr}}||{{ip}}|{{ia}}|{{in}}|{{tok}}|{{env}}|
 ^@YP@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|P(?<sv>\.|b|\?)~(?<ops>[^|]*)\|(?<ip>[0-9]+)\|(?<ia>L|R)\|(?<in>[^|]*)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @PU@{{fr}}|P{{sv}}~{{ops}}|{{ip}}|{{ia}}|{{in}}|{{tok}}|{{env}}|
+^@YP@.\|(?<fr>[^|]*)\|Z(?<ctx>[^~]*)~(?<ops>[^|]*)\|(?<ip>[0-9]+)\|(?<ia>L|R)\|(?<in>[^|]*)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @PU@{{fr}}|Z{{ctx}}~{{ops}}|{{ip}}|{{ia}}|{{in}}|{{tok}}|{{env}}|
+^@YP@b\|(?<fr>[^|]*)\|Z(?<ctx>[^~]*)~(?<ops>[^|]*)\|(?<ip>[0-9]+)\|(?<ia>L|R)\|(?<in>[^|]*)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @PU@{{fr}}|Z{{ctx}}~{{ops}}|{{ip}}|{{ia}}|{{in}}|{{tok}}|{{env}}|
+^@YP@\?\|(?<fr>[^|]*)\|Z(?<ctx>[^~]*)~(?<ops>[^|]*)\|(?<ip>[0-9]+)\|(?<ia>L|R)\|(?<in>[^|]*)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @PU@{{fr}}|Z{{ctx}}~{{ops}}|{{ip}}|{{ia}}|{{in}}|{{tok}}|{{env}}|
+^@YP@.\|(?<fr>[^|]*)\|H~(?<ops>[^|]*)\|(?<ip>[0-9]+)\|(?<ia>L|R)\|(?<in>[^|]*)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @PU@{{fr}}|H~{{ops}}|{{ip}}|{{ia}}|{{in}}|{{tok}}|{{env}}|
+^@YP@b\|(?<fr>[^|]*)\|H~(?<ops>[^|]*)\|(?<ip>[0-9]+)\|(?<ia>L|R)\|(?<in>[^|]*)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @PU@{{fr}}|H~{{ops}}|{{ip}}|{{ia}}|{{in}}|{{tok}}|{{env}}|
 ^@YP@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|Q~(?<ops>[^|]*)\|(?<ip>[0-9]+)\|(?<ia>L|R)\|(?<in>[^|]*)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @PU@{{fr}}|Q~{{ops}}|{{ip}}|{{ia}}|{{in}}|{{tok}}|{{env}}|
 ^@YP@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|B20L(?<sn>[<>lg])~(?<ops>[^|]*)\|20\|L\|(?<in>[<>lg])\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @PU@{{fr}}|B20L{{sn}}~{{ops}}|20|L|{{in}}|{{tok}}|{{env}}|
 ^@YP@(?<prev>\.|b|\?)\|(?<fr>[^|]*)\|(?<kind>B|U)(?<sp>[0-9]+)(?<sa>L|R)(?<sn>[^~]+)~(?<ops>[^|]*)\|(?<ip>[0-9]+)\|(?<ia>L|R)\|(?<in>[^|]*)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @GD@{{ia}}@{{sp}}@{{ip}}@@GO@{{fr}}|{{kind}}{{sp}}{{sa}}{{sn}}~{{ops}}|{{ip}}|{{ia}}|{{in}}|{{tok}}|{{env}}|
@@ -428,6 +521,8 @@ INT <- -?[0-9]+
 ^@MB@o\|(?<lb>[^|]*)\|(?<rb>[^|]*)\|(?<more>[^|]*)\|(?<ops>[^|]*)\|(?<mode>YP|YF|FU|CL)\|(?<tail>[\s\S]*)\z ::= @MZ@{o{{lb}},{{rb}}}|{{more}}|{{ops}}|{{mode}}|{{tail}}
 ^@MB@\?\|(?<lb>[^|]*)\|(?<rb>[^|]*)\|(?<more>[^|]*)\|(?<ops>[^|]*)\|(?<mode>YP|YF|FU|CL)\|(?<tail>[\s\S]*)\z ::= @MZ@{?{{lb}},{{rb}}}|{{more}}|{{ops}}|{{mode}}|{{tail}}
 ^@MB@E\|(?<lb>[^|]*)\|(?<rb>[^|]*)\|(?<more>[^|]*)\|(?<ops>[^|]*)\|(?<mode>YP|YF|FU|CL)\|(?<tail>[\s\S]*)\z ::= @MZ@{E{{lb}},{{rb}}}|{{more}}|{{ops}}|{{mode}}|{{tail}}
+^@MB@r\|(?<lb>[^|]*)\|(?<rb>[^|]*)\|(?<more>[^|]*)\|(?<ops>[^|]*)\|(?<mode>YP|YF|FU|CL)\|(?<tail>[\s\S]*)\z ::= @MZ@{r{{lb}},{{rb}}}|{{more}}|{{ops}}|{{mode}}|{{tail}}
+^@MB@I\|(?<lb>[^|]*)\|(?<rb>[^|]*)\|(?<more>[^|]*)\|(?<ops>[^|]*)\|(?<mode>YP|YF|FU|CL)\|(?<tail>[\s\S]*)\z ::= @MZ@{I{{lb}},{{rb}}}|{{more}}|{{ops}}|{{mode}}|{{tail}}
 ^@MZ@(?<tree>\{[^|]*\})\|(?<more>[^|]*)\|(?<ops>[^|]*)\|YP\|(?<tail>[\s\S]*)\z ::= @YP@b|{{tree}}~{{more}}|{{ops}}|{{tail}}
 ^@MZ@(?<tree>\{[^|]*\})\|(?<more>[^|]*)\|(?<ops>[^|]*)\|YF\|(?<tail>[\s\S]*)\z ::= @YF@{{tree}}~{{more}}|{{ops}}|{{tail}}
 ^@MZ@(?<tree>\{[^|]*\})\|(?<more>[^|]*)\|(?<ops>[^|]*)\|FU\|(?<tail>[\s\S]*)\z ::= @FU@{{tree}}~{{more}}|{{ops}}|{{tail}}
@@ -439,6 +534,8 @@ INT <- -?[0-9]+
 ^@YF@(?<fr>[^|]*)\|(?<kind>B|U)(?<sp>[0-9]+)(?<sa>L|R)(?<sn>[^~]+)~(?<ops>[^|]*)\|(?<env>[^|]*)\| ::= @AP@{{kind}}|{{sn}}|{{fr}}|{{ops}}|YF|{{env}}|
 ^@YF@(?<fr>[^|]*)\|P(?<sv>[^~]*)~(?<ops>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unclosed '('@
 ^@YF@(?<fr>[^|]*)\|Q~(?<ops>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unexpected token@
+^@YF@(?<tree>[^~]*)~\|ZLET#(?<id>[A-Za-z_][A-Za-z0-9_]*)#(?<pbody>$PCT)~(?<ops>[^|]*)\|(?<env>[^|]*)\| ::= @EV@{{tree}}@C0~LW~{{id}}~{{pbody}}~@{{env}}|
+^@YF@(?<tree>[^~]*)~\|ZC(?<name>[A-Za-z_][A-Za-z0-9_]*)#(?<built>[^#]*)#(?<rest>[^#]*)#(?<pfr>$PCT)#(?<pafter>$PCT)~(?<ops>[^|]*)\|(?<env>[^|]*)\| ::= @HXFY@{{tree}}|{{name}}|{{built}}|{{rest}}|{{pfr}}|{{pafter}}|{{ops}}|{{env}}|
 
 ^@FU@(?<fr>[^|]*)\|P(?<sv>\.|b|\?)~(?<ops>[^|]*)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@{{sv}}|{{fr}}|{{ops}}|{{tok}}|{{env}}|
 ^@FU@(?<fr>[^|]*)\|B20L(?<sn>[<>lg])~(?<ops>[^|]*)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @CF@-|{{fr}}|B20L{{sn}}~{{ops}}|FU|{{tok}}|{{env}}|
@@ -470,35 +567,25 @@ INT <- -?[0-9]+
 ^@CN@(?<built>[^|]*)\|(?<left>[^|]*)\|(?<more>[^|]*)\|(?<ops>[^|]*)\|YP\|(?<ip>[0-9]+)\|(?<ia>L|R)\|(?<in>[^|]*)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YP@b|{{built}}~{{more}}|{{ops}}|{{ip}}|{{ia}}|{{in}}|{{tok}}|{{env}}|
 
 ^@EV@\{T(?<rest>.*)\}@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TS@0||||{{rest}}}@{{frames}}@{{env}}|
-^@EV@\{(?<op>[\+\-\*%/\^<>lgqQ&o?E])(?<inside>[^{}]*)\}@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @EV@{{inside}}@B{{op}}~{{frames}}@{{env}}|
+^@EV@\{(?<op>[\+\-\*%/\^<>lgqQ&o?ErI])(?<inside>[^{}]*)\}@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @EV@{{inside}}@B{{op}}~{{frames}}@{{env}}|
 ^@EV@(?<l>[^{},]+),(?<r>[^{}]+)@B(?<op>[\+\-\*%/\^<>lgqQ&o?E])~(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @EV@{{l}}@A{{op}}{{r}}~{{frames}}@{{env}}|
 ^@EV@(?<l>[^{},]+)@B(?<op>[\+\-!])~(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @EV@{{l}}@U{{op}}~{{frames}}@{{env}}|
+^@EV@v_h@(?<frames>[^@]*)@(?<env>[^|]*)\| ::| #_h=(?<val>\{[^}]*\}); ::= @RET@{{val}}@{{frames}}@{{env}}|
+^@EV@v_h@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @ERR@syntax_error: '#' outside a predicate@
+^@EV@v_a@(?<frames>[^@]*)@(?<env>[^|]*)\| ::| #_a=(?<val>\{[^}]*\}); ::= @RET@{{val}}@{{frames}}@{{env}}|
+^@EV@v_a@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @ERR@syntax_error: '#acc' outside a predicate@
+^@EV@\{F(?<name>[A-Za-z_][A-Za-z0-9_]*)\}@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @ERR@type_error: unknown function {{name}}@
+^@EV@\{F(?<name>[A-Za-z_][A-Za-z0-9_]*) (?<args>[\s\S]*)\}@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @HXCS@{{name}}~{{args}}~{{frames|pctenc}}~{{env}}|
+^@EV@s(?<p>$PCT)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @RET@{s:{{p}}}@{{frames}}@{{env}}|
 ^@EV@i(?<n>$INT)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @RET@{i:{{n}}}@{{frames}}@{{env}}|
+^@EV@(?<l>[^{},]+),(?<r>[^{}]+)@B(?<op>[rI])~(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @EV@{{l}}@A{{op}}{{r}}~{{frames}}@{{env}}|
 ^@EV@d(?<n>$NUM)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @RET@{d:{{n}}}@{{frames}}@{{env}}|
 ^@EV@t@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @RET@{t}@{{frames}}@{{env}}|
 ^@EV@f@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @RET@{f}@{{frames}}@{{env}}|
 ^@EV@n@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @RET@{n}@{{frames}}@{{env}}|
 ^@EV@v(?<id>[A-Za-z_][A-Za-z0-9_]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::| #{{id|quote}}=(?<val>\{[^}]*\}); ::= @RET@{{val}}@{{frames}}@{{env}}|
 ^@EV@v(?<id>[A-Za-z_][A-Za-z0-9_]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @ERR@unknown_name: {{id}}@
-^@EV@\{(?<op>[\+\-\*%/\^<>lgqQ&o?E!])(?<rest>.*)\}@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @BS@L@0@{{op}}@@{{rest}}}@{{frames}}@{{env}}|
-^@BS@L@0@(?<op>[^@]*)@(?<acc>[^@]*)@,(?<right>.*)\}@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @EV@{{acc}}@A{{op}}{{right}}~{{frames}}@{{env}}|
-^@BS@L@0@(?<op>[\+\-!])@(?<acc>[^@]*)@\}@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @EV@{{acc}}@U{{op}}~{{frames}}@{{env}}|
-^@BS@L@(?<d>[0-9]+)@(?<op>[^@]*)@(?<acc>[^@]*)@\{(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @BD@@add@{{d}},1@@{{op}}@{{acc}}{@{{rest}}@{{frames}}@{{env}}|
-^@BD@(?<d>[0-9]+)@(?<op>[^@]*)@(?<acc>[^@]*)@(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @BS@L@{{d}}@{{op}}@{{acc}}@{{rest}}@{{frames}}@{{env}}|
-^@BS@L@(?<d>[1-9][0-9]*)@(?<op>[^@]*)@(?<acc>[^@]*)@\}(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @SD@@sub@{{d}},1@@{{op}}@{{acc}}}@{{rest}}@{{frames}}@{{env}}|
-^@SD@(?<d>[0-9]+)@(?<op>[^@]*)@(?<acc>[^@]*)@(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @BS@L@{{d}}@{{op}}@{{acc}}@{{rest}}@{{frames}}@{{env}}|
-^@BS@L@(?<d>[1-9][0-9]*)@(?<op>[^@]*)@(?<acc>[^@]*)@,(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @BS@L@{{d}}@{{op}}@{{acc}},@{{rest}}@{{frames}}@{{env}}|
-^@BS@L@(?<d>[0-9]+)@(?<op>[^@]*)@(?<acc>[^@]*)@(?<c>[^{},])(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @BS@L@{{d}}@{{op}}@{{acc}}{{c}}@{{rest}}@{{frames}}@{{env}}|
-
-^@TS@(?<d>[0-9]+)\|(?<c>[^|]*)\|(?<t>[^|]*)\|(?<a>[^|]*)\|\{(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TD@@add@{{d}},1@@{{c}}|{{t}}|{{a}}{|{{rest}}@{{frames}}@{{env}}|
-^@TD@(?<d>[0-9]+)@(?<c>[^|]*)\|(?<t>[^|]*)\|(?<a>[^|]*)\|(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TS@{{d}}|{{c}}|{{t}}|{{a}}|{{rest}}@{{frames}}@{{env}}|
-^@TS@(?<d>[1-9][0-9]*)\|(?<c>[^|]*)\|(?<t>[^|]*)\|(?<a>[^|]*)\|\}(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TU@@sub@{{d}},1@@{{c}}|{{t}}|{{a}}}|{{rest}}@{{frames}}@{{env}}|
-^@TU@(?<d>[0-9]+)@(?<c>[^|]*)\|(?<t>[^|]*)\|(?<a>[^|]*)\|(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TS@{{d}}|{{c}}|{{t}}|{{a}}|{{rest}}@{{frames}}@{{env}}|
-^@TS@0\|(?<c>[^|]*)\|(?<t>[^|]*)\|(?<a>[^|]*)\|\}@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @EV@{{c}}@AT{{t}};{{a}}~{{frames}}@{{env}}|
-^@TS@0\|\|\|(?<a>[^|]*)\|,(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TS@0|{{a}}|||{{rest}}@{{frames}}@{{env}}|
-^@TS@0\|(?<c>[^|]*)\|\|(?<a>[^|]*)\|,(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TS@0|{{c}}|{{a}}||{{rest}}@{{frames}}@{{env}}|
-^@TS@(?<d>[1-9][0-9]*)\|(?<c>[^|]*)\|(?<t>[^|]*)\|(?<a>[^|]*)\|,(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TS@{{d}}|{{c}}|{{t}}|{{a}},|{{rest}}@{{frames}}@{{env}}|
-^@TS@(?<d>[0-9]+)\|(?<c>[^|]*)\|(?<t>[^|]*)\|(?<a>[^|]*)\|(?<ch>[^{},])(?<rest>[^@]*)@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @TS@{{d}}|{{c}}|{{t}}|{{a}}{{ch}}|{{rest}}@{{frames}}@{{env}}|
+^@EV@\{(?<op>[\+\-\*%/\^<>lgqQ&o?ErI!])(?<rest>.*)\}@(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @BS@L@0@{{op}}@@{{rest}}}@{{frames}}@{{env}}|
 
 ^@RET@\{f\}@A&(?<r>[^~]*)~(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @RET@{f}@{{frames}}@{{env}}|
 ^@RET@\{t\}@A&(?<r>[^~]*)~(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @EV@{{r}}@{{frames}}@{{env}}|
@@ -514,6 +601,39 @@ INT <- -?[0-9]+
 ^@RET@(?<v>\{[^}]*\})@AT(?<th>[^~]*);(?<el>[^~]*)~(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @ERR@type_error: condition must be a bool@
 ^@RET@(?<v>\{[^}]*\})@A(?<op>[\+\-\*%/\^<>lgqQ])(?<r>[^~]*)~(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @EV@{{r}}@V{{op}}{{v}}~{{frames}}@{{env}}|
 ^@RET@(?<v>\{[^}]*\})@@(?<env>[^|]*)\| ::= @RN@{{v}}|{{env}}|
+^@RET@(?<v>\{[^}]*\})@A(?<op>[rI])(?<r>[^~]*)~(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @EV@{{r}}@V{{op}}{{v}}~{{frames}}@{{env}}|
+^@RET@\{s:(?<b>$PCT)\}@V\+\{s:(?<a>$PCT)\}~(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @RET@{s:{{a}}{{b}}}@{{frames}}@{{env}}|
+^@RET@\{i:(?<b>$INT)\}@Vr\{i:(?<a>$INT)\}~(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @HXRG@{{a}}|{{b}}|{{frames}}|{{env}}|
+^@RET@(?<bv>\{[^}]*\})@Vr(?<av>\{[^}]*\})~(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @ERR@type_error: range needs integers@
+^@RET@\{i:(?<n>$INT)\}@VI\{A:(?<arr>$PCT)\}~(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @HXIX@{{n}}|{{arr|pctdec}}|{{frames}}|{{env}}|
+^@RET@(?<bv>\{[^}]*\})@VI(?<av>\{[^}]*\})~(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @ERR@type_error: bad index@
+^@RET@(?<v>\{[^}]*\})@C0~LW~(?<id>[A-Za-z_][A-Za-z0-9_]*)~(?<pbody>$PCT)~@(?<env>[^|]*)\| ::= @HXLB@{{id}}|{{v}}|{{pbody|pctdec}}|{{env}}|
+^@RET@\{i:(?<n>$INT)\}@C0~IV~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @RET@{i:{{n}}}@{{pfr|pctdec}}@{{env}}|
+^@RET@\{s:(?<p>$PCT)\}@C0~IV~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @HXIS@{{p}}|{{pfr|pctdec}}|{{env}}|
+^@RET@\{d:(?<n>-?[0-9]+)\}@C0~IV~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @WR@{{n}}|{{pfr|pctdec}}|{{env}}|
+^@RET@\{d:-(?<n>[0-9]+)/(?<den>[0-9]+)\}@C0~IV~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @HXTN@{{n}}|{{den}}|{{pfr|pctdec}}|{{env}}|
+^@RET@\{d:(?<n>[0-9]+)/(?<den>[0-9]+)\}@C0~IV~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @HXTP@{{n}}|{{den}}|{{pfr|pctdec}}|{{env}}|
+^@RET@\{(?<k>t|f|n|j|A)[^}]*\}@C0~IV~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @ERR@type_error: cannot convert value@
+^@RET@\{i:(?<n>$INT)\}@C0~SV~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @RET@{s:{{n}}}@{{pfr|pctdec}}@{{env}}|
+^@RET@\{s:(?<p>$PCT)\}@C0~SV~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @RET@{s:{{p}}}@{{pfr|pctdec}}@{{env}}|
+^@RET@\{t\}@C0~SV~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @RET@{s:true}@{{pfr|pctdec}}@{{env}}|
+^@RET@\{f\}@C0~SV~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @RET@{s:false}@{{pfr|pctdec}}@{{env}}|
+^@RET@(?<v>\{[^}]*\})@C0~SV~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @ERR@type_error: cannot convert value@
+^@RET@\{A:(?<arr>$PCT)\}@C0~MP~(?<ppred>$PCT)~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @HXMG@{{arr|pctdec}}|{{ppred}}|{{pfr}}||{{env}}|
+^@RET@(?<v>\{[^}]*\})@C0~MP~(?<ppred>$PCT)~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @ERR@type_error: cannot map that@
+^@RET@(?<v>\{[^}]*\})@C0~MA~(?<prest>$PCT)~(?<ppred>$PCT)~(?<pfr>$PCT)~(?<pacc>$PCT)~@(?<env>[^|]*)\| ::= @HXMN@{{v}}|{{prest|pctdec}}|{{ppred}}|{{pfr}}|{{pacc|pctdec}}|{{env}}|
+^@RET@\{A:(?<arr>$PCT)\}@C0~J0~(?<psep>$PCT)~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @EV@{{psep|pctdec}}@C0~J1~{{arr}}~{{pfr}}~@{{env}}|
+^@RET@(?<v>\{[^}]*\})@C0~J0~(?<psep>$PCT)~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @ERR@type_error: cannot join that@
+^@RET@\{s:(?<sep>$PCT)\}@C0~J1~(?<arr>$PCT)~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @HXJN@{{sep}}|{{arr|pctdec}}||{{pfr}}|{{env}}|
+^@RET@(?<v>\{[^}]*\})@C0~J1~(?<arr>$PCT)~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @ERR@type_error: cannot join that@
+^@RET@\{s:(?<hay>$PCT)\}@C0~S0~(?<psep>$PCT)~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @EV@{{psep|pctdec}}@C0~S1~{{hay}}~{{pfr}}~@{{env}}|
+^@RET@(?<v>\{[^}]*\})@C0~S0~(?<psep>$PCT)~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @ERR@type_error: cannot split that@
+^@RET@\{s:(?<sep>$PCT)\}@C0~S1~(?<hay>$PCT)~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @HXSS@{{sep}}|H|{{hay}}|||{{pfr}}|{{env}}|
+^@RET@(?<v>\{[^}]*\})@C0~S1~(?<hay>$PCT)~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @ERR@type_error: cannot split that@
+^@RET@(?<init>\{[^}]*\})@C0~R0~(?<parr>$PCT)~(?<ppred>$PCT)~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @EV@{{parr|pctdec}}@C0~R1~{{init}}~{{ppred}}~{{pfr}}~@{{env}}|
+^@RET@\{A:(?<arr>$PCT)\}@C0~R1~(?<init>\{[^}]*\})~(?<ppred>$PCT)~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @HXRA@{{arr|pctdec}}|{{init}}|{{ppred}}|{{pfr}}|{{env}}|
+^@RET@(?<v>\{[^}]*\})@C0~R1~(?<init>\{[^}]*\})~(?<ppred>$PCT)~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @ERR@type_error: cannot reduce that@
+^@RET@(?<v>\{[^}]*\})@C0~RB~(?<prest>$PCT)~(?<ppred>$PCT)~(?<pfr>$PCT)~@(?<env>[^|]*)\| ::= @HXRC@{{v}}|{{prest|pctdec}}|{{ppred}}|{{pfr}}|{{env}}|
 ^@RET@\{i:(?<b>$INT)\}@V/\{i:(?<a>$INT)\}~(?<frames>[^@]*)@(?<env>[^|]*)\| ::= @DZ@@nq@{{b}}@0@@{{a}}|{{b}}|{{frames}}|{{env}}|
 ^@DZ@1@ ::= @ERR@division_by_zero@
 ^@DZ@0@(?<a>$NUM)\|(?<b>$NUM)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @RET@{d:@div@{{a}},{{b}}@}@{{frames}}@{{env}}|
@@ -644,32 +764,9 @@ INT <- -?[0-9]+
 ^@RN@\{t\}\| ::= @OUT@true@
 ^@RN@\{f\}\| ::= @OUT@false@
 ^@RN@\{n\}\| ::= @OUT@null@
-^@RN@\{s:(?<s>$PCT)\}\| ::= @SJ@%22|{{s}}|
+^@RN@\{s:(?<s>$PCT)\}\| ::= @OUT@{{s}}@
 ^@RN@\{j:(?<s>$PCT)\}\| ::= @OUT@{{s}}@
-^@SJ@(?<o>$PCT)\|%22(?<r>$PCT)\| ::= @SJ@{{o}}%5C%22|{{r}}|
-^@SJ@(?<o>$PCT)\|%5C(?<r>$PCT)\| ::= @SJ@{{o}}%5C%5C|{{r}}|
-^@SJ@(?<o>$PCT)\|%0A(?<r>$PCT)\| ::= @SJ@{{o}}%5Cn|{{r}}|
-^@SJ@(?<o>$PCT)\|%0D(?<r>$PCT)\| ::= @SJ@{{o}}%5Cr|{{r}}|
-^@SJ@(?<o>$PCT)\|%09(?<r>$PCT)\| ::= @SJ@{{o}}%5Ct|{{r}}|
-^@SJ@(?<o>$PCT)\|%08(?<r>$PCT)\| ::= @SJ@{{o}}%5Cb|{{r}}|
-^@SJ@(?<o>$PCT)\|%0C(?<r>$PCT)\| ::= @SJ@{{o}}%5Cf|{{r}}|
-^@SJ@(?<o>$PCT)\|%26(?<r>$PCT)\| ::= @SJ@{{o}}%5Cu0026|{{r}}|
-^@SJ@(?<o>$PCT)\|%3C(?<r>$PCT)\| ::= @SJ@{{o}}%5Cu003c|{{r}}|
-^@SJ@(?<o>$PCT)\|%3E(?<r>$PCT)\| ::= @SJ@{{o}}%5Cu003e|{{r}}|
-^@SJ@(?<o>$PCT)\|%0(?<d>[0-9])(?<r>$PCT)\| ::= @SJ@{{o}}%5Cu000{{d}}|{{r}}|
-^@SJ@(?<o>$PCT)\|%0B(?<r>$PCT)\| ::= @SJ@{{o}}%5Cu000b|{{r}}|
-^@SJ@(?<o>$PCT)\|%0E(?<r>$PCT)\| ::= @SJ@{{o}}%5Cu000e|{{r}}|
-^@SJ@(?<o>$PCT)\|%0F(?<r>$PCT)\| ::= @SJ@{{o}}%5Cu000f|{{r}}|
-^@SJ@(?<o>$PCT)\|%1(?<d>[0-9])(?<r>$PCT)\| ::= @SJ@{{o}}%5Cu001{{d}}|{{r}}|
-^@SJ@(?<o>$PCT)\|%1A(?<r>$PCT)\| ::= @SJ@{{o}}%5Cu001a|{{r}}|
-^@SJ@(?<o>$PCT)\|%1B(?<r>$PCT)\| ::= @SJ@{{o}}%5Cu001b|{{r}}|
-^@SJ@(?<o>$PCT)\|%1C(?<r>$PCT)\| ::= @SJ@{{o}}%5Cu001c|{{r}}|
-^@SJ@(?<o>$PCT)\|%1D(?<r>$PCT)\| ::= @SJ@{{o}}%5Cu001d|{{r}}|
-^@SJ@(?<o>$PCT)\|%1E(?<r>$PCT)\| ::= @SJ@{{o}}%5Cu001e|{{r}}|
-^@SJ@(?<o>$PCT)\|%1F(?<r>$PCT)\| ::= @SJ@{{o}}%5Cu001f|{{r}}|
-^@SJ@(?<o>$PCT)\|%(?<h>[0-9A-F]{2})(?<r>$PCT)\| ::= @SJ@{{o}}%{{h}}|{{r}}|
-^@SJ@(?<o>$PCT)\|(?<c>[A-Za-z0-9 _.\/:-])(?<r>$PCT)\| ::= @SJ@{{o}}{{c}}|{{r}}|
-^@SJ@(?<o>$PCT)\|\| ::= @OUT@{{o}}%22@
+^@RN@\{A:(?<a>$PCT)\}\| ::= @ERR@type_error: cannot print array@
 ^@OUT@(?<s>$PCT)@ ::> stdout {{s|pctdec}}\n
 
 ^@J0@%20(?<r>$PCT)\|(?<expr>$PCT)\| ::= @J0@{{r}}|{{expr}}|
@@ -790,6 +887,156 @@ INT <- -?[0-9]+
 ^@JC2@%2C(?<r>$PCT)\|(?<buf>$PCT)\|(?<st>[^|]*)\|(?<expr>$PCT)\| ::= @JR@{{r}}|A~{{buf}}~{{st}}|{{expr}}|
 ^@JC2@%5D(?<r>$PCT)\|(?<buf>$PCT)\|(?<st>[^|]*)\|(?<expr>$PCT)\| ::= @JV@{j:%5B{{buf}}%5D}|{{r}}|{{st}}|{{expr}}|
 ^@JC2@(?<r>$PCT)\|(?<buf>$PCT)\|(?<st>[^|]*)\|(?<expr>$PCT)\| ::= @ERR@invalid_json: malformed JSON@
+
+
+^@HXLT@(?<id>[A-Za-z_][A-Za-z0-9_]*)\|(?<cur>[^|]*)\|0\|S;(?<body>[^|]*)\|(?<env>[^|]*)\| ::= @YN@.||ZLET#{{id}}#{{body|pctenc}}~|{{cur}}|{{env}}|
+^@HXLT@(?<id>[A-Za-z_][A-Za-z0-9_]*)\|(?<cur>[^|]*)\|(?<d>[1-9][0-9]*)\|S;(?<rest>[^|]*)\|(?<env>[^|]*)\| ::= @HXLT@{{id}}|{{cur}}S;|{{d}}|{{rest}}|{{env}}|
+^@HXLT@(?<id>[A-Za-z_][A-Za-z0-9_]*)\|(?<cur>[^|]*)\|(?<d>[0-9]+)\|P;(?<rest>[^|]*)\|(?<env>[^|]*)\| ::= @HXLD@@add@{{d}},1@|{{id}}|{{cur}}P;|{{rest}}|{{env}}|
+^@HXLD@(?<d>[0-9]+)\|(?<id>[A-Za-z_][A-Za-z0-9_]*)\|(?<cur>[^|]*)\|(?<rest>[^|]*)\|(?<env>[^|]*)\| ::= @HXLT@{{id}}|{{cur}}|{{d}}|{{rest}}|{{env}}|
+^@HXLT@(?<id>[A-Za-z_][A-Za-z0-9_]*)\|(?<cur>[^|]*)\|(?<d>[1-9][0-9]*)\|R;(?<rest>[^|]*)\|(?<env>[^|]*)\| ::= @HXLV@@sub@{{d}},1@|{{id}}|{{cur}}R;|{{rest}}|{{env}}|
+^@HXLV@(?<d>[0-9]+)\|(?<id>[A-Za-z_][A-Za-z0-9_]*)\|(?<cur>[^|]*)\|(?<rest>[^|]*)\|(?<env>[^|]*)\| ::= @HXLT@{{id}}|{{cur}}|{{d}}|{{rest}}|{{env}}|
+^@HXLT@(?<id>[A-Za-z_][A-Za-z0-9_]*)\|(?<cur>[^|]*)\|0\|R;(?<rest>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unexpected ')'@
+^@HXLT@(?<id>[A-Za-z_][A-Za-z0-9_]*)\|(?<cur>[^|]*)\|(?<d>[0-9]+)\|(?<one>[^;]+);(?<rest>[^|]*)\|(?<env>[^|]*)\| ::= @HXLT@{{id}}|{{cur}}{{one}};|{{d}}|{{rest}}|{{env}}|
+^@HXLT@(?<id>[A-Za-z_][A-Za-z0-9_]*)\|(?<cur>[^|]*)\|(?<d>[0-9]+)\|\|(?<env>[^|]*)\| ::= @ERR@syntax_error: missing value@
+^@HXLB@(?<id>[A-Za-z_][A-Za-z0-9_]*)\|(?<v>\{[^}]*\})\|(?<body>[^|]*)\|(?<env>[^|]*)\| ::= @HXLC@{{body}}|#{{id}}={{v}};{{env}}|
+^@HXLC@W;v(?<id>[A-Za-z_][A-Za-z0-9_]*);Q;(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @HXLT@{{id}}||0|{{tok}}|{{env}}|
+^@HXLC@(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @YN@.|||{{tok}}|{{env}}|
+
+^@HXFN@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<done>[^|]*)\|(?<cur>[^|]*)\|M;(?<rest>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\|0\| ::= @HXFM@{{name}}|{{done}}|{{cur}}|{{rest}}|{{ofr}}|{{oops}}|{{env}}|
+^@HXFM@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<done>[^|]*)\|\|(?<rest>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: missing value@
+^@HXFM@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|\|(?<cur>[^|]*)\|(?<rest>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\| ::= @HXFN@{{name}}|{{cur}}||{{rest}}|{{ofr}}|{{oops}}|{{env}}|0|
+^@HXFM@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<done>[^|]*)\|(?<cur>[^|]*)\|(?<rest>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\| ::= @HXFN@{{name}}|{{done}}`{{cur}}||{{rest}}|{{ofr}}|{{oops}}|{{env}}|0|
+^@HXFN@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<done>[^|]*)\|(?<cur>[^|]*)\|R;(?<after>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\|0\| ::= @HXFR@{{name}}|{{done}}|{{cur}}|{{after}}|{{ofr}}|{{oops}}|{{env}}|
+^@HXFR@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|\|\|(?<after>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\| ::= @YN@b|{F{{name}}}~{{ofr}}|{{oops}}|{{after}}|{{env}}|
+^@HXFR@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<done>[^|]*)\|\|(?<after>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: missing value@
+^@HXFR@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|\|(?<cur>[^|]*)\|(?<after>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\| ::= @HXGO@{{name}}||{{cur}}|{{ofr|pctenc}}|{{after|pctenc}}|{{oops}}|{{env}}|
+^@HXFR@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<done>[^|]*)\|(?<cur>[^|]*)\|(?<after>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\| ::= @HXGO@{{name}}||{{done}}`{{cur}}|{{ofr|pctenc}}|{{after|pctenc}}|{{oops}}|{{env}}|
+^@HXFN@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<done>[^|]*)\|(?<cur>[^|]*)\|P;(?<rest>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\|(?<d>[0-9]+)\| ::= @HXFP@@add@{{d}},1@|{{name}}|{{done}}|{{cur}}P;|{{rest}}|{{ofr}}|{{oops}}|{{env}}|
+^@HXFP@(?<d>[0-9]+)\|(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<done>[^|]*)\|(?<cur>[^|]*)\|(?<rest>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\| ::= @HXFN@{{name}}|{{done}}|{{cur}}|{{rest}}|{{ofr}}|{{oops}}|{{env}}|{{d}}|
+^@HXFN@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<done>[^|]*)\|(?<cur>[^|]*)\|R;(?<rest>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\|(?<d>[1-9][0-9]*)\| ::= @HXFQ@@sub@{{d}},1@|{{name}}|{{done}}|{{cur}}R;|{{rest}}|{{ofr}}|{{oops}}|{{env}}|
+^@HXFQ@(?<d>[0-9]+)\|(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<done>[^|]*)\|(?<cur>[^|]*)\|(?<rest>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\| ::= @HXFN@{{name}}|{{done}}|{{cur}}|{{rest}}|{{ofr}}|{{oops}}|{{env}}|{{d}}|
+^@HXFN@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<done>[^|]*)\|(?<cur>[^|]*)\|M;(?<rest>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\|(?<d>[1-9][0-9]*)\| ::= @HXFN@{{name}}|{{done}}|{{cur}}M;|{{rest}}|{{ofr}}|{{oops}}|{{env}}|{{d}}|
+^@HXFN@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<done>[^|]*)\|(?<cur>[^|]*)\|S;(?<rest>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\|(?<d>[1-9][0-9]*)\| ::= @HXFN@{{name}}|{{done}}|{{cur}}S;|{{rest}}|{{ofr}}|{{oops}}|{{env}}|{{d}}|
+^@HXFN@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<done>[^|]*)\|(?<cur>[^|]*)\|(?<one>[^;]+);(?<rest>[^|]*)\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\|(?<d>[0-9]+)\| ::= @HXFN@{{name}}|{{done}}|{{cur}}{{one}};|{{rest}}|{{ofr}}|{{oops}}|{{env}}|{{d}}|
+^@HXFN@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<done>[^|]*)\|(?<cur>[^|]*)\|\|(?<ofr>[^|]*)\|(?<oops>[^|]*)\|(?<env>[^|]*)\|(?<d>[0-9]+)\| ::= @ERR@syntax_error: unclosed '('@
+^@HXGO@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<built>[^|]*)\|\|(?<pfr>$PCT)\|(?<pafter>$PCT)\|(?<ops>[^|]*)\|(?<env>[^|]*)\| ::= @HXFD@{{name}}|{{built}}|{{pfr|pctdec}}|{{pafter|pctdec}}|{{ops}}|{{env}}|
+^@HXGO@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<built>[^|]*)\|(?<arg>[^`]*)`(?<more>[^|]*)\|(?<pfr>$PCT)\|(?<pafter>$PCT)\|(?<ops>[^|]*)\|(?<env>[^|]*)\| ::= @YN@.||ZC{{name}}#{{built}}#{{more}}#{{pfr}}#{{pafter}}~{{ops}}|{{arg}}|{{env}}|
+^@HXGO@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<built>[^|]*)\|(?<arg>[^|]*)\|(?<pfr>$PCT)\|(?<pafter>$PCT)\|(?<ops>[^|]*)\|(?<env>[^|]*)\| ::= @YN@.||ZC{{name}}#{{built}}##{{pfr}}#{{pafter}}~{{ops}}|{{arg}}|{{env}}|
+^@HXFY@(?<tree>[^|]*)\|(?<name>[A-Za-z_][A-Za-z0-9_]*)\|\|(?<rest>[^|]*)\|(?<pfr>$PCT)\|(?<pafter>$PCT)\|(?<ops>[^|]*)\|(?<env>[^|]*)\| ::= @HXGO@{{name}}|{{tree}}|{{rest}}|{{pfr}}|{{pafter}}|{{ops}}|{{env}}|
+^@HXFY@(?<tree>[^|]*)\|(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<built>[^|]*)\|(?<rest>[^|]*)\|(?<pfr>$PCT)\|(?<pafter>$PCT)\|(?<ops>[^|]*)\|(?<env>[^|]*)\| ::= @HXGO@{{name}}|{{built}} {{tree}}|{{rest}}|{{pfr}}|{{pafter}}|{{ops}}|{{env}}|
+^@HXFD@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|\|(?<fr>[^|]*)\|(?<after>[^|]*)\|(?<ops>[^|]*)\|(?<env>[^|]*)\| ::= @YN@b|{F{{name}}}~{{fr}}|{{ops}}|{{after}}|{{env}}|
+^@HXFD@(?<name>[A-Za-z_][A-Za-z0-9_]*)\|(?<built>[^|]*)\|(?<fr>[^|]*)\|(?<after>[^|]*)\|(?<ops>[^|]*)\|(?<env>[^|]*)\| ::= @YN@b|{F{{name}} {{built}}}~{{fr}}|{{ops}}|{{after}}|{{env}}|
+
+^@HXCS@int~(?<arg>[^~]*)~(?<pfr>$PCT)~(?<env>[^|]*)\| ::= @EV@{{arg}}@C0~IV~{{pfr}}~@{{env}}|
+^@HXCS@string~(?<arg>[^~]*)~(?<pfr>$PCT)~(?<env>[^|]*)\| ::= @EV@{{arg}}@C0~SV~{{pfr}}~@{{env}}|
+^@HXCS@(?<name>map|join|split|reduce)~(?<args>[^~]*)~(?<pfr>$PCT)~(?<env>[^|]*)\| ::= @HXWA@0|||{{args}}|{{name}}|{{pfr}}|{{env}}|
+^@HXCS@(?<name>[^~]*)~(?<rest>[^|]*)\| ::= @ERR@type_error: unknown function {{name}}@
+^@HXWA@0\|(?<cur>[^|]*)\|(?<found>[^|]*)\| (?<rest>[^|]*)\|(?<name>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXWC@{{cur}}|{{found}}|{{rest}}|{{name}}|{{pfr}}|{{env}}|
+^@HXWA@(?<d>[1-9][0-9]*)\|(?<cur>[^|]*)\|(?<found>[^|]*)\| (?<rest>[^|]*)\|(?<name>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXWA@{{d}}|{{cur}} |{{found}}|{{rest}}|{{name}}|{{pfr}}|{{env}}|
+^@HXWC@\|(?<found>[^|]*)\|(?<rest>[^|]*)\|(?<name>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: missing value@
+^@HXWC@(?<cur>[^|]*)\|\|(?<rest>[^|]*)\|(?<name>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXWA@0||{{cur}}|{{rest}}|{{name}}|{{pfr}}|{{env}}|
+^@HXWC@(?<cur>[^|]*)\|(?<found>[^|]*)\|(?<rest>[^|]*)\|(?<name>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXWA@0||{{found}}`{{cur}}|{{rest}}|{{name}}|{{pfr}}|{{env}}|
+^@HXWA@(?<d>[0-9]+)\|(?<cur>[^|]*)\|(?<found>[^|]*)\|\{(?<rest>[^|]*)\|(?<name>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXWD@@add@{{d}},1@|{{cur}}{|{{found}}|{{rest}}|{{name}}|{{pfr}}|{{env}}|
+^@HXWD@(?<d>[0-9]+)\|(?<cur>[^|]*)\|(?<found>[^|]*)\|(?<rest>[^|]*)\|(?<name>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXWA@{{d}}|{{cur}}|{{found}}|{{rest}}|{{name}}|{{pfr}}|{{env}}|
+^@HXWA@(?<d>[1-9][0-9]*)\|(?<cur>[^|]*)\|(?<found>[^|]*)\|\}(?<rest>[^|]*)\|(?<name>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXWE@@sub@{{d}},1@|{{cur}}}|{{found}}|{{rest}}|{{name}}|{{pfr}}|{{env}}|
+^@HXWE@(?<d>[0-9]+)\|(?<cur>[^|]*)\|(?<found>[^|]*)\|(?<rest>[^|]*)\|(?<name>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXWA@{{d}}|{{cur}}|{{found}}|{{rest}}|{{name}}|{{pfr}}|{{env}}|
+^@HXWA@(?<d>[0-9]+)\|(?<cur>[^|]*)\|(?<found>[^|]*)\|(?<run>[^{} ]+)(?<rest>[^|]*)\|(?<name>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXWA@{{d}}|{{cur}}{{run}}|{{found}}|{{rest}}|{{name}}|{{pfr}}|{{env}}|
+^@HXWA@0\|\|(?<found>[^|]*)\|\|(?<name>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: missing value@
+^@HXWA@0\|(?<cur>[^|]*)\|\|\|(?<name>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXWF@{{name}}|{{cur}}|{{pfr}}|{{env}}|
+^@HXWA@0\|(?<cur>[^|]*)\|(?<found>[^|]*)\|\|(?<name>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXWF@{{name}}|{{found}}`{{cur}}|{{pfr}}|{{env}}|
+^@HXWA@(?<d>[1-9][0-9]*)\|(?<cur>[^|]*)\|(?<found>[^|]*)\|\|(?<name>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: missing value@
+^@HXWF@map\|(?<arr>[^`]*)`(?<pred>[^`]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @EV@{{arr}}@C0~MP~{{pred|pctenc}}~{{pfr}}~@{{env}}|
+^@HXWF@join\|(?<arr>[^`]*)`(?<sep>[^`]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @EV@{{arr}}@C0~J0~{{sep|pctenc}}~{{pfr}}~@{{env}}|
+^@HXWF@split\|(?<str>[^`]*)`(?<sep>[^`]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @EV@{{str}}@C0~S0~{{sep|pctenc}}~{{pfr}}~@{{env}}|
+^@HXWF@reduce\|(?<arr>[^`]*)`(?<pred>[^`]*)`(?<init>[^`]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @EV@{{init}}@C0~R0~{{arr|pctenc}}~{{pred|pctenc}}~{{pfr}}~@{{env}}|
+^@HXWF@(?<name>map|join|split|reduce)\|(?<args>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @ERR@type_error: wrong arity@
+
+^@HXIS@(?<n>-?[0-9]+)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @WR@@add@{{n}},0@|{{frames}}|{{env}}|
+^@HXIS@(?<bad>[^|]*)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @ERR@type_error: cannot convert string@
+^@HXTP@(?<n>[0-9]+)\|(?<den>[0-9]+)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @HXT2@@mod@{{n}},{{den}}@|{{n}}|{{den}}|{{frames}}|+|{{env}}|
+^@HXTN@(?<n>[0-9]+)\|(?<den>[0-9]+)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @HXT2@@mod@{{n}},{{den}}@|{{n}}|{{den}}|{{frames}}|-|{{env}}|
+^@HXT2@(?<rem>[0-9]+)\|(?<n>[0-9]+)\|(?<den>[0-9]+)\|(?<frames>[^@]*)\|(?<sign>[+-])\|(?<env>[^|]*)\| ::= @HXT3@@sub@{{n}},{{rem}}@|{{den}}|{{frames}}|{{sign}}|{{env}}|
+^@HXT3@(?<exact>[0-9]+)\|(?<den>[0-9]+)\|(?<frames>[^@]*)\|(?<sign>[+-])\|(?<env>[^|]*)\| ::= @HXT4@@div@{{exact}},{{den}}@|{{frames}}|{{sign}}|{{env}}|
+^@HXT4@0\|(?<frames>[^@]*)\|(?<sign>[+-])\|(?<env>[^|]*)\| ::= @RET@{i:0}@{{frames}}@{{env}}|
+^@HXT4@(?<q>[0-9]+)\|(?<frames>[^@]*)\|-\|(?<env>[^|]*)\| ::= @WR@@sub@0,{{q}}@|{{frames}}|{{env}}|
+^@HXT4@(?<q>[0-9]+)\|(?<frames>[^@]*)\|\+\|(?<env>[^|]*)\| ::= @WR@{{q}}|{{frames}}|{{env}}|
+
+^@HXRG@(?<a>$INT)\|(?<b>$INT)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @HXR2@@gt@{{a}}@{{b}}@@{{a}}|{{b}}|{{frames}}|{{env}}|
+^@HXR2@1@(?<a>$INT)\|(?<b>$INT)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @RET@{A:}@{{frames}}@{{env}}|
+^@HXR2@0@(?<a>$INT)\|(?<b>$INT)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @HXRL@{{a}}|{{b}}|i:{{a}}|{{frames}}|{{env}}|
+^@HXRL@(?<n>$INT)\|(?<b>$INT)\|(?<acc>[^|]*)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @HXR3@@ge@{{n}}@{{b}}@@{{n}}|{{b}}|{{acc}}|{{frames}}|{{env}}|
+^@HXR3@1@(?<n>$INT)\|(?<b>$INT)\|(?<acc>[^|]*)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @RET@{A:{{acc|pctenc}}}@{{frames}}@{{env}}|
+^@HXR3@0@(?<n>$INT)\|(?<b>$INT)\|(?<acc>[^|]*)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @HXR4@@add@{{n}},1@|{{b}}|{{acc}}|{{frames}}|{{env}}|
+^@HXR4@(?<n>$INT)\|(?<b>$INT)\|(?<acc>[^|]*)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @HXRL@{{n}}|{{b}}|{{acc}};i:{{n}}|{{frames}}|{{env}}|
+
+^@HXIX@-(?<n>[0-9]+)\|(?<arr>[^|]*)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @ERR@type_error: bad index@
+^@HXIX@(?<n>[0-9]+)\|\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @ERR@type_error: bad index@
+^@HXIX@(?<n>[0-9]+)\|(?<item>[^;]*);(?<rest>[^|]*)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @HXI2@@nq@{{n}}@0@@{{item}}|{{rest}}|{{n}}|{{frames}}|{{env}}|
+^@HXIX@(?<n>[0-9]+)\|(?<item>[^;|]*)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @HXI2@@nq@{{n}}@0@@{{item}}||{{n}}|{{frames}}|{{env}}|
+^@HXI2@1@(?<item>[^|]*)\|(?<rest>[^|]*)\|(?<n>[0-9]+)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @HXI3@{{item}}|{{frames}}|{{env}}|
+^@HXI2@0@(?<item>[^|]*)\|(?<rest>[^|]*)\|(?<n>[0-9]+)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @HXI4@@sub@{{n}},1@|{{rest}}|{{frames}}|{{env}}|
+^@HXI4@(?<n>[0-9]+)\|(?<rest>[^|]*)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @HXIX@{{n}}|{{rest}}|{{frames}}|{{env}}|
+^@HXI3@i:(?<k>$INT)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @RET@{i:{{k}}}@{{frames}}@{{env}}|
+^@HXI3@s:(?<p>$PCT)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @RET@{s:{{p}}}@{{frames}}@{{env}}|
+^@HXI3@t\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @RET@{t}@{{frames}}@{{env}}|
+^@HXI3@f\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @RET@{f}@{{frames}}@{{env}}|
+^@HXI3@(?<bad>[^|]*)\|(?<frames>[^@]*)\|(?<env>[^|]*)\| ::= @ERR@type_error: bad index@
+
+^@HXSS@\|H\|(?<hay>$PCT)\|(?<item>$PCT)\|(?<out>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @ERR@type_error: empty separator@
+^@HXSS@(?<sep>$PCT)\|H\|(?<hay>$PCT)\|(?<item>$PCT)\|(?<out>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::| \A@HXSS@{{sep|quote}}\|H\|{{sep|quote}}(?<rest>$PCT)\| ::= @HXST@{{sep}}|{{rest}}|{{item}}|{{out}}|{{pfr}}|{{env}}|
+^@HXST@(?<sep>$PCT)\|(?<hay>$PCT)\|(?<item>$PCT)\|\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXSS@{{sep}}|H|{{hay}}||~{{item}}|{{pfr}}|{{env}}|
+^@HXST@(?<sep>$PCT)\|(?<hay>$PCT)\|(?<item>$PCT)\|~(?<out>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXSS@{{sep}}|H|{{hay}}||~{{out}};{{item}}|{{pfr}}|{{env}}|
+^@HXSS@(?<sep>$PCT)\|H\|%(?<h>[0-9A-F]{2})(?<hrest>$PCT)\|(?<item>$PCT)\|(?<out>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXSS@{{sep}}|H|{{hrest}}|{{item}}%{{h}}|{{out}}|{{pfr}}|{{env}}|
+^@HXSS@(?<sep>$PCT)\|H\|(?<h>[A-Za-z0-9_.-])(?<hrest>$PCT)\|(?<item>$PCT)\|(?<out>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXSS@{{sep}}|H|{{hrest}}|{{item}}{{h}}|{{out}}|{{pfr}}|{{env}}|
+^@HXSS@(?<sep>$PCT)\|H\|\|(?<item>$PCT)\|(?<out>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXSF@{{item}}|{{out}}|{{pfr}}|{{env}}|
+^@HXSF@(?<item>$PCT)\|\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXS1@s:{{item}}|{{pfr}}|{{env}}|
+^@HXSF@(?<item>$PCT)\|~(?<out>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXS2@{{out}};{{item}}|{{pfr}}|{{env}}|
+^@HXS2@(?<body>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXS3@|{{body}}|{{pfr}}|{{env}}|
+^@HXS3@(?<acc>[^|]*)\|(?<one>[^;]*);(?<rest>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXS3@{{acc}}s:{{one}};|{{rest}}|{{pfr}}|{{env}}|
+^@HXS3@(?<acc>[^|]*)\|(?<one>[^;|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXS1@{{acc}}s:{{one}}|{{pfr}}|{{env}}|
+^@HXS1@(?<body>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @RET@{A:{{body|pctenc}}}@{{pfr|pctdec}}@{{env}}|
+
+^@HXJN@(?<sep>$PCT)\|\|\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @RET@{s:}@{{pfr|pctdec}}@{{env}}|
+^@HXJN@(?<sep>$PCT)\|\|(?<acc>$PCT)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @RET@{s:{{acc}}}@{{pfr|pctdec}}@{{env}}|
+^@HXJN@(?<sep>$PCT)\|s:(?<p>$PCT);(?<rest>[^|]*)\|(?<acc>$PCT)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXJO@{{sep}}|{{rest}}|{{acc}}|{{p}}|{{pfr}}|{{env}}|
+^@HXJN@(?<sep>$PCT)\|s:(?<p>$PCT)\|(?<acc>$PCT)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXJO@{{sep}}||{{acc}}|{{p}}|{{pfr}}|{{env}}|
+^@HXJN@(?<sep>$PCT)\|(?<bad>[^|]*)\|(?<acc>$PCT)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @ERR@type_error: cannot join that@
+^@HXJO@(?<sep>$PCT)\|(?<rest>[^|]*)\|\|(?<p>$PCT)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXJN@{{sep}}|{{rest}}|{{p}}|{{pfr}}|{{env}}|
+^@HXJO@(?<sep>$PCT)\|(?<rest>[^|]*)\|(?<acc>$PCT)\|(?<p>$PCT)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXJN@{{sep}}|{{rest}}|{{acc}}{{sep}}{{p}}|{{pfr}}|{{env}}|
+
+^@HXMG@\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @RET@{A:}@{{pfr|pctdec}}@{{env}}|
+^@HXMG@(?<item>[^;]*);(?<rest>[^|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @HXMH@{{item}}|{{rest}}|{{ppred}}|{{pfr}}|{{acc}}|{{env}}|
+^@HXMG@(?<item>[^;|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @HXMH@{{item}}||{{ppred}}|{{pfr}}|{{acc}}|{{env}}|
+^@HXMH@i:(?<n>$INT)\|(?<rest>[^|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @EV@{{ppred|pctdec}}@C0~MA~{{rest|pctenc}}~{{ppred}}~{{pfr}}~{{acc|pctenc}}~@#_h={i:{{n}}};{{env}}|
+^@HXMH@s:(?<p>$PCT)\|(?<rest>[^|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @EV@{{ppred|pctdec}}@C0~MA~{{rest|pctenc}}~{{ppred}}~{{pfr}}~{{acc|pctenc}}~@#_h={s:{{p}}};{{env}}|
+^@HXMH@t\|(?<rest>[^|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @EV@{{ppred|pctdec}}@C0~MA~{{rest|pctenc}}~{{ppred}}~{{pfr}}~{{acc|pctenc}}~@#_h={t};{{env}}|
+^@HXMH@f\|(?<rest>[^|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @EV@{{ppred|pctdec}}@C0~MA~{{rest|pctenc}}~{{ppred}}~{{pfr}}~{{acc|pctenc}}~@#_h={f};{{env}}|
+^@HXMH@(?<bad>[^|]*)\|(?<rest>[^|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@type_error: cannot map that@
+^@HXMN@(?<v>\{[^}]*\})\|(?<rest>[^|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|#_h=\{[^}]*\};(?<env>[^|]*)\| ::= @HXMO@{{v}}|{{rest}}|{{ppred}}|{{pfr}}|{{acc}}|{{env}}|
+^@HXMO@\{i:(?<n>$INT)\}\|(?<rest>[^|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @HXMP@i:{{n}}|{{rest}}|{{ppred}}|{{pfr}}|{{acc}}|{{env}}|
+^@HXMO@\{s:(?<p>$PCT)\}\|(?<rest>[^|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @HXMP@s:{{p}}|{{rest}}|{{ppred}}|{{pfr}}|{{acc}}|{{env}}|
+^@HXMO@\{t\}\|(?<rest>[^|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @HXMP@t|{{rest}}|{{ppred}}|{{pfr}}|{{acc}}|{{env}}|
+^@HXMO@\{f\}\|(?<rest>[^|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @HXMP@f|{{rest}}|{{ppred}}|{{pfr}}|{{acc}}|{{env}}|
+^@HXMO@(?<v>\{[^}]*\})\|(?<rest>[^|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@type_error: cannot map that@
+^@HXMP@(?<item>[^|]*)\|\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|\|(?<env>[^|]*)\| ::= @RET@{A:{{item|pctenc}}}@{{pfr|pctdec}}@{{env}}|
+^@HXMP@(?<item>[^|]*)\|\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @HXM2@{{acc}};{{item}}|{{pfr}}|{{env}}|
+^@HXM2@(?<body>[^|]*)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @RET@{A:{{body|pctenc}}}@{{pfr|pctdec}}@{{env}}|
+^@HXMP@(?<item>[^|]*)\|(?<rest>[^|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|\|(?<env>[^|]*)\| ::= @HXMG@{{rest}}|{{ppred}}|{{pfr}}|{{item}}|{{env}}|
+^@HXMP@(?<item>[^|]*)\|(?<rest>[^|]*)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<acc>[^|]*)\|(?<env>[^|]*)\| ::= @HXMG@{{rest}}|{{ppred}}|{{pfr}}|{{acc}};{{item}}|{{env}}|
+
+^@HXRA@\|(?<acc>\{[^}]*\})\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @RET@{{acc}}@{{pfr|pctdec}}@{{env}}|
+^@HXRA@(?<item>[^;]*);(?<rest>[^|]*)\|(?<acc>\{[^}]*\})\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXRB@{{item}}|{{rest}}|{{acc}}|{{ppred}}|{{pfr}}|{{env}}|
+^@HXRA@(?<item>[^;|]*)\|(?<acc>\{[^}]*\})\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @HXRB@{{item}}||{{acc}}|{{ppred}}|{{pfr}}|{{env}}|
+^@HXRB@i:(?<n>$INT)\|(?<rest>[^|]*)\|(?<acc>\{[^}]*\})\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @EV@{{ppred|pctdec}}@C0~RB~{{rest|pctenc}}~{{ppred}}~{{pfr}}~@#_h={i:{{n}}};#_a={{acc}};{{env}}|
+^@HXRB@s:(?<p>$PCT)\|(?<rest>[^|]*)\|(?<acc>\{[^}]*\})\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @EV@{{ppred|pctdec}}@C0~RB~{{rest|pctenc}}~{{ppred}}~{{pfr}}~@#_h={s:{{p}}};#_a={{acc}};{{env}}|
+^@HXRB@t\|(?<rest>[^|]*)\|(?<acc>\{[^}]*\})\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @EV@{{ppred|pctdec}}@C0~RB~{{rest|pctenc}}~{{ppred}}~{{pfr}}~@#_h={t};#_a={{acc}};{{env}}|
+^@HXRB@f\|(?<rest>[^|]*)\|(?<acc>\{[^}]*\})\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @EV@{{ppred|pctdec}}@C0~RB~{{rest|pctenc}}~{{ppred}}~{{pfr}}~@#_h={f};#_a={{acc}};{{env}}|
+^@HXRB@(?<bad>[^|]*)\|(?<rest>[^|]*)\|(?<acc>\{[^}]*\})\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|(?<env>[^|]*)\| ::= @ERR@type_error: cannot reduce that@
+^@HXRC@(?<v>\{[^}]*\})\|(?<rest>[^|]+)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|#_h=\{[^}]*\};#_a=\{[^}]*\};(?<env>[^|]*)\| ::= @HXRA@{{rest}}|{{v}}|{{ppred}}|{{pfr}}|{{env}}|
+^@HXRC@(?<v>\{[^}]*\})\|\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|#_h=\{[^}]*\};#_a=\{[^}]*\};(?<env>[^|]*)\| ::= @RET@{{v}}@{{pfr|pctdec}}@{{env}}|
+
+^"(?<src>[\s\S]*)$ ::= @2@@RE@\n%22{{src|pctenc}}
+^l(?<src>[\s\S]*)$ ::= @2@@RE@\nl{{src|pctenc}}
 
 ::=
 @0@

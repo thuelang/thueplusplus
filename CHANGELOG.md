@@ -28,6 +28,7 @@ Versions are the Thue++ spec versions in `SPEC_VERSION`.
 
 ### Added
 
+- Expr solves hello-world, fizzbuzz, factorial, greatest-common-divisor, and leap-year. The programs use a string, `let`, `map`, `reduce`, and `join`, and Euclid is a bounded `reduce` that carries the pair. Problem stdin arrives as the `stdin` string in `--line:env`. A string result prints as plain text plus one newline.
 - Expr, phases 0 and 1, in `langs/expr/expr.thue`. It reads an `expr` line and an `env` JSON object and writes one JSON value. `--line:NAME TEXT` binds one readable line on every host. An omitted `env` line in an expr manifest is an empty environment. Stderr names the failure in plain words and exits 2.
 - `lisp`, `forth`, and `basic` solutions for leap-year, greatest-common-divisor, and fizzbuzz. Each program reads the problem's cases the same way as hello-world and factorial, and prints the same stdout as `direct`. The site catalog skips a solution directory until `metric.json` is recorded, so these can land before the metrics job writes the cost.
 

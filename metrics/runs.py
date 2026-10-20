@@ -163,6 +163,9 @@ def _run_one(interpreter, solution: Solution, case: Case, limits: Limits) -> dic
         argv.extend(["--resources", str(resources_path), "--resource-out", str(resource_out)])
         if not solution.direct:
             argv.extend(["--input", solution.state])
+        if solution.ruleset == "expr":
+            stdin_text = "\n".join(case.reads.get("stdin", ()))
+            argv.extend(["--line:env", json.dumps({"stdin": stdin_text})])
         argv.extend([
             "--max-steps", str(limits.max_steps),
             "--max-evals", str(limits.max_evals),
