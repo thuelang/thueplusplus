@@ -2,6 +2,6 @@ package cases
 
 import "testing"
 
-// Expr cases bind the expr and env line resources. They do not use the shared
-// stdin problems, so this package does not call RunCommonLang.
+// Expr cases bind the expr and env line resources. The shared stdin suite is
+// not part of this package.
 func TestCasesSkipSharedStdin(t *testing.T) {}
