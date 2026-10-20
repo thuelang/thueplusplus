@@ -1,1 +1,0 @@
-let n = int(stdin); reduce(1..n, # * #acc, 1)

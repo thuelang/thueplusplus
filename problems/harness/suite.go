@@ -274,7 +274,7 @@ func currentProgram(rulesetDir, extension string) (string, error) {
 		}
 		var matched []string
 		for _, file := range files {
-			if file.IsDir() || !isHashFile(file.Name(), extension) {
+			if file.IsDir() || !isSlugFile(file.Name(), extension) {
 				continue
 			}
 			matched = append(matched, file.Name())
@@ -308,17 +308,26 @@ func isTimestamp(name string) bool {
 	return true
 }
 
-func isHashFile(name, extension string) bool {
+func isSlugFile(name, extension string) bool {
 	suffix := "." + extension
-	if len(name) != 12+len(suffix) || !strings.HasSuffix(name, suffix) {
+	if !strings.HasSuffix(name, suffix) || len(name) <= len(suffix) {
 		return false
 	}
-	for _, c := range name[:12] {
-		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+	slug := name[:len(name)-len(suffix)]
+	prevHyphen := true
+	for _, c := range slug {
+		digit := c >= '0' && c <= '9'
+		letter := c >= 'a' && c <= 'z'
+		if digit || letter {
+			prevHyphen = false
+			continue
+		}
+		if c != '-' || prevHyphen {
 			return false
 		}
+		prevHyphen = true
 	}
-	return true
+	return !prevHyphen
 }
 
 func RequireNativeGo(root string) error {

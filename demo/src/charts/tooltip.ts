@@ -22,11 +22,13 @@ export function shortSha(sha: string): string {
 }
 
 function partHtml(link: ChartLink): string {
-  return [
+  const lines = [
     `<p>${escapeHtml(link.label)} · ${escapeHtml(link.problem)} · ${formatCost(link.cost)}</p>`,
-    `<p>${escapeHtml(localDateTime(link.time))} · ${escapeHtml(shortSha(link.sha))} · ${escapeHtml(link.author)}</p>`,
-    `<p><a href="${escapeHtml(link.blobUrl)}">solution</a> · <a href="${escapeHtml(link.commitUrl)}">commit</a></p>`,
-  ].join('')
+  ]
+  if (link.title) lines.push(`<p>${escapeHtml(link.title)}</p>`)
+  lines.push(`<p>${escapeHtml(localDateTime(link.time))} · ${escapeHtml(shortSha(link.sha))} · ${escapeHtml(link.author)}</p>`)
+  lines.push(`<p><a href="${escapeHtml(link.blobUrl)}">solution</a> · <a href="${escapeHtml(link.commitUrl)}">commit</a></p>`)
+  return lines.join('')
 }
 
 export function tooltipHtml(seriesLabel: string, point: TimePoint): string {

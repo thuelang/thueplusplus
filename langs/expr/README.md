@@ -42,6 +42,7 @@ Problem solutions are the expression itself on `--input`, and they read `stdin` 
 - Names looked up in `env`. An unknown name is an error.
 - String literals and `+` on strings. Escapes are `\"` `\\` `\/` `\b` `\f` `\n` `\r` `\t` and `\u` of a code point at or below U+007F.
 - `let name = value; body` as a top-level sequence. The body can be another `let`.
+- `//` comments out the rest of a line. A line before the expression that starts with `//` is a comment.
 - `a..b` builds an inclusive integer range. `map`, `reduce`, and `join` walk arrays. `split` cuts a string. `int` and `string` convert. `array[index]` reads one element. `#` is the element and `#acc` is the accumulator, and both are legal only inside a predicate.
 
 ## Errors

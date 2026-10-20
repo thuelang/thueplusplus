@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Version directories: hash, timestamp, immutability, and history."""
+"""Version directories: title slug, timestamp, immutability, and history."""
 
 import subprocess
 import sys
@@ -15,7 +15,6 @@ from versions import (  # noqa: E402
     VersionError,
     assert_immutable,
     compare_history,
-    file_hash,
     format_timestamp,
     parse_timestamp,
     versions_in,
@@ -39,11 +38,6 @@ def _init(root: Path) -> None:
 
 
 class VersionTest(unittest.TestCase):
-    def test_hash_is_twelve_hex_characters(self) -> None:
-        digest = file_hash(b"abc")
-        self.assertEqual(digest, "ba7816bf8f01")
-        self.assertEqual(len(digest), 12)
-
     def test_timestamp_is_utc_basic_shape(self) -> None:
         moment = datetime(2026, 10, 20, 14, 34, tzinfo=timezone.utc)
         self.assertEqual(format_timestamp(moment), "2026-10-20_14-34-00")
@@ -59,14 +53,15 @@ class VersionTest(unittest.TestCase):
             _init(root)
             path = root / "problems" / "hello-world" / "solutions" / "lisp" / "2026-10-20_14-34-00"
             path.mkdir(parents=True)
-            program = path / "ba7816bf8f01.lisp"
+            program = path / "sample.lisp"
             program.write_bytes(b"abc")
             _git(root, "add", ".")
             _git(root, "commit", "-m", "add")
-            assert_immutable(root, "problems/hello-world/solutions/lisp/2026-10-20_14-34-00/ba7816bf8f01.lisp")
+            rel = "problems/hello-world/solutions/lisp/2026-10-20_14-34-00/sample.lisp"
+            assert_immutable(root, rel)
             program.write_bytes(b"abcd")
             with self.assertRaises(VersionError) as caught:
-                assert_immutable(root, "problems/hello-world/solutions/lisp/2026-10-20_14-34-00/ba7816bf8f01.lisp")
+                assert_immutable(root, rel)
             self.assertIn("modified after it was added", str(caught.exception))
 
     def test_history_count_matches_follow_and_rejects_a_tie(self) -> None:
@@ -77,10 +72,10 @@ class VersionTest(unittest.TestCase):
             ruleset.mkdir(parents=True)
             (ruleset / "README.md").write_text("---\nruleset: lisp\nauthor: Ada <ada@example.com>\n---\n\nNotes.\n", encoding="utf-8")
             old = ruleset / "solution.lisp"
-            old.write_text("one\n", encoding="utf-8")
+            old.write_text("; ---\n; title: One\n; ---\none\n", encoding="utf-8")
             _git(root, "add", ".", date="2026-10-18T14:34:00Z")
             _git(root, "commit", "-m", "one", date="2026-10-18T14:34:00Z")
-            old.write_text("two\n", encoding="utf-8")
+            old.write_text("; ---\n; title: Two\n; ---\ntwo\n", encoding="utf-8")
             _git(root, "add", ".", date="2026-10-19T15:00:00Z")
             _git(root, "commit", "-m", "two", date="2026-10-19T15:00:00Z")
             from migrate_versions import migrate
@@ -89,10 +84,10 @@ class VersionTest(unittest.TestCase):
             compare_history(root)
             bad = ruleset / "2026-10-20_14-34-00"
             bad.mkdir()
-            (bad / "000000000000.lisp").write_bytes(b"abc")
+            (bad / "Not-A-Slug.lisp").write_bytes(b"abc")
             with self.assertRaises(VersionError) as caught:
                 versions_in(root, "hello-world", ruleset)
-            self.assertIn("hash is", str(caught.exception))
+            self.assertIn("title slug", str(caught.exception))
 
 
 if __name__ == "__main__":

@@ -2,6 +2,8 @@ PCT <- (?:[A-Za-z0-9_.-]|%[0-9A-F]{2})*
 NUM <- -?(?:[0-9]+|[0-9]+\.[0-9]+|[0-9]+/[0-9]+)
 INT <- -?[0-9]+
 
+^SOLUTIONCOMMENT<(?<payload>$PCT)> ::= {{payload|pctdec}}
+
 @add@(?<a>$NUM),(?<b>$NUM)@ ::! add a b
 @sub@(?<a>$NUM),(?<b>$NUM)@ ::! sub a b
 @mul@(?<a>$NUM),(?<b>$NUM)@ ::! mul a b
@@ -338,7 +340,10 @@ INT <- -?[0-9]+
 ^@TN@(?<f>v|o)\|%20(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@{{f}}|{{rest}}|{{tok}}|{{env}}|
 ^@TN@(?<f>v|o)\|%09(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@{{f}}|{{rest}}|{{tok}}|{{env}}|
 ^@TN@(?<f>v|o)\|%2F%2A(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @CM@{{f}}|{{rest}}|{{tok}}|{{env}}|
-^@TN@(?<f>v|o)\|%2F%2F(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@{{f}}||{{tok}}|{{env}}|
+^@TN@(?<f>v|o)\|%2F%2F(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @LC@{{f}}|{{rest}}|{{tok}}|{{env}}|
+^@LC@(?<f>v|o)\|%0A(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@{{f}}|{{rest}}|{{tok}}|{{env}}|
+^@LC@(?<f>v|o)\|(?<c>(?:%[0-9A-F]{2}|[A-Za-z0-9_.-]))(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @LC@{{f}}|{{rest}}|{{tok}}|{{env}}|
+^@LC@(?<f>v|o)\|\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@{{f}}||{{tok}}|{{env}}|
 ^@CM@(?<f>v|o)\|%2A%2F(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @TN@{{f}}|{{rest}}|{{tok}}|{{env}}|
 ^@CM@(?<f>v|o)\|(?<c>(?:%[0-9A-F]{2}|[A-Za-z0-9_.-]))(?<rest>$PCT)\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @CM@{{f}}|{{rest}}|{{tok}}|{{env}}|
 ^@CM@(?<f>v|o)\|\|(?<tok>[^|]*)\|(?<env>[^|]*)\| ::= @ERR@syntax_error: unclosed comment@
@@ -1035,6 +1040,7 @@ INT <- -?[0-9]+
 ^@HXRC@(?<v>\{[^}]*\})\|(?<rest>[^|]+)\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|#_h=\{[^}]*\};#_a=\{[^}]*\};(?<env>[^|]*)\| ::= @HXRA@{{rest}}|{{v}}|{{ppred}}|{{pfr}}|{{env}}|
 ^@HXRC@(?<v>\{[^}]*\})\|\|(?<ppred>$PCT)\|(?<pfr>$PCT)\|#_h=\{[^}]*\};#_a=\{[^}]*\};(?<env>[^|]*)\| ::= @RET@{{v}}@{{pfr|pctdec}}@{{env}}|
 
+^//[^\n]*\n(?<rest>[\s\S]*) ::= SOLUTIONCOMMENT<{{rest|pctenc}}>
 ^"(?<src>[\s\S]*)$ ::= @2@@RE@\n%22{{src|pctenc}}
 ^l(?<src>[\s\S]*)$ ::= @2@@RE@\nl{{src|pctenc}}
 

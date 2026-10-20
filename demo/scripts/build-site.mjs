@@ -1,9 +1,9 @@
-import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { sandboxSeriesFromCatalog } from '../src/charts/geometry.mjs'
+import { slugify, splitSolution, SolutionFrontmatterError } from './solution-frontmatter.mjs'
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 const catalogPath = join(repoRoot, 'demo/src/generated/catalog.json')
@@ -179,6 +179,14 @@ function git(args, { missing = false } = {}) {
 function gitShow(sha, path) {
   try {
     return execFileSync('git', ['show', `${sha}:${path}`], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch {
+    return null
+  }
+}
+
+function gitShowBuffer(sha, path) {
+  try {
+    return execFileSync('git', ['show', `${sha}:${path}`], { cwd: repoRoot, encoding: 'buffer', stdio: ['ignore', 'pipe', 'ignore'] })
   } catch {
     return null
   }
@@ -469,11 +477,7 @@ function readSandbox(id) {
 }
 
 const VERSION_STAMP = /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/
-const VERSION_FILE = /^([0-9a-f]{12})\.([a-z0-9]+)$/
-
-function fileHash(buffer) {
-  return createHash('sha256').update(buffer).digest('hex').slice(0, 12)
-}
+const VERSION_FILE = /^([a-z0-9]+(?:-[a-z0-9]+)*)\.([a-z0-9]+)$/
 
 function stampToIso(stamp) {
   const match = /^(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})$/.exec(stamp)
@@ -530,15 +534,26 @@ function listVersionFiles(problem, ruleset) {
     const match = VERSION_FILE.exec(names[0])
     const rel = `${folder}/${entry.name}/${names[0]}`
     const bytes = readFileSync(join(repoRoot, rel))
-    const digest = fileHash(bytes)
-    if (digest !== match[1]) throw new CatalogError(`${rel} hash is ${digest}`)
+    let parsed
+    try {
+      parsed = splitSolution(bytes, match[2])
+    } catch (error) {
+      if (error instanceof SolutionFrontmatterError) throw new CatalogError(`${rel}: ${error.message}`)
+      throw error
+    }
+    const title = parsed.fields.title
+    if (!title) throw new CatalogError(`${rel}: front matter needs title`)
+    const slug = slugify(title)
+    if (match[1] !== slug) throw new CatalogError(`${rel}: file name must be ${slug}.${match[2]}`)
     versions.push({
       timestamp: entry.name,
       iso: stampToIso(entry.name),
-      hash: digest,
+      slug,
       extension: match[2],
       name: names[0],
       rel,
+      title,
+      author: parsed.fields.author || null,
       text: bytes.toString('utf8'),
     })
   }
@@ -547,29 +562,27 @@ function listVersionFiles(problem, ruleset) {
   return versions
 }
 
-function gitShowBuffer(sha, path) {
-  try {
-    return execFileSync('git', ['show', `${sha}:${path}`], { cwd: repoRoot, encoding: 'buffer', stdio: ['ignore', 'pipe', 'ignore'] })
-  } catch {
-    return null
-  }
+function isoToStamp(iso) {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return null
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}_${pad(date.getUTCHours())}-${pad(date.getUTCMinutes())}-${pad(date.getUTCSeconds())}`
 }
 
 function historicalCosts(problem, ruleset, extension) {
   const solutionPath = `problems/${problem}/solutions/${ruleset}/solution.${extension}`
   const metricPath = `problems/${problem}/solutions/${ruleset}/metric.json`
-  const log = git(['log', '--format=%H', '--', solutionPath, metricPath], { missing: true })
+  const log = git(['log', '--format=%H%x09%cI', '--', solutionPath, metricPath], { missing: true })
   const costs = new Map()
   if (!log) return costs
-  for (const commit of log.split('\n').filter(Boolean)) {
-    const blob = gitShowBuffer(commit, solutionPath)
-    if (!blob) continue
-    const hash = fileHash(blob)
-    if (costs.has(hash)) continue
+  for (const line of log.split('\n').filter(Boolean)) {
+    const [commit, iso] = line.split('\t')
+    const stamp = isoToStamp(iso)
+    if (!stamp || costs.has(stamp)) continue
     const text = gitShow(commit, metricPath)
     if (text == null) continue
     try {
-      costs.set(hash, { metric: readMetric(text, `${commit}:${metricPath}`), gitCommit: commit })
+      costs.set(stamp, { metric: readMetric(text, `${commit}:${metricPath}`), gitCommit: commit })
     } catch {
       continue
     }
@@ -578,7 +591,7 @@ function historicalCosts(problem, ruleset, extension) {
 }
 
 let versionsDocument
-function versionsByHash() {
+function versionsByIdentity() {
   if (versionsDocument) return versionsDocument
   versionsDocument = new Map()
   const path = join(repoRoot, 'metrics/versions.json')
@@ -586,8 +599,10 @@ function versionsByHash() {
   const data = JSON.parse(readFileSync(path, 'utf8'))
   const versions = data.versions
   if (!versions || typeof versions !== 'object') throw new CatalogError('metrics/versions.json is not schema 1')
-  for (const [hash, entry] of Object.entries(versions)) {
-    if (entry.pass === true && Number.isInteger(entry.cost) && entry.cost >= 0) versionsDocument.set(hash, entry)
+  for (const entry of Object.values(versions)) {
+    if (entry.pass === true && Number.isInteger(entry.cost) && entry.cost >= 0 && entry.problem && entry.ruleset && entry.timestamp) {
+      versionsDocument.set(`${entry.problem}\0${entry.ruleset}\0${entry.timestamp}`, entry)
+    }
   }
   return versionsDocument
 }
@@ -636,9 +651,9 @@ function cloneIsShallow() {
 }
 
 function costForVersion(version, historical, latest, shallow, newest) {
-  const recorded = versionsByHash().get(version.hash)
+  const recorded = versionsByIdentity().get(`${version.problem}\0${version.ruleset}\0${version.timestamp}`)
   if (recorded) return { metric: recorded, gitCommit: recorded.commit }
-  const past = historical.get(version.hash)
+  const past = historical.get(version.timestamp)
   if (past && newest && latest && latest.state === solutionState(version.ruleset, version.text, version.rel) && latest.metric.cost !== past.metric.cost) {
     return { metric: latest.metric, gitCommit: latest.commit }
   }
@@ -806,6 +821,8 @@ function build() {
             ruleChars: item.metric ? item.metric.rule_chars : null,
             solution: item.text,
             solutionPath: item.rel,
+            title: item.title,
+            author: item.author,
           })),
           series: solution.points,
         }
@@ -833,6 +850,7 @@ function build() {
       commit: /^[0-9a-f]{40}$/.test(item.gitCommit) ? item.gitCommit : head.commit,
       timestamp: item.iso,
       author: solution.author,
+      title: item.title || null,
       cost: item.metric.cost,
     }))
     for (const drop of costDrops(points)) {
@@ -846,6 +864,7 @@ function build() {
         commit: drop.commit,
         timestamp: row.timestamp,
         author: row.author,
+        title: row.title,
       })
     }
   }
@@ -876,6 +895,7 @@ function build() {
       commit: commitSha.get(row.timestamp) ?? head.commit,
       timestamp: row.timestamp,
       author: row.author,
+      title: null,
     })
   }
   improvementEvents.sort((left, right) => right.timestamp.localeCompare(left.timestamp) || left.sandbox.localeCompare(right.sandbox) || String(left.problem).localeCompare(String(right.problem)) || left.kind.localeCompare(right.kind))

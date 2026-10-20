@@ -70,7 +70,7 @@ class Solution:
     program: str
     state: str
     direct: bool
-    hash: str = ""
+    slug: str = ""
     timestamp: str = ""
 
 
@@ -247,7 +247,7 @@ def _read_solution(problem: str, directory: Path) -> Solution:
         program=program,
         state=state,
         direct=direct,
-        hash=current.hash,
+        slug=current.slug,
         timestamp=current.timestamp,
     )
 

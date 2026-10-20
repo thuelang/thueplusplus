@@ -1,5 +1,0 @@
-(let ((n (parse (readline))) (acc 1))
-  (while (lt 0 n)
-    (set acc (mul acc n))
-    (set n (sub n 1)))
-  acc)

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Fail when a solution version is misnamed, mistimed, or edited after it landed.
 
-`--history` also requires the on-disk hashes to equal `git log --follow` for the
-old solution.<ext> path. A ruleset that never had that path is skipped.
+`--history` also requires the same number of versions as `git log --follow` for
+the old solution.<ext> path. A ruleset that never had that path is skipped.
 """
 
 from __future__ import annotations

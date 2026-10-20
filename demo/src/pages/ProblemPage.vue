@@ -18,7 +18,7 @@ const problem = computed(() => {
   return typeof id === 'string' ? problemById(id) : undefined
 })
 
-type SortKey = 'sandbox' | 'cost' | 'author' | 'date' | 'steps' | 'rules'
+type SortKey = 'sandbox' | 'title' | 'cost' | 'author' | 'date' | 'steps' | 'rules'
 const sortKey = ref<SortKey>('cost')
 const sortAsc = ref(true)
 
@@ -49,10 +49,15 @@ function measuredAt(version: CatalogVersion, solution: CatalogSolution): string 
   return `${match[1]}T${match[2]}:${match[3]}:${match[4]}Z`
 }
 
+function rowAuthor(row: SolutionRow): string {
+  return row.solution.author || row.version.author
+}
+
 function value(row: SolutionRow, key: SortKey): string | number {
   if (key === 'sandbox') return row.version.name
+  if (key === 'title') return row.solution.title
   if (key === 'cost') return row.solution.cost ?? Number.POSITIVE_INFINITY
-  if (key === 'author') return authorName(row.version.author)
+  if (key === 'author') return authorName(rowAuthor(row))
   if (key === 'date') return row.measured
   if (key === 'steps') return row.solution.steps ?? Number.POSITIVE_INFINITY
   return row.solution.ruleCount ?? Number.POSITIVE_INFINITY
@@ -76,6 +81,9 @@ const rows = computed(() => {
   })
   return sorted
 })
+
+const showTitle = computed(() => rows.value.some(row => row.solution.title.length > 0))
+const showAuthor = computed(() => rows.value.some(row => rowAuthor(row).length > 0))
 
 function shown(value: number | null): string {
   return value == null ? 'unmeasured' : formatCost(value)
@@ -104,21 +112,23 @@ function ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
         <TableHeader>
           <TableRow>
             <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('sandbox')" @click="toggle('sandbox')">Entry</button></TableHead>
+            <TableHead v-if="showTitle"><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('title')" @click="toggle('title')">Title</button></TableHead>
             <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('cost')" @click="toggle('cost')">Cost</button></TableHead>
-            <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('author')" @click="toggle('author')">Author</button></TableHead>
+            <TableHead v-if="showAuthor"><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('author')" @click="toggle('author')">Author</button></TableHead>
             <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('date')" @click="toggle('date')">Date</button></TableHead>
             <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('steps')" @click="toggle('steps')">Steps</button></TableHead>
             <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('rules')" @click="toggle('rules')">Rules</button></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          <TableRow v-for="row in rows" :key="row.key" data-test="solution-row" :data-sandbox="row.version.id" :data-current="row.current ? 'true' : undefined" :data-hash="row.solution.id">
+          <TableRow v-for="row in rows" :key="row.key" data-test="solution-row" :data-sandbox="row.version.id" :data-current="row.current ? 'true' : undefined" :data-slug="row.solution.id">
             <TableCell>
               <span v-if="row.version.id !== 'direct'" data-test="sandbox-color" class="mr-2 inline-block size-2.5 align-middle" :style="{ background: row.version.color }" />
               <a data-test="solution-link" class="underline underline-offset-4" :href="sourceUrl(row.solution.solutionPath)" rel="noreferrer">{{ row.version.id === 'direct' ? 'Direct Thue' : row.version.name }}</a>
             </TableCell>
+            <TableCell v-if="showTitle" data-test="solution-title">{{ row.solution.title }}</TableCell>
             <TableCell class="font-mono">{{ shown(row.solution.cost) }}</TableCell>
-            <TableCell>{{ authorName(row.version.author) }}</TableCell>
+            <TableCell v-if="showAuthor">{{ authorName(rowAuthor(row)) }}</TableCell>
             <TableCell class="font-mono">{{ row.measured.slice(0, 10) }}</TableCell>
             <TableCell class="font-mono">{{ shown(row.solution.steps) }}</TableCell>
             <TableCell class="font-mono">{{ shown(row.solution.ruleCount) }}</TableCell>

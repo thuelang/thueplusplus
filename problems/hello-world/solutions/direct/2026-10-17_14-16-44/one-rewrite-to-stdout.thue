@@ -1,0 +1,9 @@
+---
+title: One rewrite to stdout
+author: Cursor Agent <cursoragent@cursor.com>
+---
+^hello\n?$ ::> stdout Hello, World!\n
+^$ ::- 0
+
+::=
+hello

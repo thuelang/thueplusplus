@@ -15,6 +15,7 @@ export interface ChartLink {
   time: number
   sha: string
   author: string
+  title: string
   solutionPath: string
   blobUrl: string
   commitUrl: string
@@ -36,6 +37,7 @@ export interface SolutionLinkFields {
   time: number
   sha: string
   author: string
+  title?: string
   solutionPath: string
 }
 
@@ -61,5 +63,11 @@ export const sandboxSeriesFromCatalog = sandboxSeriesFromCatalogJs as (catalog: 
   }[]
 }) => { id: string; label: string; color: string; points: TimePoint[] }[]
 export const bestSandboxMarks = bestSandboxMarksJs as (problem: {
-  versions: { id: string; name: string; color: string; series: { cost: number }[] }[]
-}) => { id: string; label: string; color: string; cost: number }[]
+  versions: {
+    id: string
+    name: string
+    color: string
+    series: { cost: number; solution?: string }[]
+    solutions?: { id: string; title?: string }[]
+  }[]
+}) => { id: string; label: string; color: string; cost: number; title: string | null }[]

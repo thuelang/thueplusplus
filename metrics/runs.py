@@ -297,6 +297,19 @@ def _same_metric(existing: dict, document: dict) -> bool:
     return all(existing.get(key) == document[key] for key in METRIC_FIELDS if key != "commit")
 
 
+def _version_key(versions: dict, solution: Solution) -> str:
+    for key, other in versions.items():
+        if not isinstance(other, dict):
+            continue
+        if (
+            other.get("problem") == solution.problem
+            and other.get("ruleset") == solution.ruleset
+            and other.get("timestamp") == solution.timestamp
+        ):
+            return str(key)
+    return f"{solution.problem}/{solution.ruleset}/{solution.timestamp}"
+
+
 def load_versions(root: Path = ROOT) -> dict:
     path = root / VERSIONS_REL
     if not path.is_file():
@@ -320,8 +333,8 @@ def _write_metrics(solutions: list[Solution], runs: list[dict], commit: str, *, 
         grouped.setdefault((run["problem"], run["ruleset"]), []).append(run)
     pending: list[tuple[Solution, list[dict]]] = []
     for solution in solutions:
-        if not solution.hash:
-            raise RunError(f"{solution.problem}/{solution.ruleset} has no version hash")
+        if not solution.timestamp:
+            raise RunError(f"{solution.problem}/{solution.ruleset} has no version timestamp")
         rows = grouped[(solution.problem, solution.ruleset)]
         if any(row["pass"] is not True for row in rows):
             raise RunError(f"{solution.problem}/{solution.ruleset} did not pass")
@@ -331,16 +344,17 @@ def _write_metrics(solutions: list[Solution], runs: list[dict], commit: str, *, 
     changed = False
     for solution, rows in pending:
         entry = _metric_document(solution, rows, commit)
-        for other_hash, other in versions.items():
-            if other_hash == solution.hash or not isinstance(other, dict):
+        key = _version_key(versions, solution)
+        for other_key, other in versions.items():
+            if other_key == key or not isinstance(other, dict):
                 continue
             if other.get("problem") == solution.problem and other.get("ruleset") == solution.ruleset and other.get("current") is True:
                 other["current"] = False
                 changed = True
-        existing = versions.get(solution.hash)
+        existing = versions.get(key)
         if isinstance(existing, dict) and _same_metric(existing, entry):
             continue
-        versions[solution.hash] = entry
+        versions[key] = entry
         changed = True
     if not changed:
         return []

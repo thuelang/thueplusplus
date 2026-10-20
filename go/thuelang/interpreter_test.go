@@ -580,6 +580,82 @@ func TestLiteralPrefixSkipsCaseFold(t *testing.T) {
 	}
 }
 
+func TestGuestCommentBlockKeepsStdout(t *testing.T) {
+	cases := []struct {
+		program string
+		plain   string
+		headed  string
+		want    string
+		env     string
+	}{
+		{"../../langs/basic/basic.thue", "PRINT \"Hi\"\n", "REM ---\nREM title: Hi\nREM author: Ada\nREM ---\nPRINT \"Hi\"\n", "Hi\n", ""},
+		{"../../langs/forth/forth.thue", "1 2 +\n", "\\ ---\n\\ title: Add\n\\ author: Ada\n\\ ---\n1 2 +\n", "3\n", ""},
+		{"../../langs/lisp/lisp.thue", "(add 1 2)\n", "; ---\n; title: Add\n; author: Ada\n; ---\n(add 1 2)\n", "3\n", ""},
+		{"../../langs/lisp/lisp.thue", "(let () (emit \"Hello, World!\\n\") (finish))\n", "; ---\n; title: Hi\n; author: Ada\n; ---\n(let () (emit \"Hello, World!\\n\") (finish))\n", "Hello, World!\n", ""},
+		{"../../langs/expr/expr.thue", "\"hi\"\n", "// ---\n// title: One\n// author: Ada\n// ---\n\"hi\"\n", "hi\n", "{}"},
+	}
+	for _, item := range cases {
+		run := func(input string) string {
+			out := &bytes.Buffer{}
+			interp := NewWithHostResources(HostResources{
+				Stdin:  strings.NewReader(""),
+				Stdout: out,
+				Stderr: &bytes.Buffer{},
+			})
+			if err := interp.LoadProgram(item.program); err != nil {
+				t.Fatal(err)
+			}
+			if err := interp.ApplyInputOverride(input); err != nil {
+				t.Fatal(err)
+			}
+			if item.env != "" {
+				if err := interp.AddLineBinding("env", item.env); err != nil {
+					t.Fatal(err)
+				}
+			}
+			code, err := interp.Run()
+			if err != nil || code != 0 {
+				t.Fatalf("%s code=%d err=%v state=%q", item.program, code, err, interp.State)
+			}
+			return out.String()
+		}
+		if got := run(item.plain); got != item.want {
+			t.Fatalf("%s plain stdout = %q", item.program, got)
+		}
+		if got := run(item.headed); got != item.want {
+			t.Fatalf("%s headed stdout = %q", item.program, got)
+		}
+	}
+}
+
+func TestFrontMatterCommentKeepsOutputAndCost(t *testing.T) {
+	plain := "a ::= b\nb ::> stdout b\nb ::- 0\n\n::=\na\n"
+	headed := "---\ntitle: Echo\nauthor: Ada\n---\n" + plain
+	run := func(program string) (string, int, int) {
+		out := &bytes.Buffer{}
+		interp := NewWithHostResources(HostResources{
+			Stdin:  strings.NewReader(""),
+			Stdout: out,
+			Stderr: &bytes.Buffer{},
+		})
+		interp.ProgramPath = "frontmatter.thue"
+		if err := interp.parseProgram(program); err != nil {
+			t.Fatal(err)
+		}
+		count, _ := interp.RuleSourceStats()
+		code, err := interp.Run()
+		if err != nil || code != 0 {
+			t.Fatalf("code=%d err=%v state=%q", code, err, interp.State)
+		}
+		return out.String(), interp.Cost, count
+	}
+	plainOut, plainCost, plainRules := run(plain)
+	headOut, headCost, headRules := run(headed)
+	if plainOut != "b" || headOut != plainOut || headCost != plainCost || headRules != plainRules {
+		t.Fatalf("plain out=%q cost=%d rules=%d headed out=%q cost=%d rules=%d", plainOut, plainCost, plainRules, headOut, headCost, headRules)
+	}
+}
+
 func TestRunMetrics(t *testing.T) {
 	interp := New()
 	interp.ProgramPath = "metrics.thue"

@@ -25,6 +25,7 @@ test('a problem page charts cost and links the solutions', async ({ page }) => {
   await expect(page.locator('[data-sandbox="direct"] [data-test="solution-link"]')).toHaveText('Direct Thue')
   await expect(page.getByTestId('rex-scene')).toHaveCount(0)
   await expect(page.getByTestId('solutions-table')).toBeVisible()
+  await expect(page.getByTestId('solution-title').filter({ hasText: 'Reduce a range' })).toBeVisible()
   await expect(page.getByTestId('solution-link').first()).toHaveAttribute('href', /github\.com\/thuelang\/thueplusplus\/blob\/main\//)
   await expect(page.locator('body')).not.toContainText(/RE2/)
 })

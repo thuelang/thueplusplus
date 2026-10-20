@@ -105,6 +105,8 @@ describe('catalog pages', () => {
     const table = page.get('[data-test="solutions-table"]')
     expect(table.get('[data-sandbox="lisp"][data-current="true"]').find('[data-test="solution-link"]').attributes('href')).toContain('github.com/thuelang/thueplusplus/blob/main/')
     expect(table.findAll('[data-sandbox="lisp"]').length).toBeGreaterThan(1)
+    expect(table.text()).toContain('Reduce a range')
+    expect(table.text()).toContain('Loop multiplying 1 to n')
     await table.get('button[aria-sort="ascending"]').trigger('click')
     expect(table.get('button[aria-sort="descending"]').text()).toBe('Cost')
     expect(page.text()).not.toContain('RE2')

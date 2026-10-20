@@ -3049,6 +3049,24 @@ stdout = "1\n"
 stderr = ""
 
 [[case]]
+name = "331 line comment header"
+input = "// ---\n// title: One\n// author: Ada\n\"hi\""
+
+[case.expect]
+exit_code = 0
+stdout = "hi\n"
+stderr = ""
+
+[[case]]
+name = "332 line comment ends at newline"
+input = "let x = 1 // note\n; x"
+
+[case.expect]
+exit_code = 0
+stdout = "1\n"
+stderr = ""
+
+[[case]]
 name = "330 map bool join"
 
 [case.bindings.lines]

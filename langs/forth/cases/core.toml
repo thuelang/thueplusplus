@@ -237,6 +237,15 @@ stdout = ""
 stderr = "unknown_word"
 
 [[case]]
+name = "leading backslash comment"
+input = "\\ ---\n\\ title: Add\n\\ author: Ada\n1 2 +"
+
+[case.expect]
+exit_code = 0
+stderr = ""
+stdout_stripped = "3"
+
+[[case]]
 name = "malformed token"
 input = "1 : 2"
 

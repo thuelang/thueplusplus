@@ -101,8 +101,11 @@ onBeforeUnmount(() => {
           <a data-test="improvement-commit" class="underline underline-offset-4" :href="`${repositoryUrl}/commit/${event.commit}`" rel="noreferrer">{{ event.timestamp.slice(0, 10) }}</a>
           <span v-if="event.sandbox === 'direct'" data-test="improvement-sandbox">Direct Thue</span>
           <RouterLink v-else data-test="improvement-sandbox" :to="`/sandboxes/${event.sandbox}`" class="underline underline-offset-4">{{ sandboxLabel(event.sandbox) }}</RouterLink>
-          <RouterLink v-if="event.problem" data-test="improvement-problem" :to="`/problems/${event.problem}`" class="underline underline-offset-4">{{ problemTitle(event.problem) }}</RouterLink>
-          <span v-else data-test="improvement-problem">common problems</span>
+          <span class="flex flex-wrap gap-x-3">
+            <RouterLink v-if="event.problem" data-test="improvement-problem" :to="`/problems/${event.problem}`" class="underline underline-offset-4">{{ problemTitle(event.problem) }}</RouterLink>
+            <span v-else data-test="improvement-problem">common problems</span>
+            <span v-if="event.title" data-test="improvement-title">{{ event.title }}</span>
+          </span>
           <span data-test="improvement-before">{{ formatCost(event.before) }}</span>
           <span data-test="improvement-after">→ {{ formatCost(event.after) }}</span>
         </li>

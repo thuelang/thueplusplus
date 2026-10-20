@@ -8,13 +8,24 @@
 - `cases/` holds the committed cases, one `NN-name.json` per case. Each file is `name`, `reads`, `writes`, and `exit_code`. `problem_test.go` is the spec those files must match.
 - `solutions/<ruleset>/` is one sandbox. `direct` is Thue++. Any other ruleset is an interpreter in `langs/<ruleset>/`. The folder holds `README.md` and one directory per solution version.
 
-A version is `solutions/<ruleset>/<timestamp>/<hash>.<ext>`. The timestamp is UTC `YYYY-MM-DD_HH-MM-SS`, for example `2026-10-20_14-34-00`. The hash is the first 12 hex characters of the SHA-256 of the file. An optional `<hash>.md` sits beside that file. The newest timestamp is the current solution. A timestamp tie is an error. Old version directories are not edited and not deleted. Metrics are not stored next to the solution. CI records them in `metrics/versions.json`.
+A version is `solutions/<ruleset>/<timestamp>/<title-slug>.<ext>`. The timestamp is UTC `YYYY-MM-DD_HH-MM-SS`, for example `2026-10-20_14-34-00`. The file name is the slug of the required `title`: lowercase ASCII, with runs of non-alphanumerics turned into one `-`, and no leading or trailing `-`. An optional `<title-slug>.md` sits beside that file. The newest timestamp is the current solution. A timestamp tie is an error. Old version directories are not edited and not deleted. Metrics are not stored next to the solution. CI records them in `metrics/versions.json`.
+
+The solution file starts with that title and an optional author, in the language's comment syntax:
 
 ```text
-problems/greatest-common-divisor/solutions/lisp/2026-10-20_14-34-00/3f2a9c1e04b7.lisp
+---
+title: Loop with mod 15
+author: Name <email>
+---
 ```
 
-Add a version with `scripts/add-solution <slug> <sandbox> <file>`. The script hashes the bytes, names the directory with the current UTC time, and refuses a hash or timestamp that is already there.
+Direct Thue uses plain lines. Lisp uses `; `, Forth uses `\ `, BASIC uses `REM `, and Expr uses `// `. A value must not contain `::`. Unknown keys are rejected. CI fails when the file name is not that slug plus the extension.
+
+```text
+problems/fizzbuzz/solutions/lisp/2026-10-20_13-33-22/loop-with-mod-15.lisp
+```
+
+Add a version with `scripts/add-solution <slug> <sandbox> <file>`. The script reads the title, names the file with that slug, names the directory with the current UTC time, and refuses a timestamp that is already there.
 
 A solution `README.md` starts with frontmatter:
 
@@ -63,7 +74,7 @@ Fixed cases are the edge cases plus the fixed seeds. Commit them. `THUEPP_DUMP_C
 
 When a rapid check fails, the library shrinks the reads. Paste that shrunk case into `Cases` as a fixed regression, dump the cases, and commit it. Do not leave the failure as a generator-only check.
 
-A direct solution is the newest `solutions/direct/<timestamp>/<hash>.thue`. The rapid check runs that file. Other rulesets are replayed on the committed cases by `make metrics`. Limits live only in `metrics/limits.toml`.
+A direct solution is the newest `solutions/direct/<timestamp>/<title-slug>.thue`. The rapid check runs that file. Other rulesets are replayed on the committed cases by `make metrics`. Limits live only in `metrics/limits.toml`.
 
 ## Limits
 
@@ -101,13 +112,13 @@ for each applied step: cost += len(rhs)
 
 Rule count and rule chars come from the `.thue` source. The Go engine counts them when it parses the file.
 
-`metrics/versions.json` sums the Go case costs for each solution hash. State peak is the maximum. Rule count and rule chars are the program that ran. `commit` on that entry stays when a rerun produces the same counters. The entry for the current hash is marked `current`.
+`metrics/versions.json` sums the Go case costs for each solution version. State peak is the maximum. Rule count and rule chars are the program that ran. `commit` on that entry stays when a rerun produces the same counters. The entry for the current version is marked `current`.
 
 A ruleset's cost is the sum of its passing solution costs on the common problems: the problems every ruleset with at least one passing solution also passes. Coverage is how many problems that ruleset passes. The common set can change as solutions are added. The sum is the aggregate because it moves only when a cost moves.
 
 ## Acceptance
 
-A changed solution must still pass. The goal is a Go cost strictly lower than the current hash recorded in `metrics/versions.json` on main. An equal or higher cost is a warning on the pull request, and the check stays green. A maintainer decides whether a worse solution is worth merging. A new ruleset folder must pass. That cost comparison stops when `problem_test.go` or a file in `cases/` changed in the same diff: the contract moved, the solution must still pass, and the new cost replaces the old one.
+A changed solution must still pass. The goal is a Go cost strictly lower than the current version recorded in `metrics/versions.json` on main. An equal or higher cost is a warning on the pull request, and the check stays green. A maintainer decides whether a worse solution is worth merging. A new ruleset folder must pass. That cost comparison stops when `problem_test.go` or a file in `cases/` changed in the same diff: the contract moved, the solution must still pass, and the new cost replaces the old one.
 
 A change to an interpreter `langs/<ruleset>/*.thue` is re-measured. It must still pass every problem it passed on the previous common set. A higher sum of those costs is a warning. Stopping passing is a failure.
 
@@ -129,7 +140,7 @@ Lower the Go cost of one solution. Cost is UTF-8 bytes: each regex eval adds len
 
 A push to `main` runs the same suite as `github-actions[bot]` with `contents: write`. It commits the files whose results changed. No change means no commit. The workflow skips a push whose actor or pusher is the bot. The job timeout is 45 minutes.
 
-The dated archives already in the tree stay. The recorder does not add a new bench. Problem charts read the version directories. One point is one version, at that directory's timestamp, with the cost recorded for its hash. Host charts read those archives plus the current `metrics/latest.json`. Schema 2 and 3 benches stay valid. A schema 4 bench without `runs` is the older problem and language record. A schema 4 runs document stores `stdin` and stays valid. The site reads `runs` and ignores the older keys.
+The dated archives already in the tree stay. The recorder does not add a new bench. Problem charts read the version directories. One point is one version, at that directory's timestamp, with the cost recorded for that version. Host charts read those archives plus the current `metrics/latest.json`. Schema 2 and 3 benches stay valid. A schema 4 bench without `runs` is the older problem and language record. A schema 4 runs document stores `stdin` and stays valid. The site reads `runs` and ignores the older keys.
 
 ## Tests
 

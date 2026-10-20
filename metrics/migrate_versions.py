@@ -2,9 +2,9 @@
 """Copy every historical solution.<ext> into a timestamped version directory.
 
 The timestamp is the commit's committer time in UTC, YYYY-MM-DD_HH-MM-SS.
-The file name is the first 12 hex characters of the SHA-256 of those bytes.
-A hash that is already on disk is skipped. The old solution file and metric.json
-are removed. README frontmatter drops entry.
+The file name is the slug of the solution's title. A slug that is already on
+disk is skipped. The old solution file and metric.json are removed. README
+frontmatter drops entry.
 """
 
 from __future__ import annotations
@@ -15,7 +15,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "metrics"))
 
-from versions import VersionError, file_hash, format_timestamp, history_versions  # noqa: E402
+from solution_frontmatter import SolutionFrontmatterError, slugify, split_solution  # noqa: E402
+from versions import VersionError, format_timestamp, history_versions  # noqa: E402
 
 
 def main() -> int:
@@ -50,15 +51,22 @@ def _migrate_file(root: Path, path: Path) -> int:
     seen = {item.name.split(".", 1)[0] for item in path.parent.glob("*/*") if item.is_file() and "." in item.name}
     written = 0
     for moment, blob in history_versions(root, relative):
-        digest = file_hash(blob)
-        if digest in seen:
+        try:
+            fields, _body = split_solution(blob, extension)
+        except SolutionFrontmatterError as exc:
+            raise VersionError(f"{relative}: {exc}") from exc
+        title = fields.get("title", "")
+        if not title:
+            raise VersionError(f"{relative} at {format_timestamp(moment)} has no title")
+        slug = slugify(title)
+        if slug in seen:
             continue
         folder = path.parent / format_timestamp(moment)
         if folder.exists():
             raise VersionError(f"{folder.relative_to(root).as_posix()} already exists")
         folder.mkdir(parents=True)
-        (folder / f"{digest}.{extension}").write_bytes(blob)
-        seen.add(digest)
+        (folder / f"{slug}.{extension}").write_bytes(blob)
+        seen.add(slug)
         written += 1
     if written == 0 and not any(path.parent.glob("*/*.*")):
         raise VersionError(f"{relative} has no committed bytes to migrate")

@@ -46,6 +46,9 @@ EXPR <- $NAME|$NODE
 READER_DATUM <- (?:\([^()]*\)|$OPSYM|$EXPR)
 
 
+A comment line is copied back without doubling backslashes. The percent-encoding round trip is the verbatim copy.
+^SOLUTIONCOMMENT<(?<payload>$PCT)> ::= {{payload|pctdec}}
+
 STREQ<(?<a>$NAME),(?<b>$NAME)> ::! eq a b
 
 Numeric calls whose nearest binding is still the original primitive skip the generic call walker. A shadowed binding falls back to ordinary application. Bindings are nearest-first. The step is anchored to this frame, so the first name= inside the environment is the innermost binding and a continuation cannot supply it.
@@ -591,6 +594,9 @@ ESC<(?<s>$PCT)> ::! escape s
 ^ERR<(?<e>[A-Za-z0-9_]+)>$ ::= @ERR<{{e}}>@@EXIT2@
 ^@ERR<(?<v>[A-Za-z0-9_]+)>@ ::> stderr {{v}}\n
 ^@EXIT2@$ ::- 2
+
+A leading semicolon comment is source text, not a machine state. It sits after every runtime rule so a semicolon inside a value is not scanned.
+^;[^\n]*\n(?<rest>[\s\S]*) ::= SOLUTIONCOMMENT<{{rest|pctenc}}>
 
 Final catchers
 These runtime input catchers produce stable Lisp errors for malformed brace starts or unsupported nonempty source that no earlier rule accepted.
