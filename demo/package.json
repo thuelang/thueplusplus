@@ -9,7 +9,7 @@
     "dev": "npm --prefix ../js ci --ignore-scripts && node scripts/build-site.mjs && vite --host 0.0.0.0",
     "wasm": "node scripts/build-wasm.mjs",
     "brand:assets": "node scripts/generate-brand-assets.mjs",
-    "build": "npm --prefix ../js ci --ignore-scripts && node scripts/build-site.mjs && npm run brand:assets && vue-tsc --noEmit && vite build && node scripts/prepare-dist.mjs && node scripts/check-dist.mjs",
+    "build": "node scripts/unshallow.mjs && npm --prefix ../js ci --ignore-scripts && node scripts/build-site.mjs && npm run brand:assets && vue-tsc --noEmit && vite build && node scripts/prepare-dist.mjs && node scripts/check-dist.mjs",
     "test": "node --test scripts/site.test.mjs && node scripts/check-rex-brand.mjs local && node scripts/build-site.mjs && vue-tsc --noEmit && vitest run",
     "test:ui": "node scripts/build-site.mjs && vitest run",
     "test:e2e": "playwright test",

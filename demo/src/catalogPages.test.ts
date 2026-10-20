@@ -70,6 +70,18 @@ describe('catalog pages', () => {
     expect(links).toEqual(['Cost', 'Solutions'])
     expect(page.get('#cost').find('svg').exists()).toBe(true)
     expect(page.get('[data-test="cost-legend"]').text()).toContain('direct')
+    expect(page.findAll('[data-test="time-label"]').length).toBeGreaterThan(0)
+    const dots = page.findAll('[data-test="cost-dot"]').map(dot => ({
+      x: Number(dot.attributes('cx')),
+      y: Number(dot.attributes('cy')),
+      sandbox: dot.attributes('data-sandbox'),
+    }))
+    for (let i = 0; i < dots.length; i += 1) {
+      for (let j = i + 1; j < dots.length; j += 1) {
+        if (dots[i].sandbox === dots[j].sandbox) continue
+        expect(Math.hypot(dots[i].x - dots[j].x, dots[i].y - dots[j].y)).toBeGreaterThanOrEqual(9)
+      }
+    }
     const swatch = page.get('[data-test="cost-legend"]').find('[style]')
     expect(swatch.attributes('style')).toContain(rulesetColor('direct'))
     expect(page.get('[data-test="problem-credit"]').find('a').attributes('href')).toMatch(/^https:\/\//)

@@ -110,7 +110,7 @@ export function sandboxPages(catalog) {
     path: `/sandboxes/${sandbox.id}`,
     title: `${sandbox.name}.`,
     documentTitle: `Thue++ ${sandbox.name}`,
-    description: sandbox.status === 'pending' ? 'In progress.' : sandbox.description,
+    description: sandbox.description,
     canonical: `${SITE}/sandboxes/${sandbox.id}`,
     robots: 'index,follow',
   }))
@@ -411,19 +411,7 @@ export function discoverSandboxIds() {
 function readSandbox(id) {
   const readmePath = `langs/${id}/README.md`
   const abs = join(repoRoot, readmePath)
-  if (!existsSync(abs)) {
-    if (id !== 'expr') throw new CatalogError(`${readmePath} is missing`)
-    return {
-      id,
-      name: 'Expr',
-      description: '',
-      status: 'pending',
-      program: null,
-      programSource: null,
-      readme: '',
-      cases: [],
-    }
-  }
+  if (!existsSync(abs)) throw new CatalogError(`${readmePath} is missing`)
   const meta = parseFrontmatter(readFileSync(abs, 'utf8'), readmePath)
   if (!meta.fields.name) throw new CatalogError(`${readmePath}: frontmatter needs name`)
   if (!meta.fields.description) throw new CatalogError(`${readmePath}: frontmatter needs description`)

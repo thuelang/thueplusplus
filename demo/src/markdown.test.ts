@@ -13,4 +13,11 @@ describe('markdown', () => {
     expect(hostile).toContain('<code>a ::= b</code>')
     expect(hostile).toContain('<li>')
   })
+
+  it('renders a table of error codes', () => {
+    const html = renderMarkdown('| Message | When |\n| --- | --- |\n| `division_by_zero` | `/` by zero. |')
+    expect(html).toContain('<table>')
+    expect(html).toContain('<td><code>division_by_zero</code></td>')
+    expect(html).not.toContain('<td>---</td>')
+  })
 })

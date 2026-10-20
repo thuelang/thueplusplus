@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import DocsScene from './components/scenes/DocsScene.vue'
-import GuideScene from './components/scenes/GuideScene.vue'
 import InstallScene from './components/scenes/InstallScene.vue'
-import LeaderboardScene from './components/scenes/LeaderboardScene.vue'
 import ProblemScene from './components/scenes/ProblemScene.vue'
 import SearchScene from './components/scenes/SearchScene.vue'
 import { catalog } from './catalog'
@@ -24,17 +22,12 @@ async function press(wrapper: ReturnType<typeof mount>, selector: string): Promi
 }
 
 describe('scene controls', () => {
-  it('turns the book, steps the guide, and plugs a socket from the keyboard', async () => {
+  it('turns the book and plugs a socket from the keyboard', async () => {
     const docs = await mountScene(DocsScene)
     expect(docs.get('[data-test="rex-scene"]').attributes('data-scene')).toBe('docs')
     expect(docs.get('[data-test="doc-state"]').text()).toBe('a')
     await press(docs, '[data-test="turn-page"]')
     expect(docs.get('[data-test="doc-state"]').text()).toBe('b')
-
-    const guide = await mountScene(GuideScene)
-    expect(guide.get('[data-test="guide-state"]').text()).toBe('hello Ada')
-    await press(guide, '[data-test="guide-step"]')
-    expect(guide.get('[data-test="guide-state"]').text()).toBe('hi Ada')
 
     const install = await mountScene(InstallScene, { hostId: 'go' })
     expect(install.get('[data-test="rex-scene"]').attributes('data-scene')).toBe('install-go')
@@ -63,8 +56,9 @@ describe('scene controls', () => {
   })
 
   it('keeps every scene control a button', async () => {
-    const leaderboard = await mountScene(LeaderboardScene)
-    const buttons = leaderboard.findAll('button')
+    const problem = catalog.problems[0]
+    const scene = await mountScene(ProblemScene, { problemId: problem.id, cases: problem.cases })
+    const buttons = scene.findAll('button')
     expect(buttons.length).toBeGreaterThan(0)
     for (const button of buttons) expect(button.element.tagName).toBe('BUTTON')
   })

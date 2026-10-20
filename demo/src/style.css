@@ -708,6 +708,19 @@ html.rex-shattered .rex-rubble [data-shard] {
   }
 }
 
+.page-screen-plain {
+  display: block;
+  height: auto;
+}
+
+.page-screen-plain .page-hero {
+  overflow: visible;
+}
+
+.page-screen-plain + .page-details {
+  margin-top: 0;
+}
+
 .rot-wheel {
   transform-origin: 520px 150px;
   animation: rot-spin 4.2s linear infinite;
@@ -743,6 +756,23 @@ html.rex-shattered .rex-rubble [data-shard] {
 .markdown-body a {
   text-decoration: underline;
   text-underline-offset: 4px;
+}
+
+.markdown-body table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.markdown-body :is(th, td) {
+  border-bottom: 1px solid var(--line);
+  padding: 0.35rem 0.6rem 0.35rem 0;
+  text-align: left;
+  vertical-align: top;
 }
 
 .markdown-body code {

@@ -104,11 +104,6 @@ export function createAppRouter() {
       const sandbox = sandboxById(sandboxId)
       if (!sandbox) {
         Object.assign(to.meta, missing)
-      } else if (sandbox.status === 'pending') {
-        to.meta.documentTitle = `Thue++ ${sandbox.name}`
-        to.meta.description = 'In progress.'
-        to.meta.canonical = `https://thuelang.org/sandboxes/${sandbox.id}`
-        to.meta.robots = 'index,follow'
       } else {
         to.meta.documentTitle = `Thue++ ${sandbox.name}`
         to.meta.description = sandbox.description

@@ -1,3 +1,23 @@
+import {
+  axisLabelPad as axisLabelPadJs,
+  axisTicks as axisTicksJs,
+  chartLayout as chartLayoutJs,
+  chooseScale as chooseScaleJs,
+  costY as costYJs,
+  formatCost as formatCostJs,
+  formatTime as formatTimeJs,
+  logTicks as logTicksJs,
+  plotY as plotYJs,
+  polyline as polylineJs,
+  polylineLength as polylineLengthJs,
+  runningMin as runningMinJs,
+  sandboxSeriesFromCatalog as sandboxSeriesFromCatalogJs,
+  separateDots as separateDotsJs,
+  summedCostSeries as summedCostSeriesJs,
+  timeLabels as timeLabelsJs,
+  timeX as timeXJs,
+} from './geometry.mjs'
+
 export interface TimePoint {
   time: number
   cost: number
@@ -8,53 +28,60 @@ export interface PlacedPoint {
   y: number
 }
 
-export function runningMin(points: readonly TimePoint[]): TimePoint[] {
-  let best = Number.POSITIVE_INFINITY
-  return points.map(point => {
-    if (!Number.isInteger(point.cost) || point.cost < 0) throw new Error(`cost ${point.cost} is not a non-negative integer`)
-    best = Math.min(best, point.cost)
-    return { time: point.time, cost: best }
-  })
+export interface ChartDot {
+  x: number
+  y: number
+  series: number
+  cost: number
+  id: string
 }
 
-export function formatCost(value: number): string {
-  if (!Number.isInteger(value) || value < 0) throw new Error(`cost ${value} is not a non-negative integer`)
-  return value.toLocaleString('en-US')
+export const runningMin = runningMinJs as (points: readonly TimePoint[]) => TimePoint[]
+export const formatCost = formatCostJs as (value: number) => string
+export const axisLabelPad = axisLabelPadJs as (max: number) => number
+export const axisTicks = axisTicksJs as (max: number) => number[]
+export const chooseScale = chooseScaleJs as (values: readonly number[]) => 'linear' | 'log'
+export const logTicks = logTicksJs as (min: number, max: number) => number[]
+export const timeX = timeXJs as (time: number, min: number, max: number, left: number, width: number) => number
+export const costY = costYJs as (cost: number, max: number, top: number, height: number, progress: number) => number
+export const plotY = plotYJs as (cost: number, scale: 'linear' | 'log', min: number, max: number, top: number, height: number, progress: number) => number
+export const polyline = polylineJs as (points: readonly PlacedPoint[]) => string
+export const polylineLength = polylineLengthJs as (points: readonly PlacedPoint[]) => number
+export const formatTime = formatTimeJs as (time: number, span: number) => string
+export const timeLabels = timeLabelsJs as (min: number, max: number, width: number) => { time: number; text: string }[]
+export const separateDots = separateDotsJs as <T extends ChartDot>(dots: readonly T[], radius: number) => T[]
+export const summedCostSeries = summedCostSeriesJs as (perProblem: readonly (readonly TimePoint[])[], commits: readonly number[]) => TimePoint[]
+export const sandboxSeriesFromCatalog = sandboxSeriesFromCatalogJs as (catalog: {
+  sandboxCommon: string[]
+  commits: { commit: string; timestamp: string }[]
+  sandboxes: { id: string; name: string; total: number | null; color: string | null }[]
+  problems: { id: string; versions: { id: string; series: { commit: string; cost: number }[] }[] }[]
+}) => { id: string; label: string; color: string; points: TimePoint[] }[]
+
+export interface ChartLayout {
+  width: number
+  height: number
+  pad: { l: number; r: number; t: number; b: number }
+  scale: 'linear' | 'log'
+  radius: number
+  series: {
+    id: string
+    label: string
+    color: string
+    d: string
+    length: number
+    line: PlacedPoint[]
+    dots: ChartDot[]
+  }[]
+  labels: { time: number; text: string; x: number }[]
+  ticks: { value: number; y: number; text: string }[]
 }
 
-export function axisLabelPad(max: number): number {
-  return formatCost(max).length * 8 + 16
-}
-
-export function axisTicks(max: number): number[] {
-  if (!Number.isFinite(max) || max < 0) throw new Error(`axis max ${max} is not usable`)
-  if (max === 0) return [0]
-  const mid = Math.round(max / 2)
-  return mid === 0 || mid === max ? [0, max] : [0, mid, max]
-}
-
-export function timeX(time: number, min: number, max: number, left: number, width: number): number {
-  if (max === min) return left + width / 2
-  return left + ((time - min) / (max - min)) * width
-}
-
-export function costY(cost: number, max: number, top: number, height: number, progress: number): number {
-  const span = max === 0 ? 1 : max
-  const full = top + height - (cost / span) * height
-  const base = top + height
-  return base + (full - base) * progress
-}
-
-export function polyline(points: readonly PlacedPoint[]): string {
-  return points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(' ')
-}
-
-export function polylineLength(points: readonly PlacedPoint[]): number {
-  let length = 0
-  for (let index = 1; index < points.length; index += 1) {
-    const dx = points[index].x - points[index - 1].x
-    const dy = points[index].y - points[index - 1].y
-    length += Math.hypot(dx, dy)
-  }
-  return length
-}
+export const chartLayout = chartLayoutJs as (series: readonly { id: string; label: string; color: string; points: TimePoint[] }[], options: {
+  width: number
+  height: number
+  spark?: boolean
+  track?: 'sum' | 'best'
+  progress?: number
+  scale?: 'linear' | 'log'
+}) => ChartLayout
