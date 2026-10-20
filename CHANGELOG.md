@@ -21,7 +21,7 @@ Versions are the Thue++ spec versions in `SPEC_VERSION`.
 
 ### Added
 
-- `lisp`, `forth`, and `basic` solutions for leap-year, greatest-common-divisor, and fizzbuzz. Each program reads the problem's cases the same way as hello-world and factorial, and prints the same stdout as `direct`.
+- `lisp`, `forth`, and `basic` solutions for leap-year, greatest-common-divisor, and fizzbuzz. Each program reads the problem's cases the same way as hello-world and factorial, and prints the same stdout as `direct`. The site catalog skips a solution directory until `metric.json` is recorded, so these can land before the metrics job writes the cost.
 
 - A native JavaScript host in `js/`. The npm package stays `thuelang` and the command is `node js/src/cli.js`. The WebAssembly wrapper moved from `js/` to `wasm/` and publishes as `@thuelang/wasm` (`node wasm/src/cli.js`). The playground loads the native JavaScript host. The environment label is `js (node)`. `hosts.toml` registers `js` with `npm ci`. The metrics chart adds `--chart-9` for a ninth host series.
 - Home hero is a side view. The conveyor crosses the full viewport in front of Rex, and boxes ride on top of the belt. The run is longer, and the time a box spends in the capture zone matches the shorter belt. Where the belt passes behind the title it blurs and dims, and the text stays readable. Each score jumps: a scale overshoot, an accent flash, and a +1 that floats from the captured box up to the score. A longer streak or a faster belt makes the jump bigger. Reduced motion is a color flash only. The shipped-host line is read from `hosts.toml`.
