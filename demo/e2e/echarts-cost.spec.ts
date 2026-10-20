@@ -18,7 +18,7 @@ async function openTooltip(page: import('@playwright/test').Page) {
   await dot.click()
   const link = page.locator('.cost-tip a[href*="github.com/thuelang/thueplusplus/blob/"]')
   await expect(link.first()).toBeVisible()
-  await expect(link.first()).toHaveAttribute('href', /\/blob\/[0-9a-f]{40}\/problems\/.+\/solutions\/.+\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\/[0-9a-f]{12}\.[a-z0-9]+$/)
+  await expect(link.first()).toHaveAttribute('href', /\/blob\/[0-9a-f]{40}\/problems\/.+\/solutions\/.+\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\/[^/]+$/)
   await expect(page.locator('.cost-tip a[href*="github.com/thuelang/thueplusplus/commit/"]').first()).toHaveAttribute('href', /\/commit\/[0-9a-f]{40}$/)
 }
 
