@@ -7,63 +7,59 @@ const viewports = [
   { name: '1440', width: 1440, height: 900 },
 ]
 
-async function expectHeader(page: Page): Promise<void> {
+async function expectHeader(page: Page, current: string): Promise<void> {
   const nav = page.getByTestId('site-nav')
   const links = nav.getByRole('link')
   await expect(links).toHaveCount(4)
-  await expect(links.nth(0)).toHaveText('Install')
-  await expect(links.nth(0)).toHaveAttribute('href', '/install')
-  await expect(links.nth(1)).toHaveText('Docs')
-  await expect(links.nth(1)).toHaveAttribute('href', '/docs')
-  await expect(links.nth(2)).toHaveText('Leaderboard')
-  await expect(links.nth(2)).toHaveAttribute('href', '/problems')
-  await expect(links.nth(3)).toHaveText('Contribute')
-  await expect(links.nth(3)).toHaveAttribute('href', '/contribute')
+  await expect(links.nth(0)).toHaveText('Sandboxes')
+  await expect(links.nth(0)).toHaveAttribute('href', '/sandboxes')
+  await expect(links.nth(1)).toHaveText('Problems')
+  await expect(links.nth(1)).toHaveAttribute('href', '/problems')
+  await expect(links.nth(2)).toHaveText('Install')
+  await expect(links.nth(2)).toHaveAttribute('href', '/install')
+  await expect(links.nth(3)).toHaveText('Docs')
+  await expect(links.nth(3)).toHaveAttribute('href', '/docs')
   await expect(nav.getByRole('button')).toHaveCount(0)
   await expect(page.getByTestId('menu-toggle')).toHaveCount(0)
   await expect(page.getByTestId('theme-toggle')).toBeVisible()
   await expect(page.getByTestId('site-header').getByRole('link', { name: 'github' })).toHaveCount(0)
-  await expect(links.nth(1)).toHaveAttribute('aria-current', 'page')
-}
-
-async function expectDocsShell(page: Page, width: number): Promise<void> {
-  await expect(page.getByTestId('app-shell')).toBeVisible()
-  await expect(page.getByTestId('page-hero')).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Rewrite a string until it stops.' })).toBeVisible()
-  await expect(page.getByTestId('page-details')).toBeVisible()
-  await expect(page.locator('html')).toHaveClass(/dark/)
-  await expect(page.getByTestId('github-link')).toBeVisible()
-  await expectHeader(page)
-  if (width >= 1024) {
-    await expect(page.getByTestId('page-sidebar')).toBeVisible()
-    await expect(page.getByTestId('page-sidebar').getByRole('link', { name: 'A program' })).toHaveAttribute('aria-current', 'location')
-    await expect(page.getByTestId('contents-toggle')).toBeHidden()
-    return
-  }
-  await expect(page.getByTestId('page-sidebar')).toBeHidden()
-  await page.getByTestId('contents-toggle').click()
-  await expect(page.getByTestId('page-sidebar').getByRole('link', { name: 'A program' })).toBeVisible()
-  await page.getByTestId('contents-toggle').click()
-  await expect(page.getByTestId('page-sidebar')).toBeHidden()
+  await expect(nav.getByRole('link', { name: current })).toHaveAttribute('aria-current', 'page')
 }
 
 for (const viewport of viewports) {
-  test(`${viewport.name} learn page uses the docs shell`, async ({ page }) => {
+  test(`${viewport.name} docs page uses the docs shell`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
-    await page.goto('/docs/guides')
-    await expectDocsShell(page, viewport.width)
+    await page.goto('/docs')
+    await expect(page.getByTestId('app-shell')).toBeVisible()
+    await expect(page.getByTestId('page-hero')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Docs.' })).toBeVisible()
+    await expect(page.getByTestId('page-details')).toBeVisible()
+    await expect(page.locator('html')).toHaveClass(/dark/)
+    await expect(page.getByTestId('github-link')).toBeVisible()
+    await expectHeader(page, 'Docs')
+    if (viewport.width >= 1024) {
+      await expect(page.getByTestId('page-sidebar')).toBeVisible()
+      await expect(page.getByTestId('page-sidebar').getByRole('link', { name: 'Go' })).toHaveAttribute('aria-current', 'location')
+      await expect(page.getByTestId('contents-toggle')).toBeHidden()
+      return
+    }
+    await expect(page.getByTestId('page-sidebar')).toBeHidden()
+    await page.getByTestId('contents-toggle').click()
+    await expect(page.getByTestId('page-sidebar').getByRole('link', { name: 'Go' })).toBeVisible()
+    await page.getByTestId('contents-toggle').click()
+    await expect(page.getByTestId('page-sidebar')).toBeHidden()
   })
 
   test(`${viewport.name} switches dark and light`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
-    await page.goto('/docs/guides')
+    await page.goto('/docs')
     await expect(page.locator('html')).toHaveClass(/dark/)
     await expect(page.getByTestId('theme-toggle')).toHaveAttribute('aria-label', 'Dark theme')
     await page.getByTestId('theme-toggle').click()
     await page.getByTestId('theme-toggle').click()
     await expect(page.getByTestId('theme-toggle')).toHaveAttribute('aria-label', 'Light theme')
     await expect(page.locator('html')).not.toHaveClass(/dark/)
-    await expect(page.getByRole('heading', { name: 'Rewrite a string until it stops.' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Docs.' })).toBeVisible()
     await page.getByTestId('theme-toggle').click()
     await expect(page.getByTestId('theme-toggle')).toHaveAttribute('aria-label', 'Dark theme')
     await expect(page.locator('html')).toHaveClass(/dark/)
@@ -76,26 +72,16 @@ test('home keeps the landing copy and stays dark by default', async ({ page }) =
   await expect(page.locator('html')).toHaveClass(/dark/)
   await expect(page.getByRole('heading', { level: 1, name: 'Thue++' })).toBeVisible()
   await expect(page.getByText('The safest, smallest, sandbox.')).toBeVisible()
-  await expect(page.getByTestId('landing-languages')).toContainText('Available in python, go, js, rust, cpp, ruby, csharp, java')
+  await expect(page.getByTestId('landing-languages')).toContainText('Available in python, go, js, wasm, rust, cpp, ruby, csharp, java')
   await expect(page.getByTestId('sandbox-scene')).toBeVisible()
   await expect(page.getByTestId('your-turn')).toHaveCount(0)
   await expect(page.getByTestId('hero-install')).toHaveAttribute('href', '/install')
+  await expect(page.getByTestId('hero-sandboxes')).toHaveAttribute('href', '/sandboxes')
+  await expect(page.getByTestId('hero-problems')).toHaveAttribute('href', '/problems')
+  await expect(page.getByTestId('featured-sandboxes')).toBeVisible()
+  await expect(page.getByTestId('cost-chart')).toBeVisible()
   await expect(page.getByTestId('sandbox-scene')).toHaveAttribute('data-control', 'auto')
   await expect(page.locator('body')).not.toContainText(/RE2/)
-})
-
-test('playground is outside the docs shell in both themes', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto('/playground')
-  await expect(page.getByTestId('app-shell')).toHaveCount(0)
-  await expect(page.getByTestId('playground-standalone')).toBeVisible()
-  await expect(page.locator('html')).toHaveClass(/dark/)
-  await page.getByTestId('theme-toggle').click()
-  await page.getByTestId('theme-toggle').click()
-  await expect(page.locator('html')).not.toHaveClass(/dark/)
-  await expect(page.getByTestId('site-header')).toBeVisible()
-  await expect(page.getByTestId('playground-toolbar')).toBeVisible()
-  await expect(page.getByTestId('app-shell')).toHaveCount(0)
 })
 
 test('embed has no site chrome', async ({ page }) => {
@@ -108,43 +94,36 @@ test('embed has no site chrome', async ({ page }) => {
 
 test('scroll spy highlights the section in view', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 640 })
-  await page.goto('/docs/guides')
+  await page.goto('/docs/go/install')
   const sidebar = page.getByTestId('page-sidebar')
-  await expect(sidebar.getByRole('link', { name: 'A program' })).toHaveAttribute('aria-current', 'location')
+  await expect(sidebar.getByRole('link', { name: 'Install' })).toHaveAttribute('aria-current', 'location')
   await page.evaluate(() => {
-    const heading = document.getElementById('operators')
-    if (!heading) throw new Error('missing operators')
+    const heading = document.getElementById('cli')
+    if (!heading) throw new Error('missing cli')
     const top = heading.getBoundingClientRect().top + window.scrollY
     window.scrollTo(0, Math.max(0, top - 80))
   })
-  await expect(sidebar.getByRole('link', { name: 'Operators' })).toHaveAttribute('aria-current', 'location')
-  await expect(sidebar.getByRole('link', { name: 'A program' })).not.toHaveAttribute('aria-current', 'location')
+  await expect(sidebar.getByRole('link', { name: 'CLI' })).toHaveAttribute('aria-current', 'location')
+  await expect(sidebar.getByRole('link', { name: 'Install', exact: true })).not.toHaveAttribute('aria-current', 'location')
 })
 
 test('deep links render their own heading', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   for (const [path, heading] of [
-    ['/docs', 'The reference and a short tour.'],
-    ['/docs/language', 'Operators, resources, and limits.'],
+    ['/sandboxes', 'Sandboxes.'],
+    ['/problems', 'Problems.'],
     ['/install', 'Install a host.'],
-    ['/install/rust', 'Rust.'],
-    ['/install/csharp', 'C#.'],
-    ['/install/java', 'Java.'],
-    ['/projects', 'Sandboxed projects.'],
-    ['/metrics', 'What each commit measured.'],
-    ['/problems', 'Programs with a finish line.'],
-    ['/contribute', 'Clone, measure, open a pull request.'],
-    ['/autoresearch', 'A prompt for an agent.'],
+    ['/docs', 'Docs.'],
+    ['/docs/go/install', 'Go.'],
+    ['/docs/go/api', 'Go API.'],
+    ['/docs/go/examples', 'Go examples.'],
+    ['/sandboxes/expr', 'Expr.'],
   ] as const) {
     await page.goto(path)
     await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible()
   }
-  await page.goto('/playground')
-  await expect(page.getByTestId('site-header')).toBeVisible()
-  await expect(page.getByTestId('site-nav').getByRole('link')).toHaveCount(4)
-  await expect(page.getByTestId('site-nav').getByRole('link', { name: 'Playground' })).toHaveCount(0)
-  await expect(page.getByTestId('playground-toolbar')).toBeVisible()
-  await expect(page.getByTestId('app-shell')).toHaveCount(0)
-  await page.goto('/docs/guides')
-  await expect(page.getByTestId('page-details')).toBeVisible()
+  for (const path of ['/playground', '/projects', '/metrics', '/contribute', '/docs/guides', '/install/go', '/rulesets/direct']) {
+    await page.goto(path)
+    await expect(page.getByRole('heading', { level: 1, name: 'This page is not here.' })).toBeVisible()
+  }
 })

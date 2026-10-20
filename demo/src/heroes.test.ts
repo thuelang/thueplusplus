@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { catalog } from './catalog'
+import { siteHosts } from './hosts'
 import { routes } from './router'
 import { pages } from './site'
 
@@ -37,8 +38,8 @@ async function mountPath(path: string) {
 const paths = [
   ...Object.values(pages).map(page => page.path),
   ...catalog.problems.map(problem => problem.path),
-  '/problems/rot-13/direct',
-  ...catalog.rulesets.map(ruleset => `/rulesets/${ruleset.id}`),
+  ...catalog.sandboxes.map(sandbox => `/sandboxes/${sandbox.id}`),
+  ...siteHosts.flatMap(host => [`/docs/${host.id}/install`, `/docs/${host.id}/api`, `/docs/${host.id}/examples`]),
   '/not-a-page',
 ]
 
@@ -67,7 +68,7 @@ describe('heroes', () => {
       }
       wrapper.unmount()
     }
-  }, 15_000)
+  }, 30_000)
 
   it('keeps the embed free of a hero', async () => {
     window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')

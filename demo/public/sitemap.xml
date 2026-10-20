@@ -5,67 +5,7 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/docs</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/docs/guides</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/docs/language</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/playground</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/install</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/install/go</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/install/python</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/install/js</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/install/wasm</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/install/rust</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/install/cpp</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/install/ruby</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/install/csharp</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/install/java</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/projects</loc>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thuelang.org/metrics</loc>
+    <loc>https://thuelang.org/sandboxes</loc>
     <priority>0.7</priority>
   </url>
   <url>
@@ -73,11 +13,11 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/contribute</loc>
+    <loc>https://thuelang.org/install</loc>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/autoresearch</loc>
+    <loc>https://thuelang.org/docs</loc>
     <priority>0.7</priority>
   </url>
   <url>
@@ -145,107 +85,127 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/hello-world/direct</loc>
+    <loc>https://thuelang.org/sandboxes/forth</loc>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://thuelang.org/sandboxes/lisp</loc>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://thuelang.org/sandboxes/basic</loc>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://thuelang.org/sandboxes/expr</loc>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://thuelang.org/docs/python/install</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/hello-world/forth</loc>
+    <loc>https://thuelang.org/docs/python/api</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/hello-world/lisp</loc>
+    <loc>https://thuelang.org/docs/python/examples</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/hello-world/basic</loc>
+    <loc>https://thuelang.org/docs/go/install</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/fibonacci-sequence/direct</loc>
+    <loc>https://thuelang.org/docs/go/api</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/fizzbuzz/direct</loc>
+    <loc>https://thuelang.org/docs/go/examples</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/factorial/direct</loc>
+    <loc>https://thuelang.org/docs/js/install</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/factorial/forth</loc>
+    <loc>https://thuelang.org/docs/js/api</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/factorial/lisp</loc>
+    <loc>https://thuelang.org/docs/js/examples</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/factorial/basic</loc>
+    <loc>https://thuelang.org/docs/wasm/install</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/reverse-a-string/direct</loc>
+    <loc>https://thuelang.org/docs/wasm/api</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/99-bottles-of-beer/direct</loc>
+    <loc>https://thuelang.org/docs/wasm/examples</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/guess-the-number/direct</loc>
+    <loc>https://thuelang.org/docs/rust/install</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/sum-and-product-of-an-array/direct</loc>
+    <loc>https://thuelang.org/docs/rust/api</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/palindrome-detection/direct</loc>
+    <loc>https://thuelang.org/docs/rust/examples</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/rot-13/direct</loc>
+    <loc>https://thuelang.org/docs/cpp/install</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/greatest-common-divisor/direct</loc>
+    <loc>https://thuelang.org/docs/cpp/api</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/least-common-multiple/direct</loc>
+    <loc>https://thuelang.org/docs/cpp/examples</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/primality-by-trial-division/direct</loc>
+    <loc>https://thuelang.org/docs/ruby/install</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/hailstone-sequence/direct</loc>
+    <loc>https://thuelang.org/docs/ruby/api</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/leap-year/direct</loc>
+    <loc>https://thuelang.org/docs/ruby/examples</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/problems/exponentiation-operator/direct</loc>
+    <loc>https://thuelang.org/docs/csharp/install</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/rulesets/direct</loc>
+    <loc>https://thuelang.org/docs/csharp/api</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/rulesets/forth</loc>
+    <loc>https://thuelang.org/docs/csharp/examples</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/rulesets/lisp</loc>
+    <loc>https://thuelang.org/docs/java/install</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thuelang.org/rulesets/basic</loc>
+    <loc>https://thuelang.org/docs/java/api</loc>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://thuelang.org/docs/java/examples</loc>
     <priority>0.5</priority>
   </url>
 </urlset>

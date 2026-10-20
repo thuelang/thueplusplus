@@ -142,6 +142,7 @@ const props = withDefaults(defineProps<{
   syncUrl?: boolean
   program?: string
   programPath?: string
+  initialState?: string
   reads?: Record<string, string>
   problem?: string
   solution?: string
@@ -248,7 +249,7 @@ const continueTitle = computed(() => 'Play')
 const endTitle = computed(() => `End without rendering intermediate states (max ${maxSteps.value} steps)`)
 const continueDelayMs = computed(() => continueSpeedOptions.find(option => option.value === continueSpeed.value)?.delayMs ?? 100)
 const openFullHref = computed(() => {
-  const url = new URL('/playground', window.location.href)
+  const url = new URL('/embed', window.location.href)
   url.searchParams.set('file', fileParam.value)
   return `${url.pathname}${url.search}`
 })
@@ -424,7 +425,7 @@ function loadProgram(source: string, label: string, reads?: Record<string, strin
   sourcePath.value = label
   const split = splitProgramSource(source)
   rulesText.value = split.rules
-  stateText.value = split.state
+  stateText.value = props.initialState !== undefined ? props.initialState : split.state
   loadError.value = split.error
   clearRun()
   applyReads(reads ?? props.reads)

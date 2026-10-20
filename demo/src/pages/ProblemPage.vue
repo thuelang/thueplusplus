@@ -1,184 +1,110 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { useRoute } from 'vue-router'
 import DocPage from '@/components/DocPage.vue'
+import CostChart from '@/components/CostChart.vue'
 import MarkdownBody from '@/components/MarkdownBody.vue'
-import ProblemHistory from '@/components/ProblemHistory.vue'
-import RuleBlock from '@/components/RuleBlock.vue'
+import NotFoundPage from '@/pages/NotFoundPage.vue'
 import ProblemScene from '@/components/scenes/ProblemScene.vue'
-import SearchScene from '@/components/scenes/SearchScene.vue'
-import {
-  authorName,
-  bestVersion,
-  catalog,
-  measuredOn,
-  problemById,
-  solutionPath,
-  statusVariant,
-  type CatalogSolution,
-  type CatalogVersion,
-  type ProblemCase,
-  type ProblemResource,
-} from '@/catalog'
-import { repositoryBlob, repositoryTree } from '@/hosts'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { authorName, problemById, sourceUrl, type CatalogVersion } from '@/catalog'
+import { formatCost } from '@/charts/cost'
+import { problemSeries } from '@/charts/series'
 
 const route = useRoute()
-const problemId = computed(() => typeof route.params.problemId === 'string' ? route.params.problemId : '')
-const problem = computed(() => problemById(problemId.value))
-const open = ref<Record<string, boolean>>({})
-const copyError = ref('')
+const problem = computed(() => {
+  const id = route.params.problemId
+  return typeof id === 'string' ? problemById(id) : undefined
+})
 
-const best = computed(() => problem.value ? bestVersion(problem.value) : undefined)
-const sample = computed(() => problem.value?.cases[0])
+type SortKey = 'sandbox' | 'cost' | 'author' | 'date' | 'steps' | 'rules'
+const sortKey = ref<SortKey>('cost')
+const sortAsc = ref(true)
 
-function chip(resource: ProblemResource): string {
-  const direction = resource.read && resource.write ? 'in/out' : resource.read ? 'in' : 'out'
-  return `${resource.name} ${direction}`
+function toggle(key: SortKey): void {
+  if (sortKey.value === key) sortAsc.value = !sortAsc.value
+  else {
+    sortKey.value = key
+    sortAsc.value = key !== 'date'
+  }
 }
 
-function head(version: CatalogVersion): CatalogSolution {
+function value(version: CatalogVersion, key: SortKey): string | number {
   const solution = version.solutions[0]
-  if (!solution) throw new Error(`${version.id} has no solution file`)
-  return solution
+  if (!solution) throw new Error(`${version.id} has no solution`)
+  if (key === 'sandbox') return version.name
+  if (key === 'cost') return solution.cost ?? Number.POSITIVE_INFINITY
+  if (key === 'author') return authorName(version.author)
+  if (key === 'date') return version.measured
+  if (key === 'steps') return solution.steps ?? Number.POSITIVE_INFINITY
+  return solution.ruleCount ?? Number.POSITIVE_INFINITY
 }
 
-function measured(version: CatalogVersion): string {
-  const point = version.series.at(-1)
-  if (!point) throw new Error(`${version.id} has no measurement`)
-  return measuredOn(point.commit)
+const rows = computed(() => {
+  const current = problem.value
+  if (!current) return []
+  const sorted = [...current.versions].sort((left, right) => {
+    const a = value(left, sortKey.value)
+    const b = value(right, sortKey.value)
+    const order = a < b ? -1 : a > b ? 1 : left.id < right.id ? -1 : left.id > right.id ? 1 : 0
+    return sortAsc.value ? order : -order
+  })
+  return sorted
+})
+
+function requiredNumber(version: CatalogVersion, key: 'cost' | 'steps' | 'rules'): number {
+  const solution = version.solutions[0]
+  const value = key === 'cost' ? solution?.cost : key === 'steps' ? solution?.steps : solution?.ruleCount
+  if (value == null) throw new Error(`${version.id} ${key} is missing`)
+  return value
 }
 
-function playgroundTo(id: string, solutionId: string): string {
-  return `/playground?problem=${encodeURIComponent(id)}&solution=${encodeURIComponent(solutionId)}`
-}
-
-function readLines(item: ProblemCase, name: string): string {
-  const lines = item.reads[name]
-  if (!lines) throw new Error(`${item.name} has no ${name}`)
-  return lines.join('\n')
-}
-
-async function copySource(text: string): Promise<void> {
-  copyError.value = ''
-  if (!navigator.clipboard) {
-    copyError.value = 'This browser has no clipboard API.'
-    return
-  }
-  try {
-    await navigator.clipboard.writeText(text)
-  } catch (error) {
-    copyError.value = error instanceof Error ? error.message : String(error)
-  }
+function ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
+  if (sortKey.value !== key) return 'none'
+  return sortAsc.value ? 'ascending' : 'descending'
 }
 </script>
 
 <template>
-  <DocPage v-if="problem && best && sample" wide kicker="Problems" :title="problem.title" :summary="problem.summary">
-    <template #meta>
-      <RouterLink to="/problems" class="text-ash font-mono text-[12px] underline underline-offset-4" data-test="all-problems">All problems</RouterLink>
-      <span v-for="resource in problem.resources" :key="resource.name" data-test="resource-chip" class="border-line text-ash border px-2 py-0.5 font-mono text-[12px]">{{ chip(resource) }}</span>
-    </template>
+  <NotFoundPage v-if="!problem" />
+  <DocPage v-else kicker="Problems" :title="problem.title" :summary="problem.summary" wide>
     <template #scene>
       <ProblemScene :problem-id="problem.id" :cases="problem.cases" />
     </template>
-    <section id="cost" data-test="problem-history" class="flex flex-col gap-3">
+    <section id="cost" class="flex flex-col gap-3">
       <h2 class="text-xl font-semibold tracking-tight">Cost</h2>
-      <p data-test="cost-caption" class="text-ash max-w-[62ch] text-[15px] leading-snug">Each point is one solution. The line is that ruleset's best so far.</p>
-      <figure data-test="problem-chart-cost">
-        <ProblemHistory :commits="catalog.commits" :versions="problem.versions" />
-      </figure>
+      <CostChart :series="problemSeries(problem)" :label="`${problem.title} cost over time`" />
     </section>
-    <section id="scoreboard" data-test="problem-scoreboard" class="flex flex-col gap-3">
-      <h2 class="text-xl font-semibold tracking-tight">Scoreboard</h2>
-      <table class="w-full border-collapse text-left text-sm">
-        <thead>
-          <tr class="text-dim border-line border-b font-mono text-[12px]">
-            <th class="py-2 pr-3 font-medium">Ruleset</th>
-            <th class="py-2 pr-3 font-medium">Cost</th>
-            <th class="py-2 pr-3 font-medium">Status</th>
-            <th class="py-2 pr-3 font-medium">Author</th>
-            <th class="py-2 font-medium">Measured</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="version in problem.versions" :key="version.id" data-test="score-row" :data-version="version.id" class="border-line border-b">
-            <td class="py-2 pr-3">
-              <RouterLink :to="solutionPath(problem.id, version.id)" class="underline underline-offset-4">{{ version.name }}</RouterLink>
-            </td>
-            <td class="py-2 pr-3 font-mono" data-test="problem-cost">cost {{ head(version).cost }}</td>
-            <td class="py-2 pr-3">
-              <Badge :variant="statusVariant(head(version).status)">{{ head(version).status }}</Badge>
-            </td>
-            <td class="py-2 pr-3">{{ authorName(version.author) }}</td>
-            <td class="py-2 font-mono">{{ measured(version) }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
-    <section id="example" data-test="problem-example" class="flex flex-col gap-3">
-      <h2 class="text-xl font-semibold tracking-tight">Example</h2>
-      <p class="font-mono text-sm" data-test="example-name">{{ sample.name }}</p>
-      <div v-if="Object.keys(sample.reads).length === 0" data-test="example-input" class="text-ash text-sm">no input</div>
-      <div v-for="(_lines, name) in sample.reads" :key="`read-${name}`" class="flex flex-col gap-1">
-        <p class="text-dim font-mono text-[12px]">{{ name }}</p>
-        <pre data-test="example-input" class="border-line bg-surface overflow-x-auto border p-3 font-mono text-[13px] leading-[1.7]">{{ readLines(sample, String(name)) }}</pre>
-      </div>
-      <div v-for="(text, name) in sample.writes" :key="`write-${name}`" class="flex flex-col gap-1">
-        <p class="text-dim font-mono text-[12px]">{{ name }}</p>
-        <pre data-test="example-output" class="border-line bg-surface overflow-x-auto border p-3 font-mono text-[13px] leading-[1.7]">{{ text }}</pre>
-      </div>
-    </section>
-    <section id="actions" class="flex flex-wrap items-center gap-3">
-      <Button as-child>
-        <a data-test="improve-link" :href="repositoryTree(`problems/${problem.id}`)" rel="noreferrer">Beat this</a>
-      </Button>
-      <a data-test="contributing-link" class="text-ash font-mono text-[13px] underline underline-offset-4" :href="repositoryBlob('CONTRIBUTING.md')" rel="noreferrer">contributing guide</a>
-      <Button as-child variant="outline">
-        <RouterLink data-test="try-playground" :to="playgroundTo(problem.id, best.id)">Try in playground</RouterLink>
-      </Button>
-    </section>
-    <section id="description" data-test="problem-description" class="flex flex-col gap-3">
-      <h2 class="text-xl font-semibold tracking-tight">Description</h2>
-      <MarkdownBody :source="problem.description" />
-    </section>
-    <section id="solutions" data-test="problem-solutions" class="flex flex-col gap-4">
-      <h2 class="text-xl font-semibold tracking-tight">Solutions</h2>
-      <article v-for="version in problem.versions" :id="version.id" :key="version.id" data-test="problem-version" :data-version="version.id" class="border-line flex flex-col gap-3 border p-4">
-        <button type="button" class="flex w-full items-center justify-between gap-3 text-left" data-test="solution-toggle" :aria-expanded="open[version.id] === true" @click="open[version.id] = !open[version.id]">
-          <span class="font-medium">{{ version.name }}</span>
-          <span class="text-dim font-mono text-sm">{{ open[version.id] ? 'hide' : 'show' }} · {{ head(version).status }} · cost {{ head(version).cost }}</span>
-        </button>
-        <template v-if="open[version.id]">
-          <RuleBlock :source="head(version).solution" />
-          <div class="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" data-test="copy-solution" @click="copySource(head(version).solution)">Copy</Button>
-            <Button as-child variant="outline" size="sm">
-              <RouterLink data-test="run-solution" :to="playgroundTo(problem.id, version.id)">Run in playground</RouterLink>
-            </Button>
-            <Button as-child variant="outline" size="sm">
-              <RouterLink :to="solutionPath(problem.id, version.id)">Open solution</RouterLink>
-            </Button>
-          </div>
-          <p v-if="copyError" data-test="copy-solution-error" class="text-destructive text-sm">{{ copyError }}</p>
-          <MarkdownBody v-if="version.notes" :source="version.notes" />
-        </template>
-      </article>
-    </section>
-    <div data-test="problem-credit" class="text-dim text-sm">
+    <MarkdownBody data-test="problem-description" :source="problem.description" />
+    <div data-test="problem-credit" class="text-ash">
       <MarkdownBody :source="problem.credit" />
     </div>
-  </DocPage>
-  <DocPage v-else kicker="Problems" title="This problem is not in the suite." summary="That name is not on the leaderboard.">
-    <template #scene>
-      <SearchScene />
-    </template>
-    <template #meta>
-      <Button as-child variant="outline" size="sm">
-        <RouterLink to="/problems">All problems</RouterLink>
-      </Button>
-    </template>
-    <p data-test="problem-missing" class="leading-7">The suite has no problem named {{ problemId }}.</p>
+    <section id="solutions" class="flex flex-col gap-3">
+      <h2 class="text-xl font-semibold tracking-tight">Solutions</h2>
+      <Table data-test="solutions-table">
+        <TableHeader>
+          <TableRow>
+            <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('sandbox')" @click="toggle('sandbox')">Sandbox</button></TableHead>
+            <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('cost')" @click="toggle('cost')">Cost</button></TableHead>
+            <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('author')" @click="toggle('author')">Author</button></TableHead>
+            <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('date')" @click="toggle('date')">Date</button></TableHead>
+            <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('steps')" @click="toggle('steps')">Steps</button></TableHead>
+            <TableHead><button type="button" class="underline underline-offset-4" :aria-sort="ariaSort('rules')" @click="toggle('rules')">Rules</button></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow v-for="version in rows" :key="version.id" data-test="solution-row" :data-sandbox="version.id">
+            <TableCell>
+              <a data-test="solution-link" class="underline underline-offset-4" :href="sourceUrl(version.solutions[0].solutionPath)" rel="noreferrer">{{ version.name }}</a>
+            </TableCell>
+            <TableCell class="font-mono">{{ formatCost(requiredNumber(version, 'cost')) }}</TableCell>
+            <TableCell>{{ authorName(version.author) }}</TableCell>
+            <TableCell class="font-mono">{{ version.measured.slice(0, 10) }}</TableCell>
+            <TableCell class="font-mono">{{ formatCost(requiredNumber(version, 'steps')) }}</TableCell>
+            <TableCell class="font-mono">{{ formatCost(requiredNumber(version, 'rules')) }}</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </section>
   </DocPage>
 </template>

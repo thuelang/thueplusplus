@@ -21,7 +21,7 @@ export const examples: DemoExample[] = [
   {
     id: 'mid',
     name: 'Mid lookup',
-    description: 'Uses ::| to fill a captured key and replace the KEY line with the value found elsewhere in the state.',
+    description: 'Dynamic replacement fills a captured key and replaces the KEY line with the value found elsewhere in the state.',
     sourcePath: 'mid-lookup.thue',
     sourceText: `^KEY=(?<k>[^\\n]+)\\n.*$ ::| {{k}}=(?<v>[^,\\n]*) ::= {{v}}
 ^hello$ ::- 0

@@ -7,7 +7,7 @@ import SiteHeader from './SiteHeader.vue'
 
 const route = useRoute()
 const home = computed(() => route.path === '/')
-const wide = computed(() => route.path === '/problems' || route.path === '/metrics' || route.path.startsWith('/problems/') || route.path.startsWith('/rulesets/'))
+const wide = computed(() => route.path === '/problems' || route.path === '/sandboxes' || route.path.startsWith('/problems/') || route.path.startsWith('/sandboxes/'))
 const contentsOpen = ref(false)
 
 watch(() => route.path, () => {

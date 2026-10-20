@@ -84,15 +84,15 @@ describe('Go-WASM demo UI', () => {
     expect(wrapper.text()).toContain('The safest, smallest, sandbox.')
     const languages = wrapper.get('[data-test="landing-languages"]')
     expect(languages.text()).toBe('Available in python, go, js, wasm, rust, cpp, ruby, csharp, java')
-    expect(languages.get('a[href="/install/go"]').text()).toBe('go')
-    expect(languages.get('a[href="/install/python"]').text()).toBe('python')
-    expect(languages.get('a[href="/install/js"]').text()).toBe('js')
-    expect(languages.get('a[href="/install/wasm"]').text()).toBe('wasm')
-    expect(languages.get('a[href="/install/rust"]').text()).toBe('rust')
-    expect(languages.get('a[href="/install/cpp"]').text()).toBe('cpp')
-    expect(languages.get('a[href="/install/ruby"]').text()).toBe('ruby')
-    expect(languages.get('a[href="/install/csharp"]').text()).toBe('csharp')
-    expect(languages.get('a[href="/install/java"]').text()).toBe('java')
+    expect(languages.get('a[href="/docs/go/install"]').text()).toBe('go')
+    expect(languages.get('a[href="/docs/python/install"]').text()).toBe('python')
+    expect(languages.get('a[href="/docs/js/install"]').text()).toBe('js')
+    expect(languages.get('a[href="/docs/wasm/install"]').text()).toBe('wasm')
+    expect(languages.get('a[href="/docs/rust/install"]').text()).toBe('rust')
+    expect(languages.get('a[href="/docs/cpp/install"]').text()).toBe('cpp')
+    expect(languages.get('a[href="/docs/ruby/install"]').text()).toBe('ruby')
+    expect(languages.get('a[href="/docs/csharp/install"]').text()).toBe('csharp')
+    expect(languages.get('a[href="/docs/java/install"]').text()).toBe('java')
     expect(languages.findAll('a')).toHaveLength(9)
     expect(wrapper.find('[data-test="your-turn"]').exists()).toBe(false)
     expect(wrapper.text()).not.toMatch(/your turn/i)
@@ -100,8 +100,8 @@ describe('Go-WASM demo UI', () => {
     expect(install.text()).toBe('install')
     expect(install.attributes('href')).toBe('/install')
     const hero = wrapper.get('[data-test="page-hero"]')
-    expect(hero.get('a[href="/playground"]').text()).toBe('playground')
-    expect(hero.get('a[href="/docs/guides"]').text()).toBe('guides')
+    expect(hero.get('a[href="/sandboxes"]').text()).toBe('sandboxes')
+    expect(hero.get('a[href="/problems"]').text()).toBe('problems')
     expect(wrapper.get('[data-test="sandbox-scene"]').attributes('data-control')).toBe('auto')
     expect(wrapper.find('[data-test="start-hint"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="speech"]').exists()).toBe(false)
@@ -121,10 +121,10 @@ describe('Go-WASM demo UI', () => {
     expect(wrapper.text()).not.toContain('RE2')
     const nav = wrapper.get('[data-test="site-nav"]')
     expect(nav.findAll('a').map(link => `${link.text()} ${link.attributes('href')}`)).toEqual([
+      'Sandboxes /sandboxes',
+      'Problems /problems',
       'Install /install',
       'Docs /docs',
-      'Leaderboard /problems',
-      'Contribute /contribute',
     ])
     expect(nav.findAll('button')).toHaveLength(0)
     const menu = wrapper.text()
@@ -143,7 +143,7 @@ describe('Go-WASM demo UI', () => {
     expect(theme.attributes('aria-label')).toBe('Dark theme')
     expect(theme.attributes('title')).toBe('Dark theme')
     expect(wrapper.get('[data-test="site-header"]').find('a[href="https://github.com/thuelang/thueplusplus"]').exists()).toBe(false)
-    expect(wrapper.get('[data-test="site-footer"]').find('a[href="/playground"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="site-footer"]').find('a[href="/playground"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="nav-progress"]').classes()).toContain('bg-primary')
   })
 
@@ -161,38 +161,29 @@ describe('Go-WASM demo UI', () => {
     const header = wrapper.get('[data-test="site-header"]')
     const links = header.get('[data-test="site-nav"]').findAll('a')
     expect(links).toHaveLength(4)
-    expect(links.map(link => link.attributes('href'))).toEqual(['/install', '/docs', '/problems', '/contribute'])
+    expect(links.map(link => link.attributes('href'))).toEqual(['/sandboxes', '/problems', '/install', '/docs'])
     expect(header.get('[data-test="site-nav"]').findAll('button')).toHaveLength(0)
-    expect(header.findAll('a').map(link => link.attributes('href'))).toEqual(['/', '/install', '/docs', '/problems', '/contribute'])
+    expect(header.findAll('a').map(link => link.attributes('href'))).toEqual(['/', '/sandboxes', '/problems', '/install', '/docs'])
     expect(header.find('[data-slot="dropdown-menu"]').exists()).toBe(false)
     expect(header.find('[data-slot="navigation-menu"]').exists()).toBe(false)
   })
 
-  it('displaced pages stay linked', async () => {
+  it('removed routes are not linked', async () => {
     const home = await mountApp()
     const footer = home.get('[data-test="site-footer"]')
-    expect(footer.find('a[href="/playground"]').exists()).toBe(true)
-    expect(footer.find('a[href="/projects"]').exists()).toBe(true)
-    expect(footer.find('a[href="/metrics"]').exists()).toBe(true)
-    expect(footer.find('a[href="/autoresearch"]').exists()).toBe(true)
-
-    window.history.pushState({}, '', '/problems')
-    const problems = await mountApp()
-    expect(problems.find('a[href="/projects"]').exists()).toBe(true)
-    expect(problems.find('a[href="/metrics"]').exists()).toBe(true)
-    expect(problems.find('a[href="/autoresearch"]').exists()).toBe(true)
-
-    window.history.pushState({}, '', '/contribute')
-    const contribute = await mountApp()
-    expect(contribute.find('a[href="/autoresearch"]').exists()).toBe(true)
+    for (const path of ['/playground', '/projects', '/metrics', '/autoresearch', '/contribute']) {
+      expect(footer.find(`a[href="${path}"]`).exists()).toBe(false)
+      expect(home.find(`[data-test="site-nav"] a[href="${path}"]`).exists()).toBe(false)
+    }
   })
 
   it('renders the docs index', async () => {
     window.history.pushState({}, '', '/docs')
     const wrapper = await mountApp()
-    expect(wrapper.get('h1').text()).toBe('The reference and a short tour.')
-    expect(wrapper.get('a[href="/docs/language"]').text()).toContain('Language reference')
-    expect(wrapper.get('a[href="/docs/guides"]').text()).toContain('Guides')
+    expect(wrapper.get('h1').text()).toBe('Docs.')
+    expect(wrapper.get('a[href="/docs/go/install"]').text()).toBe('Install')
+    expect(wrapper.get('a[href="/docs/go/api"]').text()).toBe('API')
+    expect(wrapper.get('a[href="/docs/go/examples"]').text()).toBe('Examples')
     expect(wrapper.get('[data-test="site-nav"]').get('a[href="/docs"]').attributes('aria-current')).toBe('page')
   })
 
@@ -247,95 +238,78 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('renders each section as its own page and leaves embed without chrome', async () => {
-    window.history.pushState({}, '', '/docs/guides')
+    window.history.pushState({}, '', '/sandboxes')
     let wrapper = await mountApp()
-    expect(wrapper.get('h1').text()).toBe('Rewrite a string until it stops.')
-    expect(wrapper.text()).toContain('A program')
+    expect(wrapper.get('h1').text()).toBe('Sandboxes.')
+    expect(wrapper.text()).toContain('Lisp')
+    expect(wrapper.text()).toContain('Forth')
+    expect(wrapper.text()).toContain('BASIC')
+    expect(wrapper.text()).toContain('In progress.')
+    expect(wrapper.get('[data-test="site-nav"]').get('a[href="/sandboxes"]').attributes('aria-current')).toBe('page')
     expect(wrapper.text()).not.toContain('RE2')
-    expect(wrapper.text()).not.toMatch(/\bguest\b/i)
-    expect(wrapper.get('[data-test="page-sidebar"]').text()).toContain('A program')
-    expect(wrapper.get('[data-test="site-nav"]').get('a[href="/docs"]').attributes('aria-current')).toBe('page')
 
-    window.history.pushState({}, '', '/docs/language')
+    window.history.pushState({}, '', '/sandboxes/expr')
     wrapper = await mountApp()
-    expect(wrapper.get('h1').text()).toBe('Operators, resources, and limits.')
-    expect(wrapper.text()).toContain('::=')
-    expect(wrapper.text()).toContain('Patterns are regular expressions.')
-    expect(wrapper.text()).not.toContain('RE2')
-    expect(wrapper.text()).not.toMatch(/\bguest\b/i)
-    expect(wrapper.get('[data-test="page-sidebar"]').text()).toContain('Operators')
+    expect(wrapper.get('h1').text()).toBe('Expr.')
+    expect(wrapper.get('[data-test="page-summary"]').text()).toBe('In progress.')
+    expect(wrapper.get('[data-test="page-details"]').text().trim()).toBe('')
+    expect(wrapper.find('[data-test="playground-workbench"]').exists()).toBe(false)
+
+    window.history.pushState({}, '', '/sandboxes/forth')
+    wrapper = await mountApp()
+    expect(wrapper.get('h1').text()).toBe('Forth.')
+    expect(wrapper.get('[data-test="sandbox-guide"]').text()).toContain('forth.thue')
+    expect(wrapper.find('[data-test="playground-workbench"]').exists()).toBe(true)
 
     window.history.pushState({}, '', '/install')
     wrapper = await mountApp()
     expect(wrapper.get('h1').text()).toBe('Install a host.')
     expect(wrapper.text()).toContain('Quick start')
     expect(wrapper.text()).toContain('The thuelang package with the thue CLI')
-    expect(wrapper.find('a[href="/install/java"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/docs/java/install"]').exists()).toBe(true)
     expect(wrapper.text()).not.toContain('Coming soon')
     expect(wrapper.text()).not.toContain('the regex engine')
     expect(wrapper.text()).not.toMatch(/\bguest\b/i)
     expect(wrapper.text()).not.toContain('RE2')
 
-    window.history.pushState({}, '', '/install/go')
+    window.history.pushState({}, '', '/docs/go/install')
     wrapper = await mountApp()
     expect(wrapper.get('h1').text()).toBe('Go.')
-    expect(wrapper.text()).toContain('Library')
+    expect(wrapper.text()).toContain('go get github.com/thuelang/thueplusplus/go@main')
+    expect(wrapper.text()).not.toContain('RE2')
+
+    window.history.pushState({}, '', '/docs/go/api')
+    wrapper = await mountApp()
+    expect(wrapper.get('h1').text()).toBe('Go API.')
     expect(wrapper.text()).toContain('docs/host-api.md')
     expect(wrapper.text()).not.toContain('RE2')
 
-    window.history.pushState({}, '', '/projects')
+    window.history.pushState({}, '', '/docs/go/examples')
     wrapper = await mountApp()
-    expect(wrapper.get('h1').text()).toBe('Sandboxed projects.')
-    expect(wrapper.get('[data-test="project-card"][data-project="lisp"]').text()).toContain('Lisp')
-    expect(wrapper.get('[data-test="project-card"][data-project="forth"]').text()).toContain('Forth')
-    expect(wrapper.findAll('[data-test="project-card"]').length).toBeGreaterThan(4)
-    expect(wrapper.get('[data-test="project-card"][data-project="forth"]').get('[data-test="improve-link"]').attributes('href')).toBe('https://github.com/thuelang/thueplusplus/tree/main/langs/forth')
-    expect(wrapper.get('[data-test="project-card"][data-project="lisp"]').get('[data-test="improve-link"]').attributes('href')).toBe('https://github.com/thuelang/thueplusplus/tree/main/langs/lisp')
-    expect(wrapper.text()).not.toContain('Placeholder')
-    expect(wrapper.text()).not.toMatch(/\bguest\b/i)
-    expect(wrapper.text()).not.toContain('RE2')
-
-    window.history.pushState({}, '', '/metrics')
-    wrapper = await mountApp()
-    expect(wrapper.get('h1').text()).toBe('What each commit measured.')
-    expect(wrapper.get('[data-test="page-sidebar"]').text()).toContain('Host time')
-    expect(wrapper.get('[data-test="page-sidebar"]').text()).toContain('Host memory')
-    expect(wrapper.get('[data-test="benchmark-readout"]').text()).toContain('go native')
-    expect(wrapper.text()).not.toMatch(/\bguest\b/i)
+    expect(wrapper.get('h1').text()).toBe('Go examples.')
+    expect(wrapper.text()).toContain('thuelang.New()')
     expect(wrapper.text()).not.toContain('RE2')
 
     window.history.pushState({}, '', '/problems')
     wrapper = await mountApp()
-    expect(wrapper.get('h1').text()).toBe('Programs with a finish line.')
-    expect(wrapper.text()).toContain('Suite')
-    expect(wrapper.text()).toContain('Solved problems')
-    expect(wrapper.text()).not.toContain('Missing.')
+    expect(wrapper.get('h1').text()).toBe('Problems.')
+    expect(wrapper.findAll('[data-test="problem-card"]').length).toBeGreaterThan(0)
     expect(wrapper.text()).not.toContain('Placeholder')
-    expect(wrapper.text()).not.toContain('unmeasured')
 
     window.history.pushState({}, '', '/problems/factorial')
     wrapper = await mountApp()
     expect(wrapper.get('h1').text()).toBe('Factorial')
     expect(document.title).toContain('Factorial')
-    expect(wrapper.text()).toContain('cost')
-    expect(wrapper.text()).not.toContain('Missing.')
     expect(wrapper.text()).toContain('0!')
-    expect(wrapper.text()).not.toContain('unmeasured')
-    expect(wrapper.get('[data-test="page-sidebar"]').text()).toContain('Scoreboard')
     expect(wrapper.get('[data-test="page-sidebar"]').text()).toContain('Cost')
-    expect(wrapper.get('[data-test="improve-link"]').attributes('href')).toBe('https://github.com/thuelang/thueplusplus/tree/main/problems/factorial')
+    expect(wrapper.get('[data-test="page-sidebar"]').text()).toContain('Solutions')
+    expect(wrapper.get('[data-test="solution-link"]').attributes('href')).toContain('https://github.com/thuelang/thueplusplus/blob/main/problems/factorial/')
 
-    window.history.pushState({}, '', '/contribute')
-    wrapper = await mountApp()
-    expect(wrapper.get('h1').text()).toBe('Clone, measure, open a pull request.')
-    expect(wrapper.text()).toContain('make metrics')
-    expect(wrapper.text()).not.toContain('RE2')
-
-    window.history.pushState({}, '', '/autoresearch')
-    wrapper = await mountApp()
-    expect(wrapper.get('h1').text()).toBe('A prompt for an agent.')
-    expect(wrapper.get('[data-test="autoresearch-prompt"]').text()).toContain('https://github.com/thuelang/thueplusplus')
-    expect(wrapper.text()).not.toContain('RE2')
+    for (const path of ['/playground', '/projects', '/metrics', '/contribute', '/autoresearch', '/docs/guides', '/docs/language', '/install/go', '/rulesets/direct', '/problems/factorial/direct']) {
+      window.history.pushState({}, '', path)
+      wrapper = await mountApp()
+      expect(wrapper.get('h1').text(), path).toBe('This page is not here.')
+    }
 
     window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     wrapper = await mountApp()
@@ -346,17 +320,14 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('serves a resizable playground route with pinned stdio resources and no reset action', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
 
-    expect(wrapper.find('[data-test="site-header"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="site-header"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="playground-toolbar"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="app-shell"]').exists()).toBe(false)
-    expect(wrapper.get('[data-test="site-nav"]').find('a[href="/playground"]').exists()).toBe(false)
-    expect(wrapper.get('[data-test="site-nav"]').findAll('a')).toHaveLength(4)
-    expect(wrapper.find('[data-test="page-hero-graphic"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="page-hero"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="playground-share"]').text()).toBe('share')
-    expect(wrapper.get('header a[href="/"]').attributes('aria-current')).toBeUndefined()
     expect(wrapper.get('[data-test="playground-examples"]').text()).toContain('Lisp')
     expect(wrapper.get('[data-test="playground-settings"]').text()).toContain('Probe limit')
     expect(wrapper.get('[data-test="playground-rules"]').element.tagName).toBe('TEXTAREA')
@@ -433,7 +404,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('uses the visible empty state instead of falling back to embedded source state', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
     await wrapper.get('[data-test="playground-state"]').setValue('')
 
@@ -447,7 +418,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('seeds Program State from pasted full source while keeping Program Rules runnable', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
     await wrapper.get('[data-test="playground-state"]').setValue('stale override')
     const pastedSource = '^aaab$ ::= done\n::=\naaab\n'
@@ -460,7 +431,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('does not rewrite Program Rules when Program State is edited after source seeding', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
     const originalSource = (wrapper.get('[data-test="playground-rules"]').element as HTMLTextAreaElement).value
 
@@ -470,7 +441,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('loads hash-prefixed source rows exactly and keeps state empty without a separator heuristic', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hash-data/source-hash-rule.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hash-data/source-hash-rule.thue')
     const wrapper = await mountApp()
 
     const loadedSource = (wrapper.get('[data-test="playground-rules"]').element as HTMLTextAreaElement).value
@@ -480,7 +451,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('discovers resources from hash-prefixed rule rows', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
     await wrapper.get('[data-test="playground-rules"]').setValue('#read ::< @VALUE custom\n#done ::> custom done\n')
 
@@ -491,7 +462,7 @@ describe('Go-WASM demo UI', () => {
 
   it('sizes the resources, state, and trace panels equally, then restores a saved layout', async () => {
     localStorage.removeItem('reka:thue-playground-column')
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const fresh = await mountApp()
     const grow = (wrapper: Awaited<ReturnType<typeof mountApp>>, name: string) => {
       const panel = wrapper.get(`[data-test="playground-panel-${name}"]`).element.parentElement as HTMLElement
@@ -509,7 +480,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('shows only bar and the Go error for a read rule without a timeout', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
     await wrapper.get('[data-test="playground-rules"]').setValue('foo ::> bar\nbaz ::< qux\n')
 
@@ -525,7 +496,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('labels the read input with the resource name from ::< timeout name', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
     await wrapper.get('[data-test="playground-rules"]').setValue('foo ::> bar\nbaz ::< 30 qux\n')
 
@@ -555,7 +526,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('steps one rule and updates State as the current state', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
     await wrapper.get('[data-test="playground-rules"]').setValue('^start$ ::= middle\n^middle$ ::= done')
     await wrapper.get('[data-test="playground-state"]').setValue('start')
@@ -593,7 +564,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('shows failed step exit status and stderr instead of reporting a successful step', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/builtin/builtin.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/builtin/builtin.thue')
     const wrapper = await mountApp()
     await wrapper.get('[data-test="playground-state"]').setValue('div:1,0')
 
@@ -637,7 +608,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('shows parse-time step errors in state history when no trace is available', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
     await wrapper.get('[data-test="playground-rules"]').setValue('^(?<a>\\d+),(?<b>\\d+)$ ::! nope a b')
     await wrapper.get('[data-test="playground-state"]').setValue('1,2')
@@ -663,7 +634,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('shows matched rules in state history even when state does not change', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
     await wrapper.get('[data-test="playground-rules"]').setValue('^done$ ::> stdout ok\\n')
     await wrapper.get('[data-test="playground-state"]').setValue('done')
@@ -686,7 +657,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('shows compact changed context for long state diffs below State', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
     await wrapper.get('[data-test="playground-rules"]').setValue('^start$ ::= middle')
     const before = `${'a'.repeat(80)}LOOK<add|mul=VPRIM<mul>;add=VPRIM<add>;|K>${'z'.repeat(80)}`
@@ -715,7 +686,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('places newer step diffs below older diffs', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
     await wrapper.get('[data-test="playground-rules"]').setValue('^start$ ::= middle\n^middle$ ::= done')
 
@@ -750,7 +721,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('ends a run in one worker call and appends only a collapsed final history row', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
     await wrapper.get('[data-test="playground-rules"]').setValue('^start$ ::= middle\n^middle$ ::= done')
     await wrapper.get('[data-test="playground-state"]').setValue('start')
@@ -786,7 +757,7 @@ describe('Go-WASM demo UI', () => {
   it('uses media controls for play and stop', async () => {
     vi.useFakeTimers()
     try {
-      window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+      window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
       const wrapper = await mountApp()
       await wrapper.get('[data-test="playground-rules"]').setValue('^start$ ::= middle\n^middle$ ::= done')
       await wrapper.get('[data-test="playground-state"]').setValue('start')
@@ -823,7 +794,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('clicks timeline rows to restore state, undo, and prune future rows before stepping', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
     await wrapper.get('[data-test="playground-rules"]').setValue('^start$ ::= middle\n^middle$ ::= done\n^middle$ ::= branch')
     await wrapper.get('[data-test="playground-state"]').setValue('start')
@@ -889,7 +860,7 @@ describe('Go-WASM demo UI', () => {
   it('keeps resource output as an append-only transcript across steps', async () => {
     vi.useFakeTimers()
     try {
-      window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+      window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
       const wrapper = await mountApp()
       await wrapper.get('[data-test="playground-rules"]').setValue('^a$ ::> stdout A\\\\n\n^$ ::= b\n^b$ ::> stdout B\\\\n')
       await wrapper.get('[data-test="playground-state"]').setValue('a')
@@ -930,7 +901,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('reset clears every resource transcript and the engine counters', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp()
     await wrapper.get('[data-test="playground-rules"]').setValue('^a$ ::> stdout A\\n\n^b$ ::> bar hi\\n')
     await wrapper.get('[data-test="playground-state"]').setValue('a')
@@ -983,7 +954,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('step pauses at resource reads and submit resumes automatically', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/guess-number/guess-number.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/guess-number/guess-number.thue')
     const wrapper = await mountApp({ attachTo: document.body })
 
     mockedRunWithWorker.mockResolvedValueOnce({
@@ -1063,7 +1034,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('renders curated example groups as navigation menu cards without command search', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp({ attachTo: document.body })
 
     expect(wrapper.find('[data-test="test-case-command"]').exists()).toBe(false)
@@ -1086,7 +1057,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('selecting a curated manifest test case loads rules, state, and resources without running', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp({ attachTo: document.body })
 
     const lispTrigger = wrapper.findAll('[data-test="test-case-menu-trigger"]').find(trigger => trigger.text() === 'Lisp')
@@ -1110,7 +1081,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('derives resource sections from playground rules and keeps resource inputs gated by requests', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/guess-number/guess-number.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/guess-number/guess-number.thue')
     const wrapper = await mountApp()
 
     expect(wrapper.get('[data-test="resource-section-random"]').text()).toContain('random')
@@ -1153,7 +1124,7 @@ describe('Go-WASM demo UI', () => {
   })
 
   it('submit resumes with the last step or continue command', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/echo/echo.thue')
+    window.history.pushState({}, '', '/embed?file=./examples/echo/echo.thue')
     const wrapper = await mountApp({ attachTo: document.body })
 
     expect(wrapper.get('#resource-title-input').text()).toBe('input')
@@ -1235,16 +1206,14 @@ describe('Go-WASM demo UI', () => {
     expect(wrapper.find('[data-test="terminal"]').exists()).toBe(false)
   })
 
-  it('renders the standalone playground outside the docs shell', async () => {
-    window.history.pushState({}, '', '/playground?file=./examples/hello/hello.thue')
+  it('keeps the embed workbench outside the docs shell', async () => {
+    window.history.pushState({}, '', '/embed?file=./examples/hello/hello.thue')
     const wrapper = await mountApp({ attachTo: document.body })
 
-    expect(wrapper.find('[data-test="site-header"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="site-header"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="playground-toolbar"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="app-shell"]').exists()).toBe(false)
-    expect(wrapper.find('[data-test="page-hero"]').exists()).toBe(true)
-    expect(wrapper.get('[data-test="page-summary"]').text().length).toBeGreaterThan(0)
-    expect(wrapper.get('[data-test="rex-scene"]').attributes('data-scene')).toBe('playground')
+    expect(wrapper.find('[data-test="page-hero"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="playground-toolbar"]').text()).toContain('step')
     expect(wrapper.find('[data-test="playground-diffs"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="playground-examples-trigger"]').exists()).toBe(true)
@@ -1263,7 +1232,7 @@ describe('Go-WASM demo UI', () => {
     expect(wrapper.find('[data-test="playground-workbench"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="playground-state"]').element).toHaveProperty('value', 'START')
     expect((wrapper.get('[data-test="playground-state"]').element as HTMLTextAreaElement).readOnly).toBe(true)
-    expect(wrapper.get('[data-test="embed-open-full"]').attributes('href')).toContain('/playground?file=.%2Fexamples%2Fhello%2Fhello.thue')
+    expect(wrapper.get('[data-test="embed-open-full"]').attributes('href')).toContain('/embed?file=.%2Fexamples%2Fhello%2Fhello.thue')
   })
 
   it('runs an embed through the shared Go-WASM path with explicit limits', async () => {

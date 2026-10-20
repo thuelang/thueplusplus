@@ -1,14 +1,14 @@
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { problemPages, readGeneratedCatalog, rulesetPages, solutionPages } from './build-site.mjs'
+import { hostDocPages, hostIds, problemPages, readGeneratedCatalog, sandboxPages } from './build-site.mjs'
 
 const dist = new URL('../dist/', import.meta.url).pathname
 const demoRoot = new URL('../', import.meta.url).pathname
 const pages = JSON.parse(readFileSync(new URL('../src/pages.json', import.meta.url), 'utf8'))
 const catalog = readGeneratedCatalog()
 const problems = problemPages(catalog)
-const solutions = solutionPages(catalog)
-const rulesets = rulesetPages(catalog)
+const sandboxes = sandboxPages(catalog)
+const hosts = hostDocPages(hostIds(readFileSync(new URL('../../hosts.toml', import.meta.url), 'utf8')))
 const embed = {
   dir: 'embed',
   documentTitle: 'Thue++ Embed',
@@ -19,7 +19,6 @@ const embed = {
 }
 
 copyPublicAssets()
-copySummary()
 
 const rootIndexPath = join(dist, 'index.html')
 const built = readFileSync(rootIndexPath, 'utf8')
@@ -27,7 +26,7 @@ const homeHtml = renderPage(built, pages.home)
 writeFileSync(rootIndexPath, homeHtml)
 copyFileSync(rootIndexPath, join(dist, '404.html'))
 
-for (const page of [...Object.values(pages), ...problems, ...solutions, ...rulesets]) {
+for (const page of [...Object.values(pages), ...problems, ...sandboxes, ...hosts]) {
   if (page.path === '/') continue
   const dir = page.path.replace(/^\//, '')
   mkdirSync(join(dist, dir), { recursive: true })
@@ -37,14 +36,8 @@ for (const page of [...Object.values(pages), ...problems, ...solutions, ...rules
 mkdirSync(join(dist, embed.dir), { recursive: true })
 writeFileSync(join(dist, embed.dir, 'index.html'), renderPage(built, embed))
 
-const staticRoutes = [...Object.values(pages).filter(page => page.path !== '/').map(page => page.path.replace(/^\//, '')), ...problems.map(page => page.path.replace(/^\//, '')), ...solutions.map(page => page.path.replace(/^\//, '')), ...rulesets.map(page => page.path.replace(/^\//, '')), embed.dir]
+const staticRoutes = [...Object.values(pages).filter(page => page.path !== '/').map(page => page.path.replace(/^\//, '')), ...problems.map(page => page.path.replace(/^\//, '')), ...sandboxes.map(page => page.path.replace(/^\//, '')), ...hosts.map(page => page.path.replace(/^\//, '')), embed.dir]
 console.log(`demo production dist static routes ok: ${staticRoutes.join(', ')}`)
-
-function copySummary() {
-  const summary = join(demoRoot, 'src', 'generated', 'summary.json')
-  mkdirSync(join(dist, 'metrics'), { recursive: true })
-  copyFileSync(summary, join(dist, 'metrics', 'summary.json'))
-}
 
 function copyPublicAssets() {
   const publicDir = join(demoRoot, 'public')

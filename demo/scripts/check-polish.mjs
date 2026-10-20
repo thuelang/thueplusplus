@@ -10,28 +10,20 @@ const DEV = process.env.POLISH_DEV ?? 'http://127.0.0.1:5173'
 
 const ROUTES = [
   '/',
-  '/install',
-  '/install/go',
-  '/install/python',
-  '/install/js',
-  '/install/wasm',
-  '/install/rust',
-  '/install/cpp',
-  '/install/ruby',
-  '/install/csharp',
-  '/install/java',
-  '/docs',
-  '/docs/guides',
-  '/docs/language',
+  '/sandboxes',
+  '/sandboxes/forth',
+  '/sandboxes/expr',
   '/problems',
-  '/problems/hello-world',
-  '/problems/hello-world/direct',
+  '/problems/factorial',
+  '/install',
+  '/docs',
+  '/docs/go/install',
+  '/docs/go/api',
+  '/docs/go/examples',
+  '/embed',
   '/playground',
-  '/contribute',
   '/projects',
   '/metrics',
-  '/autoresearch',
-  '/rulesets/direct',
   '/no-such-page',
 ]
 
@@ -446,7 +438,7 @@ async function visitRoutes(collectErrors) {
         for (const path of ROUTES) {
           errors.length = 0
           await page.goto(`${DEV}${path}`, { waitUntil: 'domcontentloaded', timeout: 30000 })
-          await page.waitForTimeout(path === '/' || path === '/playground' ? 700 : 200)
+          await page.waitForTimeout(path === '/' || path === '/sandboxes/forth' ? 700 : 200)
           if (!collectErrors) {
             const layout = await page.evaluate(() => ({
               scroll: document.documentElement.scrollWidth,

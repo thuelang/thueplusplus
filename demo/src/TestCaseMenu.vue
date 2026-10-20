@@ -82,7 +82,7 @@ const curatedGroups: CuratedGroup[] = [
         manifestPath: 'examples/mid/tests/lookup.toml',
         caseName: 'hit binds value',
         label: 'Mid lookup',
-        description: 'Uses ::| to fill a captured key and read its value from anywhere in the state.',
+        description: 'Dynamic replacement fills a captured key and reads its value from anywhere in the state.',
       },
     ],
   },

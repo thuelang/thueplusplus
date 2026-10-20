@@ -4,18 +4,13 @@ export interface SiteLink {
 }
 
 export const headerLinks: SiteLink[] = [
+  { title: 'Sandboxes', to: '/sandboxes' },
+  { title: 'Problems', to: '/problems' },
   { title: 'Install', to: '/install' },
   { title: 'Docs', to: '/docs' },
-  { title: 'Leaderboard', to: '/problems' },
-  { title: 'Contribute', to: '/contribute' },
 ]
 
-export const footerLinks: SiteLink[] = [
-  { title: 'Playground', to: '/playground' },
-  { title: 'Projects', to: '/projects' },
-  { title: 'Metrics', to: '/metrics' },
-  { title: 'Autoresearch prompt', to: '/autoresearch' },
-]
+export const footerLinks: SiteLink[] = []
 
 export function headerLinkCurrent(path: string, to: string): boolean {
   return path === to || path.startsWith(`${to}/`)

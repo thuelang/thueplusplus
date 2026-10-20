@@ -47,7 +47,7 @@ export default defineConfig({
     setupFiles: ['./src/test-setup.ts'],
     server: {
       deps: {
-        inline: ['@unovis/ts', '@unovis/vue', '@juggle/resize-observer'],
+        inline: ['@juggle/resize-observer'],
       },
     },
   },

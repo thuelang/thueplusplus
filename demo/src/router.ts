@@ -9,47 +9,34 @@ declare module 'vue-router' {
     robots?: string
   }
 }
-import { problemRouteMeta, rulesetRouteMeta, solutionRouteMeta } from './catalog'
-import ContributePage from './pages/ContributePage.vue'
+import { problemRouteMeta, sandboxById } from './catalog'
 import DocsPage from './pages/DocsPage.vue'
 import EmbedPage from './pages/EmbedPage.vue'
 import HomePage from './pages/HomePage.vue'
+import HostDocPage from './pages/HostDocPage.vue'
 import InstallPage from './pages/InstallPage.vue'
-import InstallPlatformPage from './pages/InstallPlatformPage.vue'
-import LearnPage from './pages/LearnPage.vue'
-import MetricsPage from './pages/MetricsPage.vue'
-import PlaygroundPage from './PlaygroundPage.vue'
-import PromptPage from './pages/PromptPage.vue'
-import ProjectsPage from './pages/ProjectsPage.vue'
-import ReferencePage from './pages/ReferencePage.vue'
 import NotFoundPage from './pages/NotFoundPage.vue'
 import ProblemPage from './pages/ProblemPage.vue'
 import ProblemsPage from './pages/ProblemsPage.vue'
-import RulesetPage from './pages/RulesetPage.vue'
-import SolutionPage from './pages/SolutionPage.vue'
+import SandboxPage from './pages/SandboxPage.vue'
+import SandboxesPage from './pages/SandboxesPage.vue'
+import { siteHosts } from './hosts'
 import { pages } from './site'
 
 const shell = [
   { page: pages.home, component: HomePage },
-  { page: pages.docs, component: DocsPage },
-  { page: pages.guides, component: LearnPage },
-  { page: pages.language, component: ReferencePage },
-  { page: pages.install, component: InstallPage },
-  { page: pages.installGo, component: InstallPlatformPage },
-  { page: pages.installPython, component: InstallPlatformPage },
-  { page: pages.installJs, component: InstallPlatformPage },
-  { page: pages.installWasm, component: InstallPlatformPage },
-  { page: pages.installRust, component: InstallPlatformPage },
-  { page: pages.installCpp, component: InstallPlatformPage },
-  { page: pages.installRuby, component: InstallPlatformPage },
-  { page: pages.installCsharp, component: InstallPlatformPage },
-  { page: pages.installJava, component: InstallPlatformPage },
-  { page: pages.projects, component: ProjectsPage },
-  { page: pages.metrics, component: MetricsPage },
+  { page: pages.sandboxes, component: SandboxesPage },
   { page: pages.problems, component: ProblemsPage },
-  { page: pages.contribute, component: ContributePage },
-  { page: pages.prompt, component: PromptPage },
+  { page: pages.install, component: InstallPage },
+  { page: pages.docs, component: DocsPage },
 ]
+
+const missing = {
+  documentTitle: 'Page not found — Thue++',
+  description: 'That address is not on this site.',
+  canonical: 'https://thuelang.org/',
+  robots: 'noindex,follow',
+}
 
 export const routes: RouteRecordRaw[] = [
   ...shell.map(({ page, component }): RouteRecordRaw => ({
@@ -63,17 +50,6 @@ export const routes: RouteRecordRaw[] = [
     },
   })),
   {
-    path: pages.playground.path,
-    component: PlaygroundPage,
-    meta: {
-      layout: 'bare',
-      documentTitle: pages.playground.documentTitle,
-      description: pages.playground.description,
-      canonical: pages.playground.canonical,
-      robots: pages.playground.robots,
-    },
-  },
-  {
     path: '/embed',
     component: EmbedPage,
     meta: {
@@ -85,26 +61,22 @@ export const routes: RouteRecordRaw[] = [
     },
   },
   {
-    path: '/problems/:problemId/:solutionId',
-    component: SolutionPage,
+    path: '/sandboxes/:sandboxId',
+    component: SandboxPage,
   },
   {
     path: '/problems/:problemId',
     component: ProblemPage,
   },
   {
-    path: '/rulesets/:rulesetId',
-    component: RulesetPage,
+    path: '/docs/:hostId/:section',
+    component: HostDocPage,
   },
   {
     path: '/:pathMatch(.*)*',
+    name: 'not-found',
     component: NotFoundPage,
-    meta: {
-      documentTitle: 'Page not found — Thue++',
-      description: 'That address is not on this site.',
-      canonical: 'https://thuelang.org/',
-      robots: 'noindex,follow',
-    },
+    meta: missing,
   },
 ]
 
@@ -120,27 +92,43 @@ export function createAppRouter() {
   })
   router.beforeEach((to) => {
     const problemId = to.params.problemId
-    const solutionId = to.params.solutionId
-    if (typeof problemId === 'string' && typeof solutionId === 'string') {
-      const meta = solutionRouteMeta(problemId, solutionId)
-      to.meta.documentTitle = meta.documentTitle
-      to.meta.description = meta.description
-      to.meta.canonical = meta.canonical
-      to.meta.robots = meta.robots
-    } else if (typeof problemId === 'string') {
+    if (typeof problemId === 'string') {
       const meta = problemRouteMeta(problemId)
       to.meta.documentTitle = meta.documentTitle
       to.meta.description = meta.description
       to.meta.canonical = meta.canonical
       to.meta.robots = meta.robots
     }
-    const rulesetId = to.params.rulesetId
-    if (typeof rulesetId === 'string') {
-      const meta = rulesetRouteMeta(rulesetId)
-      to.meta.documentTitle = meta.documentTitle
-      to.meta.description = meta.description
-      to.meta.canonical = meta.canonical
-      to.meta.robots = meta.robots
+    const sandboxId = to.params.sandboxId
+    if (typeof sandboxId === 'string') {
+      const sandbox = sandboxById(sandboxId)
+      if (!sandbox) {
+        Object.assign(to.meta, missing)
+      } else if (sandbox.status === 'pending') {
+        to.meta.documentTitle = `Thue++ ${sandbox.name}`
+        to.meta.description = 'In progress.'
+        to.meta.canonical = `https://thuelang.org/sandboxes/${sandbox.id}`
+        to.meta.robots = 'index,follow'
+      } else {
+        to.meta.documentTitle = `Thue++ ${sandbox.name}`
+        to.meta.description = sandbox.description
+        to.meta.canonical = `https://thuelang.org/sandboxes/${sandbox.id}`
+        to.meta.robots = 'index,follow'
+      }
+    }
+    const hostId = to.params.hostId
+    const section = to.params.section
+    if (typeof hostId === 'string' && typeof section === 'string') {
+      const host = siteHosts.find(item => item.id === hostId)
+      const label = section === 'install' ? 'Install' : section === 'api' ? 'API' : section === 'examples' ? 'Examples' : ''
+      if (!host || !label) {
+        Object.assign(to.meta, missing)
+      } else {
+        to.meta.documentTitle = `Thue++ ${label} — ${host.title}`
+        to.meta.description = section === 'install' ? `Install the ${host.title} host.` : section === 'api' ? `The ${host.title} embedding API.` : `A ${host.title} library example.`
+        to.meta.canonical = `https://thuelang.org/docs/${host.id}/${section}`
+        to.meta.robots = 'index,follow'
+      }
     }
     if (to.path.length > 1 && to.path.endsWith('/')) {
       return { path: to.path.replace(/\/+$/, ''), query: to.query, hash: to.hash, replace: true }

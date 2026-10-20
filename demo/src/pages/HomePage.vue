@@ -1,16 +1,30 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { Button } from '@/components/ui/button'
-import ExplainerTrack from '@/components/explainers/ExplainerTrack.vue'
+import CostChart from '@/components/CostChart.vue'
 import SandboxScene from '@/components/SandboxScene.vue'
 import SiteFooter from '@/components/SiteFooter.vue'
-import { registryHosts, soonLanguages } from '@/hosts'
+import { catalog } from '@/catalog'
+import { authorName } from '@/catalog'
+import { problemTitle, sandboxBars } from '@/charts/series'
+import { formatCost } from '@/charts/cost'
+import { registryHosts, repositoryUrl, soonLanguages } from '@/hosts'
 import { beginRubble, type Rubble } from '@/sandbox/rubble'
 
 const ready = registryHosts
 const soon = soonLanguages
 const rubble = ref<Rubble | null>(null)
+const bars = sandboxBars()
+const common = catalog.sandboxCommon.map(id => ({ id, title: problemTitle(id) }))
+const improvements = computed(() => catalog.improvements)
+
+function sandboxLabel(id: string): string {
+  if (id === 'direct') return 'direct'
+  const sandbox = catalog.sandboxes.find(item => item.id === id)
+  if (!sandbox) throw new Error(`sandbox ${id} is not in the catalog`)
+  return sandbox.name
+}
 
 function onBreak(reduced: boolean): void {
   rubble.value?.restore(true)
@@ -54,10 +68,10 @@ onBeforeUnmount(() => {
                 <RouterLink to="/install" data-test="hero-install">install</RouterLink>
               </Button>
               <Button as-child size="lg" variant="outline" data-shard>
-                <RouterLink to="/playground">playground</RouterLink>
+                <RouterLink to="/sandboxes" data-test="hero-sandboxes">sandboxes</RouterLink>
               </Button>
               <Button as-child size="lg" variant="outline" data-shard>
-                <RouterLink to="/docs/guides">guides</RouterLink>
+                <RouterLink to="/problems" data-test="hero-problems">problems</RouterLink>
               </Button>
             </div>
           </div>
@@ -67,7 +81,31 @@ onBeforeUnmount(() => {
       <div class="page-screen-gap" aria-hidden="true" />
     </div>
 
-    <ExplainerTrack />
+    <div data-test="page-details" class="page-details flex w-full flex-col gap-10 pb-16">
+    <section id="sandboxes" data-test="featured-sandboxes" class="flex flex-col gap-4 px-4 sm:px-6 lg:px-14">
+      <h2 class="font-display text-[clamp(28px,4vw,40px)] leading-none font-extrabold tracking-[-0.04em]">Sandboxes</h2>
+      <p data-test="common-problems" class="font-mono text-[13px]">
+        <RouterLink v-for="(problem, index) in common" :key="problem.id" :to="`/problems/${problem.id}`" class="underline underline-offset-4">
+          <span v-if="index > 0">, </span>{{ problem.title }}
+        </RouterLink>
+      </p>
+      <CostChart v-if="bars.length" :bars="bars" :label="`Sandbox cost on ${common.map(problem => problem.title).join(', ')}`" />
+    </section>
+
+    <section v-if="improvements.length" id="improvements" data-test="improvements" class="flex flex-col gap-3 px-4 sm:px-6 lg:px-14">
+      <h2 class="font-display text-[clamp(28px,4vw,40px)] leading-none font-extrabold tracking-[-0.04em]">Improvements</h2>
+      <ul class="flex flex-col gap-2 font-mono text-[13px]">
+        <li v-for="(event, index) in improvements" :key="`${event.commit}-${event.kind}-${event.sandbox}-${event.problem}-${index}`" data-test="improvement">
+          <a class="underline underline-offset-4" :href="`${repositoryUrl}/commit/${event.commit}`" rel="noreferrer">{{ event.timestamp.slice(0, 10) }}</a>
+          {{ authorName(event.author) }}
+          <RouterLink v-if="event.problem" :to="`/problems/${event.problem}`" class="underline underline-offset-4">{{ problemTitle(event.problem) }}</RouterLink>
+          <RouterLink v-if="event.sandbox !== 'direct'" :to="`/sandboxes/${event.sandbox}`" class="underline underline-offset-4">{{ sandboxLabel(event.sandbox) }}</RouterLink>
+          <span v-else>direct</span>
+          {{ formatCost(event.before) }} → {{ formatCost(event.after) }}
+        </li>
+      </ul>
+    </section>
+    </div>
 
     <SiteFooter data-shard class="px-4 sm:px-6 lg:px-14" />
   </div>
