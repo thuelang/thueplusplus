@@ -15,7 +15,7 @@ module Thuelang
 
     def run(argv)
       if argv.empty?
-        warn "usage: thue <program> [--proc:<name> <command>]... [--input <state>] [options]"
+        warn "usage: thue <program> [--proc:<name> <command>]... [--line:<name> <text>]... [--input <state>] [options]"
         return 2
       end
 
@@ -25,6 +25,7 @@ module Thuelang
       metrics_path = nil
       resources_path = nil
       resource_out_path = nil
+      lines = []
       list_rules = false
       index = 1
       while index < argv.length
@@ -72,6 +73,13 @@ module Thuelang
           end
           interpreter.add_proc_binding(name, argv[index + 1])
           index += 2
+        elsif (name = arg.delete_prefix("--line:")) && arg.start_with?("--line:")
+          if index + 1 >= argv.length
+            warn "Error: --line:#{name} requires a text argument"
+            return 1
+          end
+          lines << [name, argv[index + 1]]
+          index += 2
         else
           warn "Error: Unknown argument: #{arg}"
           return 1
@@ -94,6 +102,7 @@ module Thuelang
           elsif resource_out_path
             raise "--resource-out requires --resources"
           end
+          lines.each { |name, text| interpreter.add_line_binding(name, text) }
           ran = true
           exit_code = interpreter.run
         end

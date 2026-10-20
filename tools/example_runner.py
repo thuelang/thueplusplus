@@ -103,7 +103,7 @@ EXPECT_KEYS = {
     "stderr_stripped",
     "stderr_contains",
 }
-BINDING_KEYS = {"procs", "thue"}
+BINDING_KEYS = {"procs", "thue", "lines"}
 
 
 def validate_expect(config_path: Path, scope: str, expect) -> None:
@@ -137,6 +137,9 @@ def validate_bindings(config_path: Path, scope: str, bindings) -> None:
             raise RuntimeError(f"{config_path} {scope}: unknown thue binding {name!r} key(s): {', '.join(unknown_spec)}")
         if not isinstance(spec.get("program"), str) or not spec["program"]:
             raise RuntimeError(f"{config_path} {scope}: thue binding {name!r} requires a program string")
+    for name, text in bindings.get("lines", {}).items():
+        if not isinstance(name, str) or not name or not isinstance(text, str) or "\n" in text or "\r" in text:
+            raise RuntimeError(f"{config_path} {scope}: line bindings must map non-empty names to strings without newlines")
 
 
 def validate_manifest(config_path: Path, config: dict) -> None:
@@ -240,6 +243,11 @@ def build_case_args(
         child = apply_explicit_limits([str(child_program)])
         command = " ".join(shlex.quote(part) for part in (*interpreter.argv, *child))
         args.extend([f"--proc:{name}", command])
+    lines = dict(case.get("bindings", {}).get("lines", {}))
+    if program.name == "expr.thue" and "env" not in lines:
+        lines["env"] = ""
+    for name, text in lines.items():
+        args.extend([f"--line:{name}", text])
     if "input" in case:
         args.extend(["--input", case["input"]])
     return args, bound_files
@@ -552,7 +560,7 @@ def build_interpreters(build_root: Path, hosts: tuple[str, ...] | None = None) -
     return interpreters
 
 
-LANG_DIRS = frozenset({"forth", "lisp", "basic"})
+LANG_DIRS = frozenset({"forth", "lisp", "basic", "expr"})
 # One case per core feature. Guest languages are not in this list.
 CORE_CASES: tuple[tuple[str, str | None], ...] = (
     ("examples/hello/tests/basic.toml", None),
@@ -607,7 +615,7 @@ def guest_work() -> list[tuple[Path, dict]]:
         for case in expand_cases(load_toml(config_path), config_path):
             work.append((config_path, case))
     if not work:
-        raise RuntimeError("guest tier found no Forth, Lisp, BASIC, or Brainfuck manifests")
+        raise RuntimeError("guest tier found no Forth, Lisp, BASIC, Expr, or Brainfuck manifests")
     return work
 
 
@@ -650,7 +658,8 @@ def run_work(
         return 0
     python_interpreter = next((interpreter for interpreter in interpreters if interpreter.name == "python"), None)
     if python_interpreter is None:
-        raise RuntimeError("rule coverage runs on the python host")
+        print("rule coverage: full tier owns this gate")
+        return 0
     check_rule_coverage(python_interpreter, coverage_by_program, has_success_by_program)
     return 0
 

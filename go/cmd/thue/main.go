@@ -24,6 +24,7 @@ func main() {
 	metricsPath := ""
 	resourcesPath := ""
 	resourceOutPath := ""
+	var lines []lineArg
 
 	for idx := 1; idx < len(args); {
 		arg := args[idx]
@@ -128,6 +129,14 @@ func main() {
 			}
 			interp.AddProcBinding(name, args[idx+1])
 			idx += 2
+		case strings.HasPrefix(arg, "--line:"):
+			name := strings.TrimPrefix(arg, "--line:")
+			if idx+1 >= len(args) {
+				fmt.Fprintf(os.Stderr, "Error: --line:%s requires a text argument\n", name)
+				os.Exit(1)
+			}
+			lines = append(lines, lineArg{name, args[idx+1]})
+			idx += 2
 		default:
 			fmt.Fprintf(os.Stderr, "Error: Unknown argument: %s\n", arg)
 			os.Exit(1)
@@ -158,6 +167,12 @@ func main() {
 	} else if resourceOutPath != "" {
 		fmt.Fprintln(os.Stderr, "Error: --resource-out requires --resources")
 		os.Exit(1)
+	}
+	for _, line := range lines {
+		if err := interp.AddLineBinding(line.name, line.text); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	}
 	code, err := interp.Run()
 	if interp.TraceEnabled {
@@ -204,8 +219,13 @@ func main() {
 	os.Exit(code)
 }
 
+type lineArg struct {
+	name string
+	text string
+}
+
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: thue <program> [--proc:<name> <command>]... [--input <state>] [options]")
+	fmt.Fprintln(os.Stderr, "usage: thue <program> [--proc:<name> <command>]... [--line:<name> <text>]... [--input <state>] [options]")
 }
 
 func writeCounts(path string, appliedSteps int, probes int) error {

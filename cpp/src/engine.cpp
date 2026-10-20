@@ -2389,6 +2389,25 @@ void Interpreter::AddProcBinding(const std::string& name, const std::string& com
   impl_->bindings[name] = std::move(binding);
 }
 
+void Interpreter::AddLineBinding(const std::string& name, const std::string& line) {
+  if (!IsName(name)) {
+    throw std::runtime_error("invalid resource \"" + name + "\"");
+  }
+  if (name == "stdin" || name == "stdout" || name == "stderr") {
+    throw std::runtime_error("resource " + name + " is reserved");
+  }
+  if (impl_->bindings.find(name) != impl_->bindings.end()) {
+    throw std::runtime_error("duplicate resource " + name);
+  }
+  if (line.find('\n') != std::string::npos || line.find('\r') != std::string::npos) {
+    throw std::runtime_error("resource " + name + " line contains a newline");
+  }
+  auto binding = std::make_unique<Binding>();
+  binding->name = name;
+  binding->script = std::make_unique<ScriptResource>(std::vector<std::string>{line}, true, false);
+  impl_->bindings[name] = std::move(binding);
+}
+
 void Interpreter::BindScripts(const std::map<std::string, std::vector<std::string>>& reads,
                               const std::vector<std::string>& writes) {
   std::map<std::string, int> write_set;

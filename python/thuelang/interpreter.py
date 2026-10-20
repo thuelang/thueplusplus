@@ -317,6 +317,20 @@ class ThueInterpreter:
         """Bind a symbolic name to a process command."""
         self.bindings[name] = Binding(name, True, command)
 
+    def add_line_binding(self, name: str, line: str) -> None:
+        """Bind one extra readable line. stdin, stdout, and stderr stay."""
+        if py_re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) is None:
+            raise RuntimeError(f"invalid resource {name!r}")
+        if name in {"stdin", "stdout", "stderr"}:
+            raise RuntimeError(f"resource {name} is reserved")
+        if name in self.bindings:
+            raise RuntimeError(f"duplicate resource {name}")
+        if "\n" in line or "\r" in line:
+            raise RuntimeError(f"resource {name} line contains a newline")
+        binding = Binding(name, False, name)
+        binding.lines = [line]
+        self.bindings[name] = binding
+
     def bind_scripts(self, reads: dict[str, list[str]], writes: list[str]) -> None:
         """Replace every binding with in-memory scripts. No process is started."""
         if not isinstance(reads, dict) or not isinstance(writes, list):

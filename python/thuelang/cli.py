@@ -52,7 +52,7 @@ def _write_metrics(path: str, metrics) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="thue++ interpreter",
-        usage="thue <program> [--proc:<name> <command>]... [--input <state>] [options]",
+        usage="thue <program> [--proc:<name> <command>]... [--line:<name> <text>]... [--input <state>] [options]",
     )
     parser.add_argument("program", help="Path to the thue++ program")
     parser.add_argument(
@@ -126,6 +126,7 @@ def main() -> None:
     )
 
     index = 0
+    lines: list[tuple[str, str]] = []
     while index < len(remaining):
         arg = remaining[index]
         if arg.startswith("--proc:"):
@@ -134,6 +135,13 @@ def main() -> None:
                 print(f"Error: --proc:{name} requires a command argument", file=sys.stderr)
                 sys.exit(1)
             interpreter.add_proc_binding(name, remaining[index + 1])
+            index += 2
+        elif arg.startswith("--line:"):
+            name = arg[len("--line:") :]
+            if index + 1 >= len(remaining):
+                print(f"Error: --line:{name} requires a text argument", file=sys.stderr)
+                sys.exit(1)
+            lines.append((name, remaining[index + 1]))
             index += 2
         else:
             print(f"Error: Unknown argument: {arg}", file=sys.stderr)
@@ -163,6 +171,8 @@ def main() -> None:
                 interpreter.bind_scripts(payload["reads"], payload["writes"])
             elif args.resource_out:
                 raise RuntimeError("--resource-out requires --resources")
+            for name, text in lines:
+                interpreter.add_line_binding(name, text)
             ran = True
             exit_code = interpreter.run()
     except LimitExceeded as exc:

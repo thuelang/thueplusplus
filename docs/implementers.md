@@ -27,6 +27,7 @@ Required flags, including the `--flag=value` form:
 | `--debug` | Optional diagnostic logging. Manifests do not compare debug text. |
 | `--trace` | Write one JSON object per trace event to stderr, before any `Error:` line. The object is specified in [host-api.md](host-api.md). |
 | `--proc:NAME COMMAND` | Bind resource `NAME` to a host process. The next argument is the command. This is the only subprocess opt-in. |
+| `--line:NAME TEXT` | Bind resource `NAME` to one readable line. `TEXT` is the line, without a newline. stdin, stdout, and stderr stay bound. A second read is EOF. A write fails. `NAME` is not `stdin`, `stdout`, or `stderr`. |
 | `--rule-coverage PATH` | Write TSV `source.thue:line<TAB>count` for applied rules. Required of the Python coverage oracle. |
 | `--counts PATH` | After a run, write `{"applied_steps": N, "probes": N}` JSON. `probes` is the eval count. `--list-rules` does not write it. |
 | `--metrics PATH` | After a run, write the shared counters JSON from [host-api.md](host-api.md). The keys, in order, are `cost`, `applied_steps`, `regex_evals`, `regex_matches`, `state_bytes`, `state_peak`, `rule_count`, `rule_chars`. `cost` is the ranking metric. `--list-rules` does not write it. |

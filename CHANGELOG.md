@@ -22,6 +22,7 @@ Versions are the Thue++ spec versions in `SPEC_VERSION`.
 
 ### Added
 
+- Expr, phases 0 and 1, in `langs/expr/expr.thue`. It reads an `expr` line and an `env` JSON object and writes one JSON value. `--line:NAME TEXT` binds one readable line on every host. An omitted `env` line in an expr manifest is an empty environment. Stderr names the failure in plain words and exits 2.
 - `lisp`, `forth`, and `basic` solutions for leap-year, greatest-common-divisor, and fizzbuzz. Each program reads the problem's cases the same way as hello-world and factorial, and prints the same stdout as `direct`. The site catalog skips a solution directory until `metric.json` is recorded, so these can land before the metrics job writes the cost.
 
 - A native JavaScript host in `js/`. The npm package stays `thuelang` and the command is `node js/src/cli.js`. The WebAssembly wrapper moved from `js/` to `wasm/` and publishes as `@thuelang/wasm` (`node wasm/src/cli.js`). The playground loads the native JavaScript host. The environment label is `js (node)`. `hosts.toml` registers `js` with `npm ci`. The metrics chart adds `--chart-9` for a ninth host series.

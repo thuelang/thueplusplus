@@ -50,6 +50,7 @@ stderr = "Error: Applied step limit (1) exceeded\n"
 | `allow_unlimited` | Boolean. Lets this one case pass `unlimited` for a limit flag. At most one case in a manifest may set it. |
 | `bindings.procs` | Map of resource name to a shell command. Each entry becomes `--proc:NAME COMMAND`. |
 | `bindings.thue` | Map of resource name to `{ program = "relative.thue" }`. The runner starts the same interpreter on that program and passes it as `--proc:NAME`. |
+| `bindings.lines` | Map of resource name to one line of text, without a newline. Each entry becomes `--line:NAME TEXT`. The line is readable once. For `langs/expr/expr.thue`, an omitted `env` line is passed as an empty line. |
 | `expect` | Required. See below. |
 
 Unknown keys are an error. A proc name and command must both be non-empty strings. A thue binding must contain only `program`.
@@ -75,7 +76,7 @@ For each case the runner builds:
 ```text
 timeout -k 1 <backstop> <interpreter> <program> <args...>
     [--max-evals 10000] [--max-steps 1000000] [--max-state-bytes 8388608]
-    [--rule-coverage <file>] [--proc:NAME <command>...] [--input <state>]
+    [--rule-coverage <file>] [--proc:NAME <command>...] [--line:NAME <text>...] [--input <state>]
 ```
 
 Each missing limit flag is added. A flag the manifest already set is left alone. `unlimited` is rejected unless that case sets `allow_unlimited = true`, and only one case in the manifest may do so. The same three flags are added to a `bindings.thue` child. `--rule-coverage` is added only for the Python interpreter; that file is the rule-coverage oracle. Other implementations are not asked to write coverage, but their observable results must match Python.

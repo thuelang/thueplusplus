@@ -40,6 +40,8 @@ A `::<` read that exceeds its timeout exits `13` with `ERR:resource:NAME:timeout
 
 ## Scripted resources
 
+`--line:NAME TEXT` binds one extra readable line and leaves stdin, stdout, and stderr in place. `TEXT` must not contain a newline. The name is an identifier and is not `stdin`, `stdout`, or `stderr`. A second read is `EOF before newline`. A write fails with `write requires process or output stream binding`.
+
 `--resources FILE` replaces stdin, stdout, and stderr with one in-memory resource set. The file is JSON: `reads` maps a name to the lines that resource serves, without newlines, and `writes` names the resources whose output is recorded. A name in both is readable and writable. The host binds only those names. It does not start a process for them.
 
 `--resource-out FILE` writes one JSON object, the text recorded for each writable resource. The process exit code is still the process exit code. `--resource-out` without `--resources` is an error. Omitting both flags keeps the real stdin, stdout, and stderr streams.

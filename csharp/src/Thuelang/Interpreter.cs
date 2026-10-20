@@ -140,6 +140,23 @@ public sealed class Interpreter : IDisposable
         bindings[name] = new Binding { Kind = BindKind.Process, Process = new ProcessResource(command) };
     }
 
+    public void AddLineBinding(string name, string line)
+    {
+        if (!Builtin.IsName(name))
+            throw new ThueException($"invalid resource {Limits.GoQuote(name)}");
+        if (name is "stdin" or "stdout" or "stderr")
+            throw new ThueException($"resource {name} is reserved");
+        if (bindings.ContainsKey(name))
+            throw new ThueException($"duplicate resource {name}");
+        if (line.Contains('\n') || line.Contains('\r'))
+            throw new ThueException($"resource {name} line contains a newline");
+        bindings[name] = new Binding
+        {
+            Kind = BindKind.Script,
+            Script = new ScriptResource(new List<string> { line }, true, false),
+        };
+    }
+
     public void BindScripts(IReadOnlyDictionary<string, IReadOnlyList<string>> reads, IReadOnlyList<string> writes)
     {
         var writeSet = new HashSet<string>(StringComparer.Ordinal);

@@ -17,7 +17,7 @@ public final class Cli {
 
     public static void main(String[] args) {
         if (args.length == 0) {
-            System.err.println("usage: thue <program> [--proc:<name> <command>]... [--input <state>] [options]");
+            System.err.println("usage: thue <program> [--proc:<name> <command>]... [--line:<name> <text>]... [--input <state>] [options]");
             System.exit(2);
         }
         Interpreter interp = new Interpreter();
@@ -29,6 +29,7 @@ public final class Cli {
         String resourcesPath = "";
         String resourceOutPath = "";
         boolean listRules = false;
+        List<String[]> lines = new ArrayList<>();
 
         for (int idx = 1; idx < args.length; ) {
             String arg = args[idx];
@@ -79,6 +80,14 @@ public final class Cli {
                 }
                 interp.addProcBinding(name, args[idx + 1]);
                 idx += 2;
+            } else if (arg.startsWith("--line:")) {
+                String name = arg.substring("--line:".length());
+                if (idx + 1 >= args.length) {
+                    System.err.println("Error: --line:" + name + " requires a text argument");
+                    System.exit(1);
+                }
+                lines.add(new String[] {name, args[idx + 1]});
+                idx += 2;
             } else {
                 System.err.println("Error: Unknown argument: " + arg);
                 System.exit(1);
@@ -118,6 +127,15 @@ public final class Cli {
                 }
             } else if (!resourceOutPath.isEmpty()) {
                 System.err.println("Error: --resource-out requires --resources");
+                interp.cleanup();
+                System.exit(1);
+            }
+            try {
+                for (String[] line : lines) {
+                    interp.addLineBinding(line[0], line[1]);
+                }
+            } catch (ThueException exc) {
+                System.err.println("Error: " + exc.getMessage());
                 interp.cleanup();
                 System.exit(1);
             }

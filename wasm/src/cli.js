@@ -49,6 +49,9 @@ async function main() {
         close: () => {},
       }
     }
+    for (const line of options.lines) {
+      resources[line.name] = lineResource(line.name, line.text, resources)
+    }
     const runOptions = {
       sourcePath: options.program,
       sourceText,
@@ -85,10 +88,10 @@ async function main() {
 
 function parseArgs(argv) {
   if (argv.length === 0) {
-    process.stderr.write('usage: thue <program> [--proc:<name> <command>]... [--input <state>] [options]\n')
+    process.stderr.write('usage: thue <program> [--proc:<name> <command>]... [--line:<name> <text>]... [--input <state>] [options]\n')
     process.exit(2)
   }
-  const options = { program: resolve(argv[0]), procs: [], debug: false, listRules: false }
+  const options = { program: resolve(argv[0]), procs: [], lines: [], debug: false, listRules: false }
   for (let index = 1; index < argv.length;) {
     const arg = argv[index]
     if (arg === '--debug') {
@@ -135,6 +138,14 @@ function parseArgs(argv) {
       }
       options.procs.push({ name, command: argv[index + 1] })
       index += 2
+    } else if (arg.startsWith('--line:')) {
+      const name = arg.slice('--line:'.length)
+      if (index + 1 >= argv.length) {
+        process.stderr.write(`Error: --line:${name} requires a text argument\n`)
+        process.exit(1)
+      }
+      options.lines.push({ name, text: argv[index + 1] })
+      index += 2
     } else {
       process.stderr.write(`Error: Unknown argument: ${arg}\n`)
       process.exit(1)
@@ -160,6 +171,24 @@ function writeMetrics(path, result) {
     payload[key] = metrics[key]
   }
   writeFileSync(path, `${JSON.stringify(payload)}\n`)
+}
+
+function lineResource(name, text, resources) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new Error(`invalid resource ${JSON.stringify(name)}`)
+  if (name === 'stdin' || name === 'stdout' || name === 'stderr') throw new Error(`resource ${name} is reserved`)
+  if (Object.prototype.hasOwnProperty.call(resources, name)) throw new Error(`duplicate resource ${name}`)
+  if (/[\r\n]/.test(text)) throw new Error(`resource ${name} line contains a newline`)
+  let index = 0
+  return {
+    readLine() {
+      if (index >= 1) return { error: 'EOF before newline' }
+      index += 1
+      return text
+    },
+    write() {
+      return { error: 'write requires process or output stream binding' }
+    },
+  }
 }
 
 function loadResourceFile(path) {

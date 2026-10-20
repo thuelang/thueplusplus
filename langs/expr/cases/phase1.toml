@@ -1,0 +1,2306 @@
+program = "../expr.thue"
+timeout = 60
+args = ["--max-evals", "2000000", "--max-steps", "2000000"]
+
+[[case]]
+name = "028 1-c-2"
+
+[case.bindings.lines]
+expr = "1 /*c*/ + 2"
+
+[case.expect]
+exit_code = 0
+stdout = "3\n"
+stderr = ""
+
+[[case]]
+name = "032 0x10"
+
+[case.bindings.lines]
+expr = "0x10"
+
+[case.expect]
+exit_code = 0
+stdout = "16\n"
+stderr = ""
+
+[[case]]
+name = "033 0xabcdef"
+
+[case.bindings.lines]
+expr = "0xabcdef"
+
+[case.expect]
+exit_code = 0
+stdout = "11259375\n"
+stderr = ""
+
+[[case]]
+name = "034 0xABCDEF"
+
+[case.bindings.lines]
+expr = "0xABCDEF"
+
+[case.expect]
+exit_code = 0
+stdout = "11259375\n"
+stderr = ""
+
+[[case]]
+name = "035 0x1-0"
+
+[case.bindings.lines]
+expr = "0x1_0"
+
+[case.expect]
+exit_code = 0
+stdout = "16\n"
+stderr = ""
+
+[[case]]
+name = "036 0b1010"
+
+[case.bindings.lines]
+expr = "0b1010"
+
+[case.expect]
+exit_code = 0
+stdout = "10\n"
+stderr = ""
+
+[[case]]
+name = "037 0b0"
+
+[case.bindings.lines]
+expr = "0b0"
+
+[case.expect]
+exit_code = 0
+stdout = "0\n"
+stderr = ""
+
+[[case]]
+name = "038 0o10"
+
+[case.bindings.lines]
+expr = "0o10"
+
+[case.expect]
+exit_code = 0
+stdout = "8\n"
+stderr = ""
+
+[[case]]
+name = "039 0o7"
+
+[case.bindings.lines]
+expr = "0o7"
+
+[case.expect]
+exit_code = 0
+stdout = "7\n"
+stderr = ""
+
+[[case]]
+name = "040 0x"
+
+[case.bindings.lines]
+expr = "0x"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: bad hex literal"
+
+[[case]]
+name = "041 0b2"
+
+[case.bindings.lines]
+expr = "0b2"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: bad binary literal"
+
+[[case]]
+name = "042 0o8"
+
+[case.bindings.lines]
+expr = "0o8"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: bad octal literal"
+
+[[case]]
+name = "043 1-5"
+
+[case.bindings.lines]
+expr = "1.5"
+
+[case.expect]
+exit_code = 0
+stdout = "1.5\n"
+stderr = ""
+
+[[case]]
+name = "044 5"
+
+[case.bindings.lines]
+expr = ".5"
+
+[case.expect]
+exit_code = 0
+stdout = "0.5\n"
+stderr = ""
+
+[[case]]
+name = "045 1"
+
+[case.bindings.lines]
+expr = "1."
+
+[case.expect]
+exit_code = 0
+stdout = "1\n"
+stderr = ""
+
+[[case]]
+name = "046 1e2"
+
+[case.bindings.lines]
+expr = "1e2"
+
+[case.expect]
+exit_code = 0
+stdout = "100\n"
+stderr = ""
+
+[[case]]
+name = "047 1e-2"
+
+[case.bindings.lines]
+expr = "1e-2"
+
+[case.expect]
+exit_code = 0
+stdout = "0.01\n"
+stderr = ""
+
+[[case]]
+name = "048 1e-2"
+
+[case.bindings.lines]
+expr = "1e+2"
+
+[case.expect]
+exit_code = 0
+stdout = "100\n"
+stderr = ""
+
+[[case]]
+name = "049 1-5e1"
+
+[case.bindings.lines]
+expr = "1.5e1"
+
+[case.expect]
+exit_code = 0
+stdout = "15\n"
+stderr = ""
+
+[[case]]
+name = "050 1-2-3"
+
+[case.bindings.lines]
+expr = "1.2_3"
+
+[case.expect]
+exit_code = 0
+stdout = "1.23\n"
+stderr = ""
+
+[[case]]
+name = "051 1e"
+
+[case.bindings.lines]
+expr = "1e"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected token"
+
+[[case]]
+name = "056 true"
+
+[case.bindings.lines]
+expr = "true"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "057 false"
+
+[case.bindings.lines]
+expr = "false"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "058 nil"
+
+[case.bindings.lines]
+expr = "nil"
+
+[case.expect]
+exit_code = 0
+stdout = "null\n"
+stderr = ""
+
+[[case]]
+name = "059 true"
+
+[case.bindings.lines]
+expr = "!true"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "060 false"
+
+[case.bindings.lines]
+expr = "!false"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "061 not-false"
+
+[case.bindings.lines]
+expr = "not false"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "062 not-not-true"
+
+[case.bindings.lines]
+expr = "not not true"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "063 not-1"
+
+[case.bindings.lines]
+expr = "not 1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot apply not to int"
+
+[[case]]
+name = "064 true"
+
+[case.bindings.lines]
+expr = "+true"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot apply unary plus to bool"
+
+[[case]]
+name = "065 nil"
+
+[case.bindings.lines]
+expr = "-nil"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot negate nil"
+
+[[case]]
+name = "066 1-2"
+
+[case.bindings.lines]
+expr = "1<2"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "067 1-2"
+
+[case.bindings.lines]
+expr = "1>2"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "068 1-1"
+
+[case.bindings.lines]
+expr = "1<=1"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "069 2-2"
+
+[case.bindings.lines]
+expr = "2>=2"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "070 1-1"
+
+[case.bindings.lines]
+expr = "1==1"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "071 1-2"
+
+[case.bindings.lines]
+expr = "1!=2"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "072 1-1-0"
+
+[case.bindings.lines]
+expr = "1==1.0"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "073 1-2-3"
+
+[case.bindings.lines]
+expr = "1<2<3"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "074 1-2-true"
+
+[case.bindings.lines]
+expr = "1<2==true"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "075 1-1-1"
+
+[case.bindings.lines]
+expr = "1==1==1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot compare bool and int"
+
+[[case]]
+name = "076 1-1-true"
+
+[case.bindings.lines]
+expr = "1==1==true"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "077 nil-nil"
+
+[case.bindings.lines]
+expr = "nil==nil"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "078 nil-nil"
+
+[case.bindings.lines]
+expr = "nil!=nil"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "079 nil-0"
+
+[case.bindings.lines]
+expr = "nil==0"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "080 nil-false"
+
+[case.bindings.lines]
+expr = "nil==false"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "081 0-nil"
+
+[case.bindings.lines]
+expr = "0==nil"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "082 true-true"
+
+[case.bindings.lines]
+expr = "true==true"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "083 true-false"
+
+[case.bindings.lines]
+expr = "true==false"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "084 true-false"
+
+[case.bindings.lines]
+expr = "true!=false"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "085 true-true"
+
+[case.bindings.lines]
+expr = "true!=true"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "086 false-false"
+
+[case.bindings.lines]
+expr = "false==false"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "087 true-false"
+
+[case.bindings.lines]
+expr = "true && false"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "088 false-true"
+
+[case.bindings.lines]
+expr = "false && true"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "089 true-false"
+
+[case.bindings.lines]
+expr = "true || false"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "090 false-true"
+
+[case.bindings.lines]
+expr = "false || true"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "091 true-and-false"
+
+[case.bindings.lines]
+expr = "true and false"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "092 true-or-false"
+
+[case.bindings.lines]
+expr = "true or false"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "093 false-1-0-0"
+
+[case.bindings.lines]
+expr = "false && (1/0 < 0)"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "094 true-1-0-0"
+
+[case.bindings.lines]
+expr = "true || (1/0 < 0)"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "095 true-false-true"
+
+[case.bindings.lines]
+expr = "true && false || true"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "096 1-2"
+
+[case.bindings.lines]
+expr = "1 && 2"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: condition must be a bool"
+
+[[case]]
+name = "097 nil-1"
+
+[case.bindings.lines]
+expr = "nil ?? 1"
+
+[case.expect]
+exit_code = 0
+stdout = "1\n"
+stderr = ""
+
+[[case]]
+name = "098 0-1"
+
+[case.bindings.lines]
+expr = "0 ?? 1"
+
+[case.expect]
+exit_code = 0
+stdout = "0\n"
+stderr = ""
+
+[[case]]
+name = "099 false-true"
+
+[case.bindings.lines]
+expr = "false ?? true"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "100 nil-nil-2"
+
+[case.bindings.lines]
+expr = "nil ?? nil ?? 2"
+
+[case.expect]
+exit_code = 0
+stdout = "2\n"
+stderr = ""
+
+[[case]]
+name = "101 1-2-3"
+
+[case.bindings.lines]
+expr = "1 ?? 2 ?? 3"
+
+[case.expect]
+exit_code = 0
+stdout = "1\n"
+stderr = ""
+
+[[case]]
+name = "102 1-2-3"
+
+[case.bindings.lines]
+expr = "(1 ?? 2) + 3"
+
+[case.expect]
+exit_code = 0
+stdout = "4\n"
+stderr = ""
+
+[[case]]
+name = "103 1-2-3"
+
+[case.bindings.lines]
+expr = "1 ?? (2+3)"
+
+[case.expect]
+exit_code = 0
+stdout = "1\n"
+stderr = ""
+
+[[case]]
+name = "104 1-2-3"
+
+[case.bindings.lines]
+expr = "1 + 2 ?? 3"
+
+[case.expect]
+exit_code = 0
+stdout = "3\n"
+stderr = ""
+
+[[case]]
+name = "105 1-2-3"
+
+[case.bindings.lines]
+expr = "1 ?? 2 + 3"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: '??' cannot mix with that operator"
+
+[[case]]
+name = "106 1-2"
+
+[case.bindings.lines]
+expr = "1 ?? -2"
+
+[case.expect]
+exit_code = 0
+stdout = "1\n"
+stderr = ""
+
+[[case]]
+name = "107 true-2-3"
+
+[case.bindings.lines]
+expr = "true ? 2 : 3"
+
+[case.expect]
+exit_code = 0
+stdout = "2\n"
+stderr = ""
+
+[[case]]
+name = "108 false-1-2"
+
+[case.bindings.lines]
+expr = "false ? 1 : 2"
+
+[case.expect]
+exit_code = 0
+stdout = "2\n"
+stderr = ""
+
+[[case]]
+name = "109 true-false-1-2-3"
+
+[case.bindings.lines]
+expr = "true ? false ? 1 : 2 : 3"
+
+[case.expect]
+exit_code = 0
+stdout = "2\n"
+stderr = ""
+
+[[case]]
+name = "110 true-4"
+
+[case.bindings.lines]
+expr = "true ?: 4"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "111 false-4"
+
+[case.bindings.lines]
+expr = "false ?: 4"
+
+[case.expect]
+exit_code = 0
+stdout = "4\n"
+stderr = ""
+
+[[case]]
+name = "112 1-2-3"
+
+[case.bindings.lines]
+expr = "1 ? 2 : 3"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: condition must be a bool"
+
+[[case]]
+name = "120 4-0-5"
+
+[case.bindings.lines]
+expr = "4**0.5"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: exponent must be an integer"
+
+[[case]]
+name = "122 1-5-0-5"
+
+[case.bindings.lines]
+expr = "1.5+0.5"
+
+[case.expect]
+exit_code = 0
+stdout = "2\n"
+stderr = ""
+
+[[case]]
+name = "123 1-5-2"
+
+[case.bindings.lines]
+expr = "1.5*2"
+
+[case.expect]
+exit_code = 0
+stdout = "3\n"
+stderr = ""
+
+[[case]]
+name = "124 3-1-5"
+
+[case.bindings.lines]
+expr = "3-1.5"
+
+[case.expect]
+exit_code = 0
+stdout = "1.5\n"
+stderr = ""
+
+[[case]]
+name = "125 1-5-2"
+
+[case.bindings.lines]
+expr = "1.5<2"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "126 2-1-5"
+
+[case.bindings.lines]
+expr = "2>1.5"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "127 1-5-1-5"
+
+[case.bindings.lines]
+expr = "1.5<=1.5"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "128 1-5-1"
+
+[case.bindings.lines]
+expr = "1.5>=1"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "129 1-5-1-5"
+
+[case.bindings.lines]
+expr = "1.5==1.5"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "130 1-5-2"
+
+[case.bindings.lines]
+expr = "1.5!=2"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "131 1-5"
+
+[case.bindings.lines]
+expr = "-1.5"
+
+[case.expect]
+exit_code = 0
+stdout = "-1.5\n"
+stderr = ""
+
+[[case]]
+name = "132 1-5"
+
+[case.bindings.lines]
+expr = "+1.5"
+
+[case.expect]
+exit_code = 0
+stdout = "1.5\n"
+stderr = ""
+
+[[case]]
+name = "133 true-1"
+
+[case.bindings.lines]
+expr = "true + 1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot add bool and int"
+
+[[case]]
+name = "134 1-true"
+
+[case.bindings.lines]
+expr = "1 % true"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot modulo int and bool"
+
+[[case]]
+name = "135 foo"
+
+[case.bindings.lines]
+expr = "foo"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unknown_name: foo"
+
+[[case]]
+name = "136 bar-env"
+
+[case.bindings.lines]
+expr = "bar"
+env = "{\"foo\":1}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unknown_name: bar"
+
+[[case]]
+name = "141 and"
+
+[case.bindings.lines]
+expr = "and"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected 'and'"
+
+[[case]]
+name = "142 or"
+
+[case.bindings.lines]
+expr = "or"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected 'or'"
+
+[[case]]
+name = "143 punct"
+
+[case.bindings.lines]
+expr = ":"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected ':'"
+
+[[case]]
+name = "144 1-foo"
+
+[case.bindings.lines]
+expr = "1 foo"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected name"
+
+[[case]]
+name = "147 foo-env"
+
+[case.bindings.lines]
+expr = "foo"
+env = "[]"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_env: expected JSON object"
+
+[[case]]
+name = "148 foo-env"
+
+[case.bindings.lines]
+expr = "foo"
+env = "1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_env: expected JSON object"
+
+[[case]]
+name = "149 foo-env"
+
+[case.bindings.lines]
+expr = "foo"
+env = "{"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: malformed JSON"
+
+[[case]]
+name = "150 foo-env"
+
+[case.bindings.lines]
+expr = "foo"
+env = "{\"foo\"}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: malformed JSON"
+
+[[case]]
+name = "151 a-env"
+
+[case.bindings.lines]
+expr = "a"
+env = "{\"a\":1}"
+
+[case.expect]
+exit_code = 0
+stdout = "1\n"
+stderr = ""
+
+[[case]]
+name = "152 b-env"
+
+[case.bindings.lines]
+expr = "b"
+env = "{ \"a\" : 1 , \"b\" : 2 }"
+
+[case.expect]
+exit_code = 0
+stdout = "2\n"
+stderr = ""
+
+[[case]]
+name = "153 a-env"
+
+[case.bindings.lines]
+expr = "a"
+env = "{\t\"a\"\t:\t3\t}"
+
+[case.expect]
+exit_code = 0
+stdout = "3\n"
+stderr = ""
+
+[[case]]
+name = "154 name-env"
+
+[case.bindings.lines]
+expr = "name"
+env = "{\"name\":\"hi\"}"
+
+[case.expect]
+exit_code = 0
+stdout = "\"hi\"\n"
+stderr = ""
+
+[[case]]
+name = "155 name-env"
+
+[case.bindings.lines]
+expr = "name"
+env = "{\"name\":\"hi\\n\"}"
+
+[case.expect]
+exit_code = 0
+stdout = "\"hi\\n\"\n"
+stderr = ""
+
+[[case]]
+name = "156 s-env"
+
+[case.bindings.lines]
+expr = "s"
+env = "{\"s\":\"\\\"\\\\\\/\\b\\f\\n\\r\\t&<>\"}"
+
+[case.expect]
+exit_code = 0
+stdout = "\"\\\"\\\\/\\b\\f\\n\\r\\t\\u0026\\u003c\\u003e\"\n"
+stderr = ""
+
+[[case]]
+name = "157 s-env"
+
+[case.bindings.lines]
+expr = "s"
+env = "{\"s\":\"\\u0000\\u0001\\u000b\\u000e\\u000f\\u0010\\u001a\\u001b\\u001c\\u001d\\u001e\\u001f\"}"
+
+[case.expect]
+exit_code = 0
+stdout = "\"\\u0000\\u0001\\u000b\\u000e\\u000f\\u0010\\u001a\\u001b\\u001c\\u001d\\u001e\\u001f\"\n"
+stderr = ""
+
+[[case]]
+name = "158 s-env"
+
+[case.bindings.lines]
+expr = "s"
+env = "{\"s\":\"\\u0041\"}"
+
+[case.expect]
+exit_code = 0
+stdout = "\"A\"\n"
+stderr = ""
+
+[[case]]
+name = "159 s-env"
+
+[case.bindings.lines]
+expr = "s"
+env = "{\"s\":\"\\uABCD\\uEF01\"}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: malformed JSON"
+
+[[case]]
+name = "160 s-env"
+
+[case.bindings.lines]
+expr = "s"
+env = "{\"s\":\"\\u00A9\"}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: malformed JSON"
+
+[[case]]
+name = "161 flag-env"
+
+[case.bindings.lines]
+expr = "flag"
+env = "{\"flag\":true}"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "162 flag-env"
+
+[case.bindings.lines]
+expr = "flag"
+env = "{\"flag\":false}"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "163 flag-env"
+
+[case.bindings.lines]
+expr = "flag"
+env = "{\"flag\":null}"
+
+[case.expect]
+exit_code = 0
+stdout = "null\n"
+stderr = ""
+
+[[case]]
+name = "164 n-env"
+
+[case.bindings.lines]
+expr = "n"
+env = "{\"n\":1.5}"
+
+[case.expect]
+exit_code = 0
+stdout = "1.5\n"
+stderr = ""
+
+[[case]]
+name = "165 n-env"
+
+[case.bindings.lines]
+expr = "n"
+env = "{\"n\":-2}"
+
+[case.expect]
+exit_code = 0
+stdout = "-2\n"
+stderr = ""
+
+[[case]]
+name = "166 n-env"
+
+[case.bindings.lines]
+expr = "n"
+env = "{\"n\":1e2}"
+
+[case.expect]
+exit_code = 0
+stdout = "100\n"
+stderr = ""
+
+[[case]]
+name = "167 n-env"
+
+[case.bindings.lines]
+expr = "n"
+env = "{\"n\":1.25e-1}"
+
+[case.expect]
+exit_code = 0
+stdout = "0.125\n"
+stderr = ""
+
+[[case]]
+name = "168 xs-env"
+
+[case.bindings.lines]
+expr = "xs"
+env = "{\"xs\":[1,true,false,null]}"
+
+[case.expect]
+exit_code = 0
+stdout = "[1,true,false,null]\n"
+stderr = ""
+
+[[case]]
+name = "169 o-env"
+
+[case.bindings.lines]
+expr = "o"
+env = "{\"o\":{\"z\":1,\"a\":2}}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: nested object members are unsupported"
+
+[[case]]
+name = "170 o-env"
+
+[case.bindings.lines]
+expr = "o"
+env = "{\"o\":[]}"
+
+[case.expect]
+exit_code = 0
+stdout = "[]\n"
+stderr = ""
+
+[[case]]
+name = "171 o-env"
+
+[case.bindings.lines]
+expr = "o"
+env = "{\"o\":{}}"
+
+[case.expect]
+exit_code = 0
+stdout = "{}\n"
+stderr = ""
+
+[[case]]
+name = "172 n-env"
+
+[case.bindings.lines]
+expr = "n"
+env = "{\"n\":9223372036854775808}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: malformed JSON"
+
+[[case]]
+name = "173 1-0-1-0"
+
+[case.bindings.lines]
+expr = "1 < 0 < 1/0"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "174 1-2-1-0"
+
+[case.bindings.lines]
+expr = "1 < 2 < 1/0"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "division_by_zero"
+
+[[case]]
+name = "175 false-1-2"
+
+[case.bindings.lines]
+expr = "false ?: 1 ?: 2"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: condition must be a bool"
+
+[[case]]
+name = "176 a-b-env"
+
+[case.bindings.lines]
+expr = "a ?? b"
+env = "{\"b\":3}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unknown_name: a"
+
+[[case]]
+name = "177 foo-1-env"
+
+[case.bindings.lines]
+expr = "foo + 1"
+env = "{\"foo\":2}"
+
+[case.expect]
+exit_code = 0
+stdout = "3\n"
+stderr = ""
+
+[[case]]
+name = "178 foo-bar-env"
+
+[case.bindings.lines]
+expr = "foo < bar"
+env = "{\"foo\":1,\"bar\":2}"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "182 true"
+
+[case.bindings.lines]
+expr = "&& true"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected token"
+
+[[case]]
+name = "183 true-not-false"
+
+[case.bindings.lines]
+expr = "true not false"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected name"
+
+[[case]]
+name = "185 1-comment"
+
+[case.bindings.lines]
+expr = "1 // comment"
+
+[case.expect]
+exit_code = 0
+stdout = "1\n"
+stderr = ""
+
+[[case]]
+name = "186 0x"
+
+[case.bindings.lines]
+expr = "0x_"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected token"
+
+[[case]]
+name = "187 1e1-0"
+
+[case.bindings.lines]
+expr = "1e1_0"
+
+[case.expect]
+exit_code = 0
+stdout = "10000000000\n"
+stderr = ""
+
+[[case]]
+name = "188 5e1"
+
+[case.bindings.lines]
+expr = ".5e1"
+
+[case.expect]
+exit_code = 0
+stdout = "5\n"
+stderr = ""
+
+[[case]]
+name = "189 true-1-2-3"
+
+[case.bindings.lines]
+expr = "(true ? 1 : 2) + 3"
+
+[case.expect]
+exit_code = 0
+stdout = "4\n"
+stderr = ""
+
+[[case]]
+name = "190 1-true-2-3"
+
+[case.bindings.lines]
+expr = "1 + (true ? 2 : 3)"
+
+[case.expect]
+exit_code = 0
+stdout = "3\n"
+stderr = ""
+
+[[case]]
+name = "192 true-1-2"
+
+[case.bindings.lines]
+expr = "true ? -1 : 2"
+
+[case.expect]
+exit_code = 0
+stdout = "-1\n"
+stderr = ""
+
+[[case]]
+name = "193 true-1-2-3"
+
+[case.bindings.lines]
+expr = "true ? 1 + 2 : 3"
+
+[case.expect]
+exit_code = 0
+stdout = "3\n"
+stderr = ""
+
+[[case]]
+name = "194 true-1-2-3-false"
+
+[case.bindings.lines]
+expr = "true ? 1 < 2 < 3 : false"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "195 true-1"
+
+[case.bindings.lines]
+expr = "true ? 1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected token"
+
+[[case]]
+name = "196 true-1"
+
+[case.bindings.lines]
+expr = "(true ? 1)"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected token"
+
+[[case]]
+name = "198 1"
+
+[case.bindings.lines]
+expr = "1:"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected ':'"
+
+[[case]]
+name = "199 true-1-2"
+
+[case.bindings.lines]
+expr = "true ? (1 : 2"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected token"
+
+[[case]]
+name = "200 1"
+
+[case.bindings.lines]
+expr = "1<"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error: unexpected token"
+
+[[case]]
+name = "201 false-true"
+
+[case.bindings.lines]
+expr = "false == true"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "202 false-false"
+
+[case.bindings.lines]
+expr = "false != false"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "203 true-false"
+
+[case.bindings.lines]
+expr = "true != false"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "204 nil-0"
+
+[case.bindings.lines]
+expr = "nil != 0"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "205 1-nil"
+
+[case.bindings.lines]
+expr = "1 != nil"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "206 1-1"
+
+[case.bindings.lines]
+expr = "1 != 1"
+
+[case.expect]
+exit_code = 0
+stdout = "false\n"
+stderr = ""
+
+[[case]]
+name = "207 1-5-2-5"
+
+[case.bindings.lines]
+expr = "1.5 / 2.5"
+
+[case.expect]
+exit_code = 0
+stdout = "0.6\n"
+stderr = ""
+
+[[case]]
+name = "208 1-5-0"
+
+[case.bindings.lines]
+expr = "1.5 / 0"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "division_by_zero"
+
+[[case]]
+name = "209 true-1-5"
+
+[case.bindings.lines]
+expr = "true + 1.5"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot add bool and float"
+
+[[case]]
+name = "210 1-false"
+
+[case.bindings.lines]
+expr = "1 + false"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot add int and bool"
+
+[[case]]
+name = "211 1-nil"
+
+[case.bindings.lines]
+expr = "1 + nil"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot add int and nil"
+
+[[case]]
+name = "212 1-true"
+
+[case.bindings.lines]
+expr = "1 - true"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot subtract int and bool"
+
+[[case]]
+name = "213 1-true"
+
+[case.bindings.lines]
+expr = "1 * true"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot multiply int and bool"
+
+[[case]]
+name = "214 1-true"
+
+[case.bindings.lines]
+expr = "1 / true"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot divide int and bool"
+
+[[case]]
+name = "215 true-1"
+
+[case.bindings.lines]
+expr = "true ** 1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot exponentiate bool and int"
+
+[[case]]
+name = "216 1-5"
+
+[case.bindings.lines]
+expr = "!1.5"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot apply not to float"
+
+[[case]]
+name = "220 a-env"
+
+[case.bindings.lines]
+expr = "a"
+env = " {}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unknown_name: a"
+
+[[case]]
+name = "221 a-env"
+
+[case.bindings.lines]
+expr = "a"
+env = "\t{}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unknown_name: a"
+
+[[case]]
+name = "222 a-env"
+
+[case.bindings.lines]
+expr = "a"
+env = "{\"a\":1} "
+
+[case.expect]
+exit_code = 0
+stdout = "1\n"
+stderr = ""
+
+[[case]]
+name = "223 a-env"
+
+[case.bindings.lines]
+expr = "a"
+env = "{\"a\":1}\t"
+
+[case.expect]
+exit_code = 0
+stdout = "1\n"
+stderr = ""
+
+[[case]]
+name = "224 a-env"
+
+[case.bindings.lines]
+expr = "a"
+env = "{\"a\":1}x"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: malformed JSON"
+
+[[case]]
+name = "225 a-env"
+
+[case.bindings.lines]
+expr = "a"
+env = "{\"a\":"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: malformed JSON"
+
+[[case]]
+name = "226 a-env"
+
+[case.bindings.lines]
+expr = "a"
+env = "{\"a\":?}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: malformed JSON"
+
+[[case]]
+name = "227 b-env"
+
+[case.bindings.lines]
+expr = "b"
+env = "{\"a\":1,\t\"b\":2}"
+
+[case.expect]
+exit_code = 0
+stdout = "2\n"
+stderr = ""
+
+[[case]]
+name = "228 a-env"
+
+[case.bindings.lines]
+expr = "a"
+env = "{\"a\":1,}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: malformed JSON"
+
+[[case]]
+name = "229 a-env"
+
+[case.bindings.lines]
+expr = "a"
+env = "{\"a\":1 x}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: malformed JSON"
+
+[[case]]
+name = "230 o-env"
+
+[case.bindings.lines]
+expr = "o"
+env = "{ \"o\" : { \"a\" : 1 } }"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: nested object members are unsupported"
+
+[[case]]
+name = "231 xs-env"
+
+[case.bindings.lines]
+expr = "xs"
+env = "{\"xs\":[ 1 , 2 ]}"
+
+[case.expect]
+exit_code = 0
+stdout = "[1,2]\n"
+stderr = ""
+
+[[case]]
+name = "232 xs-env"
+
+[case.bindings.lines]
+expr = "xs"
+env = "{\"xs\":[1 ]}"
+
+[case.expect]
+exit_code = 0
+stdout = "[1]\n"
+stderr = ""
+
+[[case]]
+name = "233 xs-env"
+
+[case.bindings.lines]
+expr = "xs"
+env = "{\"xs\":[1\t]}"
+
+[case.expect]
+exit_code = 0
+stdout = "[1]\n"
+stderr = ""
+
+[[case]]
+name = "234 xs-env"
+
+[case.bindings.lines]
+expr = "xs"
+env = "{\"xs\":[1 x]}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: malformed JSON"
+
+[[case]]
+name = "235 xs-env"
+
+[case.bindings.lines]
+expr = "xs"
+env = "{\"xs\":[{}]}"
+
+[case.expect]
+exit_code = 0
+stdout = "[{}]\n"
+stderr = ""
+
+[[case]]
+name = "236 s-env"
+
+[case.bindings.lines]
+expr = "s"
+env = "{\"s\":\"\\u004A\"}"
+
+[case.expect]
+exit_code = 0
+stdout = "\"J\"\n"
+stderr = ""
+
+[[case]]
+name = "237 1-s-env"
+
+[case.bindings.lines]
+expr = "1 + s"
+env = "{\"s\":\"a\"}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot add int and string"
+
+[[case]]
+name = "238 1-o-env"
+
+[case.bindings.lines]
+expr = "1 + o"
+env = "{\"o\":{}}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot add int and value"
+
+[[case]]
+name = "239 s-env"
+
+[case.bindings.lines]
+expr = "-s"
+env = "{\"s\":\"a\"}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot negate string"
+
+[[case]]
+name = "240 o-env"
+
+[case.bindings.lines]
+expr = "!o"
+env = "{\"o\":[]}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot apply not to value"
+
+[[case]]
+name = "241 s-env"
+
+[case.bindings.lines]
+expr = "+s"
+env = "{\"s\":\"a\"}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot apply unary plus to string"
+
+[[case]]
+name = "242 false-true"
+
+[case.bindings.lines]
+expr = "false != true"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "243 1-5-true"
+
+[case.bindings.lines]
+expr = "1.5 + true"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot add float and bool"
+
+[[case]]
+name = "244 false-1"
+
+[case.bindings.lines]
+expr = "false + 1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot add bool and int"
+
+[[case]]
+name = "245 nil-1"
+
+[case.bindings.lines]
+expr = "nil + 1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot add nil and int"
+
+[[case]]
+name = "246 s-1-env"
+
+[case.bindings.lines]
+expr = "s + 1"
+env = "{\"s\":\"a\"}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot add string and int"
+
+[[case]]
+name = "247 o-1-env"
+
+[case.bindings.lines]
+expr = "o + 1"
+env = "{\"o\":{}}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot add value and int"
+
+[[case]]
+name = "248 false"
+
+[case.bindings.lines]
+expr = "+false"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot apply unary plus to bool"
+
+[[case]]
+name = "249 false"
+
+[case.bindings.lines]
+expr = "-false"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "type_error: cannot negate bool"
+
+[[case]]
+name = "250 s-env"
+
+[case.bindings.lines]
+expr = "s"
+env = "{\"s\":\""
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: malformed JSON"
+
+[[case]]
+name = "251 o-env"
+
+[case.bindings.lines]
+expr = "o"
+env = "{\"o\":{\t\"a\":1}}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: nested object members are unsupported"
+
+[[case]]
+name = "252 xs-env"
+
+[case.bindings.lines]
+expr = "xs"
+env = "{\"xs\":[\t1]}"
+
+[case.expect]
+exit_code = 0
+stdout = "[1]\n"
+stderr = ""
+
+[[case]]
+name = "253 xs-env"
+
+[case.bindings.lines]
+expr = "xs"
+env = "{\"xs\":[1,{\"a\":2}]}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: nested object members are unsupported"
+
+[[case]]
+name = "255 chain greater"
+
+[case.bindings.lines]
+expr = "3>2>1"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "256 chain less equal"
+
+[case.bindings.lines]
+expr = "1<=2<=3"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "257 chain greater equal"
+
+[case.bindings.lines]
+expr = "3>=2>=1"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "258 compare then and"
+
+[case.bindings.lines]
+expr = "1<2 && true"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "259 greater then and"
+
+[case.bindings.lines]
+expr = "2>1 && true"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "260 less equal then and"
+
+[case.bindings.lines]
+expr = "1<=2 && true"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "261 greater equal then and"
+
+[case.bindings.lines]
+expr = "2>=1 && true"
+
+[case.expect]
+exit_code = 0
+stdout = "true\n"
+stderr = ""
+
+[[case]]
+name = "254 strings inside arrays"
+
+[case.bindings.lines]
+expr = "b"
+env = "{\"b\":[\"hi\"]}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_json: strings inside arrays are unsupported"

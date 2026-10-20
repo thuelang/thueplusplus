@@ -29,7 +29,7 @@ fn run() -> Result<u8, u8> {
     if args.is_empty() {
         let _ = writeln!(
             io::stderr(),
-            "usage: thue <program> [--proc:<name> <command>]... [--input <state>] [options]"
+            "usage: thue <program> [--proc:<name> <command>]... [--line:<name> <text>]... [--input <state>] [options]"
         );
         return Err(2);
     }
@@ -40,6 +40,7 @@ fn run() -> Result<u8, u8> {
     let mut metrics_path = None;
     let mut resources_path = None;
     let mut resource_out_path = None;
+    let mut lines: Vec<(String, String)> = Vec::new();
     let mut list_rules = false;
     let mut index = 1;
     while index < args.len() {
@@ -80,6 +81,13 @@ fn run() -> Result<u8, u8> {
                 return Err(1);
             }
             interp.add_proc_binding(name, args[index + 1].clone());
+            index += 2;
+        } else if let Some(name) = arg.strip_prefix("--line:") {
+            if index + 1 >= args.len() {
+                let _ = writeln!(io::stderr(), "Error: --line:{name} requires a text argument");
+                return Err(1);
+            }
+            lines.push((name.to_string(), args[index + 1].clone()));
             index += 2;
         } else {
             let _ = writeln!(io::stderr(), "Error: Unknown argument: {arg}");
@@ -127,6 +135,13 @@ fn run() -> Result<u8, u8> {
             let _ = writeln!(io::stderr(), "Error: --resource-out requires --resources");
             interp.cleanup();
             return Err(1);
+        }
+        for (name, text) in &lines {
+            if let Err(err) = interp.add_line_binding(name, text) {
+                let _ = writeln!(io::stderr(), "Error: {err}");
+                interp.cleanup();
+                return Err(1);
+            }
         }
         ran = true;
         match interp.run() {
