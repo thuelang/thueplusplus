@@ -363,6 +363,10 @@ function build() {
       const folder = `problems/${problem}/solutions/${entry.name}`
       const meta = parseFrontmatter(readFileSync(join(repoRoot, folder, 'README.md'), 'utf8'), `${folder}/README.md`)
       const metricPath = `${folder}/metric.json`
+      if (!existsSync(join(repoRoot, metricPath))) {
+        console.log(`site: omit ${metricPath} (recorded when the metrics job commits it)`)
+        continue
+      }
       const historyResult = metricHistory(metricPath, boundary)
       if (historyResult.truncated) historyTruncated = true
       for (const commit of historyResult.omitted) omittedBoundary.add(commit)
