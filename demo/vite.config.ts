@@ -21,6 +21,7 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('node_modules/monaco-editor')) return 'editor-monaco'
           if (id.includes('node_modules/@vueuse') || id.includes('node_modules/reka-ui')) return 'ui-vendor'
+          if (id.includes('node_modules/echarts') || id.includes('node_modules/zrender') || id.includes('node_modules/vue-echarts')) return undefined
           if (id.includes('node_modules')) return 'vendor'
         },
       },

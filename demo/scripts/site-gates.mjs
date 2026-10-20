@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { bestSandboxMarks, chartLayout, formatCost, runningMin, sandboxSeriesFromCatalog, textWidth } from '../src/charts/geometry.mjs'
+import { bestSandboxMarks, sandboxSeriesFromCatalog, solutionLink, summedCostSeries } from '../src/charts/geometry.mjs'
 import { guideFor, readmeSection, sandboxGuides } from '../src/sandboxGuides.mjs'
 import { assertChartLines, commonProblems, costDrops, discoverSandboxIds, readGeneratedCatalog } from './build-site.mjs'
 
@@ -111,9 +111,9 @@ function common() {
     for (const id of data.sandboxCommon) {
       const problem = data.problems.find(item => item.id === id)
       const version = problem?.versions.find(item => item.id === sandbox.id)
-      const cost = version?.solutions[0]?.cost
-      if (!Number.isInteger(cost)) fail(`${sandbox.id} has no cost on ${id}`)
-      sum += cost
+      const costs = (version?.solutions ?? []).map(item => item.cost).filter(cost => Number.isInteger(cost))
+      if (costs.length === 0) fail(`${sandbox.id} has no cost on ${id}`)
+      sum += Math.min(...costs)
     }
     if (sum !== sandbox.total) fail(`${sandbox.id} total ${sandbox.total} != ${sum}`)
   }
@@ -127,30 +127,40 @@ function homeChart() {
   if (home.includes('sandboxBars') || chart.includes('<rect') || chart.includes('<canvas')) fail('home chart is still bars or a canvas')
   if (!home.includes('track="sum"') || !home.includes('sandboxCostSeries')) fail('home chart is not one line of summed cost per sandbox')
   const series = sandboxSeriesFromCatalog(data)
-  const expected = data.sandboxes.filter(item => item.total != null).map(item => item.id)
-  if (expected.length < 3) fail('fewer than three sandboxes have a common-problem sum')
+  const sandboxIds = data.sandboxes.filter(item => item.total != null).map(item => item.id)
+  if (sandboxIds.length < 3) fail('fewer than three sandboxes have a common-problem sum')
+  if (!series.some(item => item.id === 'direct' && item.label === 'Direct Thue')) fail('home chart omitted Direct Thue')
+  const expected = [...sandboxIds, 'direct']
   if (series.map(item => item.id).join(',') !== expected.join(',')) fail('chart lines are not the sandboxes with a total')
   for (const line of series) {
     const ruleset = data.rulesets.find(item => item.id === line.id)
-    const sandbox = data.sandboxes.find(item => item.id === line.id)
     if (!ruleset || line.color !== ruleset.color) fail(`${line.id} color does not match the problem page`)
-    if (line.points.length === 0 || line.points[line.points.length - 1].cost !== sandbox.total) fail(`${line.id} line does not end at the common-problem sum`)
+    if (line.points.length === 0) fail(`${line.id} line has no points`)
+    let sum = 0
+    for (const id of data.sandboxCommon) {
+      const problem = data.problems.find(item => item.id === id)
+      const version = problem?.versions.find(item => item.id === line.id)
+      const costs = (version?.solutions ?? []).map(item => item.cost).filter(cost => Number.isInteger(cost))
+      if (costs.length === 0) fail(`${line.id} has no cost on ${id}`)
+      sum += Math.min(...costs)
+    }
+    if (line.points[line.points.length - 1].cost !== sum) fail(`${line.id} line does not end at the best common-problem sum`)
+    const sandbox = data.sandboxes.find(item => item.id === line.id)
+    if (sandbox && line.points[line.points.length - 1].cost !== sandbox.total) fail(`${line.id} line does not end at the common-problem sum`)
   }
-  const layout = chartLayout(series, { width: 640, height: 280, track: 'sum', progress: 1 })
-  if (layout.labels.length === 0) fail('home chart has no time labels')
-  if (!chart.includes('data-test="cost-legend"') || !chart.includes('data-test="time-label"')) fail('home chart is missing a legend or time labels')
+  if (!chart.includes('vue-echarts') || !chart.includes("renderer: 'svg'") || !chart.includes('SVGRenderer') || chart.includes('<canvas') || chart.includes('CanvasRenderer')) fail('home chart is not vue-echarts SVG')
+  if (!chart.includes('data-test="cost-legend"') || !chart.includes('data-test="end-label"') || !chart.includes('data-test="y-log"') || !chart.includes('data-test="x-index"')) fail('home chart is missing a legend or a scale toggle')
   console.log('home-chart ok')
 }
 
 function homeScale() {
-  const series = sandboxSeriesFromCatalog(catalog())
-  const layout = chartLayout(series, { width: 640, height: 280, track: 'sum', progress: 1 })
-  if (layout.scale !== 'linear') fail('home chart left the linear axis')
-  const wide = chartLayout([
-    { id: 'a', label: 'A', color: '#000', points: [{ time: 1, cost: 10 }] },
-    { id: 'b', label: 'B', color: '#fff', points: [{ time: 1, cost: 1000 }] },
-  ], { width: 640, height: 280, track: 'sum', progress: 1 })
-  if (wide.scale !== 'linear') fail('a large ratio left the linear axis')
+  const chart = source('components/CostChart.vue')
+  const home = source('pages/HomePage.vue')
+  if (home.includes('chooseScale') || chart.includes('chooseScale')) fail('home still chooses a log scale')
+  if (!chart.includes("const scale = ref<'linear' | 'log'>('linear')")) fail('linear is not the default y scale')
+  if (!chart.includes("const axis = ref<'date' | 'index'>('date')")) fail('date is not the default x axis')
+  if (!chart.includes('data-test="y-log"') || !chart.includes('data-test="y-linear"') || !chart.includes('data-test="x-date"') || !chart.includes('data-test="x-index"')) fail('chart is missing a scale toggle')
+  if (!chart.includes('v-if="!card"')) fail('card charts still show the scale toggles')
   console.log('home-scale ok')
 }
 
@@ -171,7 +181,7 @@ function improvements() {
         return { commit: point.commit, cost: point.cost, time: Date.parse(commit.timestamp) }
       }).sort((left, right) => left.time - right.time || left.commit.localeCompare(right.commit))
       for (const drop of costDrops(points)) {
-        const event = data.improvements.find(item => item.kind === 'solution' && item.commit === drop.commit && item.problem === problem.id && item.sandbox === version.id && item.before === drop.before && item.after === drop.after)
+        const event = data.improvements.find(item => item.kind === 'solution' && item.timestamp === drop.commit && item.problem === problem.id && item.sandbox === version.id && item.before === drop.before && item.after === drop.after)
         if (!event) fail(`missing improvement ${problem.id} ${version.id} ${drop.before} -> ${drop.after}`)
         found += 1
       }
@@ -186,7 +196,9 @@ function improvements() {
 
 function featured() {
   const home = source('pages/HomePage.vue')
-  if (!home.includes('data-test="featured-sandboxes"') || !home.includes('catalog.sandboxCommon') || !home.includes('data-test="common-problems"')) fail('featured sandboxes are gone')
+  const copy = 'This is the cumulative cost of the problems that have solutions in all sandboxes. This allows us to compare sandbox implementations fairly. Cost is calculated by the cumulative size of the state per step of evaluation. Essentially total memory over time.'
+  if (!home.includes('data-test="featured-sandboxes"') || !home.includes('catalog.sandboxCommon') || !home.includes('Cost (lower is better)') || !home.includes(copy)) fail('home chart heading is not the cost comparison copy')
+  if (home.includes('data-test="common-problems"')) fail('home still lists the common problems under the chart')
   console.log('featured ok')
 }
 
@@ -273,7 +285,8 @@ function expr() {
 function problemsIndex() {
   const data = catalog()
   const page = source('pages/ProblemsPage.vue')
-  if (!page.includes('data-test="problem-card"') || !page.includes('SandboxMarks') || !page.includes('problem.description') || !page.includes('grid-cols-1')) fail('problem cards are missing a chart, a description, or a grid')
+  if (!page.includes('data-test="problem-card"') || !page.includes('<CostChart') || !page.includes(' card ') || !page.includes('problem.description') || !page.includes('grid-cols-1')) fail('problem cards are missing a chart, a description, or a grid')
+  if (page.includes('SandboxMarks')) fail('problem cards still use the mark list')
   if (data.problems.length === 0) fail('no problems')
   for (const problem of data.problems) {
     if (!problem.summary || !problem.description) fail(`${problem.id} has no description`)
@@ -302,9 +315,15 @@ function problemSeries(data, problem) {
 function problemChart() {
   const chart = source('components/CostChart.vue')
   const geometry = read('demo/src/charts/geometry.mjs')
-  if (!chart.includes('<svg') || !chart.includes('<circle') || !geometry.includes("track === 'best' ? runningMin") || !chart.includes("ease('out'")) fail('problem chart is not an inline SVG with a running minimum')
-  if (chart.includes('<canvas') || chart.includes('@unovis') || chart.includes('recharts')) fail('problem chart uses a canvas or a chart library')
-  if (!geometry.includes('export function separateDots') || !chart.includes('data-test="time-label"')) fail('problem chart does not separate dots or label time')
+  if (!chart.includes("from 'vue-echarts'") || !chart.includes("from 'echarts/core'") || !chart.includes("from 'echarts/charts'") || !chart.includes("from 'echarts/components'") || !chart.includes("from 'echarts/renderers'") || !chart.includes('SVGRenderer') || !chart.includes("renderer: 'svg'")) fail('problem chart is not a tree-shaken vue-echarts SVG chart')
+  if (chart.includes("from 'echarts'") || chart.includes('CanvasRenderer') || chart.includes('<canvas') || chart.includes('@unovis') || chart.includes('recharts')) fail('problem chart uses a canvas or the full echarts bundle')
+  if (!chart.includes('LineChart') || !chart.includes('GridComponent') || !chart.includes('TooltipComponent') || !chart.includes('LegendComponent')) fail('problem chart is missing a chart component')
+  if (!chart.includes('enterable: true') || !chart.includes("triggerOn: 'mousemove|click'")) fail('problem chart tooltip is not clickable')
+  if (geometry.includes('export function separateDots') || chart.includes('separateDots')) fail('dots are still pushed off the line')
+  if (!chart.includes('symbol: \'circle\'')) fail('symbols are not drawn on the line')
+  const home = source('pages/HomePage.vue')
+  const problemPage = source('pages/ProblemPage.vue')
+  if (!home.includes("lazyComponent('src/components/CostChart.vue'") || !problemPage.includes("lazyComponent('src/components/CostChart.vue'")) fail('the cost chart is not lazy')
   const data = catalog()
   const problem = data.problems.find(item => item.id === 'factorial') ?? data.problems[0]
   if (!problem) fail('no problem to chart')
@@ -312,18 +331,22 @@ function problemChart() {
   if (!series.some(item => item.id !== 'direct')) fail(`${problem.id} chart has no sandbox series`)
   const directLine = series.find(item => item.id === 'direct')
   if (!directLine || directLine.label !== 'Direct Thue' || directLine.points.length === 0) fail(`${problem.id} chart has no Direct Thue line`)
-  const layout = chartLayout(series, { width: 640, height: 280, track: 'best', progress: 1 })
-  if (layout.labels.length === 0) fail('problem chart has no time labels')
-  const dots = layout.series.flatMap(item => item.dots)
-  let close = 0
-  for (let i = 0; i < dots.length; i += 1) {
-    for (let j = i + 1; j < dots.length; j += 1) {
-      if (dots[i].id === dots[j].id) continue
-      const dist = Math.hypot(dots[i].x - dots[j].x, dots[j].y - dots[i].y)
-      if (dist < 9) close += 1
-    }
-  }
-  if (close !== 0) fail(`${close} problem-chart dots still overlap`)
+  const version = problem.versions.find(item => item.id === 'direct')
+  const point = version?.series.find(item => item.sha && item.solutionPath)
+  if (!point) fail(`${problem.id} direct point has no solution link`)
+  const link = solutionLink({
+    problemId: problem.id,
+    problem: problem.title,
+    label: 'Direct Thue',
+    cost: point.cost,
+    time: Date.parse(data.commits.find(item => item.commit === point.commit)?.timestamp ?? ''),
+    sha: point.sha,
+    author: point.author,
+    solutionPath: point.solutionPath,
+  })
+  if (!link.blobUrl.startsWith(`https://github.com/thuelang/thueplusplus/blob/${point.sha}/`)) fail('tooltip blob url is not at the commit')
+  const listed = spawnSync('git', ['cat-file', '-e', `${point.sha}:${point.solutionPath}`], { cwd: repoRoot })
+  if (listed.status !== 0) fail(`${point.solutionPath} is missing at ${point.sha}`)
   console.log('problem-chart ok')
 }
 
@@ -410,11 +433,11 @@ function charts() {
   const files = walk(demoSrc).filter(path => path.endsWith('.vue') || path.endsWith('.ts'))
   for (const path of files) {
     const text = readFileSync(path, 'utf8')
-    if (/@unovis|recharts|chart\.js|from 'd3'|from "d3"|visx/.test(text)) fail(`${path} imports a chart library`)
+    if (/@unovis|recharts|chart\.js|from ['"]d3['"]|visx|from ['"]echarts['"]|CanvasRenderer/.test(text)) fail(`${path} imports a chart library`)
   }
   const chart = source('components/CostChart.vue')
-  if (!chart.includes('<svg') || chart.includes('<canvas')) fail('CostChart is not inline SVG')
-  if (!chart.includes("from '@/rex/motion'")) fail('CostChart does not use the site motion')
+  if (!chart.includes("from 'vue-echarts'") || !chart.includes('SVGRenderer') || chart.includes('<canvas') || chart.includes('CanvasRenderer')) fail('CostChart is not vue-echarts SVG')
+  if (!chart.includes('prefers-reduced-motion') || !chart.includes('animation: !reduced.value')) fail('CostChart does not follow reduced motion')
   console.log('charts ok')
 }
 
@@ -512,7 +535,7 @@ function shots() {
 function pr() {
   const view = gh(['pr', 'view', '--json', 'body,mergeable,state,baseRefName'])
   const data = JSON.parse(view)
-  if (!/closes\s+#165/i.test(data.body ?? '')) fail('PR body does not close #165')
+  if (!/closes\s+#169/i.test(data.body ?? '')) fail('PR body does not close #169')
   if (data.baseRefName !== 'main') fail(`PR base is ${data.baseRefName}`)
   if (data.state !== 'MERGED' && data.mergeable !== 'MERGEABLE') fail(`PR mergeable is ${data.mergeable}`)
   console.log('pr ok')
@@ -660,90 +683,46 @@ function colors() {
   console.log('colors ok')
 }
 
-function shownCost(series, track) {
-  const ordered = [...series.points].sort((left, right) => left.time - right.time || left.cost - right.cost)
-  const shown = track === 'best' ? runningMin(ordered) : ordered
-  return shown[shown.length - 1]?.cost
-}
-
-function assertEnds(layout, series, track) {
-  if (layout.scale !== 'linear') fail('chart scale is not linear')
-  if (layout.ends.length !== series.length) fail('a line has no end label')
-  const stacked = [...layout.ends].sort((left, right) => left.y - right.y)
-  for (let index = 1; index < stacked.length; index += 1) {
-    if (stacked[index].y - stacked[index - 1].y < 14) fail('end labels collide')
-  }
-  for (const end of layout.ends) {
-    const item = series.find(seriesItem => seriesItem.id === end.id)
-    const cost = shownCost(item, track)
-    const text = `${item.label} ${formatCost(cost)}`
-    if (end.text !== text) fail(`end label ${end.text} is not ${text}`)
-  }
-  const dots = layout.series.flatMap(item => item.dots)
-  for (let left = 0; left < dots.length; left += 1) {
-    for (let right = left + 1; right < dots.length; right += 1) {
-      if (dots[left].id === dots[right].id) continue
-      if (Math.hypot(dots[left].x - dots[right].x, dots[left].y - dots[right].y) < 9) fail('dots that share a value still cover each other')
-    }
-  }
-}
-
 function labels() {
   const home = source('pages/HomePage.vue')
   const chart = source('components/CostChart.vue')
-  if (home.includes('chooseScale')) fail('home still chooses a log scale')
-  if (!home.includes('data-scale="linear"')) fail('home chart is not marked linear')
+  if (home.includes('chooseScale') || chart.includes('chooseScale')) fail('home still chooses a log scale')
+  if (!chart.includes("const scale = ref<'linear' | 'log'>('linear')")) fail('home chart is not marked linear')
+  if (!chart.includes('data-test="end-label"') || !chart.includes('data-test="cost-legend"')) fail('a line has no end label')
   if (chart.includes('Log scale.')) fail('chart still says log scale')
+  if (chart.includes('separateDots')) fail('dots are still pushed off the line')
+  const cheaper = summedCostSeries([
+    [{ time: 1, cost: 10, version: 'a' }, { time: 3, cost: 40, version: 'b' }],
+    [{ time: 2, cost: 5, version: 'c' }],
+  ], [1, 2, 3, 4])
+  if (cheaper.at(-1)?.cost !== 15) fail('the home sum added two versions of one problem')
+  const replaced = summedCostSeries([
+    [{ time: 1, cost: 10, version: 'a' }, { time: 3, cost: 40, version: 'a' }],
+    [{ time: 2, cost: 5, version: 'c' }],
+  ], [1, 2, 3])
+  if (replaced.at(-1)?.cost !== 45) fail('a remeasure did not replace that version')
   const data = catalog()
   const homeSeries = sandboxSeriesFromCatalog(data)
-  assertEnds(chartLayout(homeSeries, { width: 640, height: 280, track: 'sum', progress: 1 }), homeSeries, 'sum')
-  const factorial = data.problems.find(item => item.id === 'factorial')
-  if (!factorial) fail('factorial is missing')
-  const factorialSeries = problemSeries(data, factorial)
-  assertEnds(chartLayout(factorialSeries, { width: 640, height: 280, track: 'best', progress: 1 }), factorialSeries, 'best')
-  const spreadSeries = [
-    { id: 'low', label: 'Low', color: '#4c9dff', points: [{ time: 1, cost: 10 }, { time: 2, cost: 10 }] },
-    { id: 'high', label: 'High', color: '#ff5a36', points: [{ time: 1, cost: 1000 }, { time: 2, cost: 1000 }] },
-  ]
-  const spread = chartLayout(spreadSeries, { width: 640, height: 280, track: 'sum', progress: 1 })
-  if (spread.scale !== 'linear') fail('a hundred-fold gap left the linear axis')
-  let rejected = false
-  try {
-    chartLayout(spreadSeries, { width: 640, height: 280, scale: 'log' })
-  } catch {
-    rejected = true
-  }
-  if (!rejected) fail('chartLayout accepted a log scale')
+  if (!homeSeries.some(item => item.id === 'direct')) fail('home labels omitted Direct Thue')
   console.log('labels ok')
 }
 
-function assertInside(layout) {
-  for (const label of layout.labels) {
-    const half = textWidth(label.text) / 2
-    if (label.x - half < 0 || label.x + half > layout.width) fail(`time label ${label.text} is clipped`)
-  }
-  for (const end of layout.ends) {
-    if (end.x < 0 || end.x + textWidth(end.text) > layout.width) fail(`end label ${end.text} is clipped`)
-  }
-}
-
 function timeFit() {
-  const data = catalog()
-  const homeSeries = sandboxSeriesFromCatalog(data)
-  assertInside(chartLayout(homeSeries, { width: 640, height: 280, track: 'sum', progress: 1 }))
-  const factorial = data.problems.find(item => item.id === 'factorial')
-  const factorialSeries = problemSeries(data, factorial)
-  assertInside(chartLayout(factorialSeries, { width: 640, height: 280, track: 'best', progress: 1 }))
+  const chart = source('components/CostChart.vue')
+  if (!chart.includes('hideOverlap: true') || !chart.includes("outerBoundsContain: 'axisLabel'")) fail('axis labels can sit on top of each other')
   console.log('time-fit ok')
 }
 
 function cards() {
   const page = source('pages/ProblemsPage.vue')
-  const marksAt = page.indexOf('<SandboxMarks')
+  const marksAt = page.indexOf('<CostChart')
   const titleAt = page.indexOf('<h2')
   const descriptionAt = page.indexOf('problem.description')
   if (marksAt < 0 || titleAt < 0 || descriptionAt < 0 || !(marksAt < titleAt && titleAt < descriptionAt)) fail('card order is not chart, title, description')
-  if (page.includes('spark') || page.includes('CostChart')) fail('problem cards still use a time-series spark')
+  if (!page.includes(' card ') || page.includes('SandboxMarks')) fail('problem cards are not a small chart')
+  const chart = source('components/CostChart.vue')
+  if (!chart.includes('v-if="!card"') || !chart.includes("'card-chart'") || !chart.includes("'cost-chart'")) fail('card charts lost their chart')
+  if (!chart.includes('enterable: true')) fail('card charts have no hover tooltip')
   const data = catalog()
   let empty = 0
   for (const problem of data.problems) {
@@ -771,8 +750,10 @@ function cards() {
 
 function direct() {
   const home = source('pages/HomePage.vue')
-  if (!home.includes("event.sandbox !== 'direct'")) fail('home feed still lists direct')
+  if (home.includes("event.sandbox !== 'direct'")) fail('home feed still drops Direct Thue')
+  if (!home.includes("event.sandbox === 'direct'") || !home.includes('>Direct Thue</span>')) fail('home feed does not label Direct Thue')
   if (home.includes('>direct<')) fail('home renders direct as a sandbox name')
+  if (!home.includes('v-else') || !home.includes('/sandboxes/${event.sandbox}')) fail('sandbox improvements lost their page link')
   const series = source('charts/series.ts')
   if (series.includes("version.id !== 'direct'")) fail('problem charts still drop direct')
   if (!series.includes("'Direct Thue'")) fail('problem charts do not name Direct Thue')
