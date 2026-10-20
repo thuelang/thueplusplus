@@ -72,7 +72,7 @@ test('loading bar tracks bytes and stays hidden for a cached page', async ({ pag
     })
     observer.observe(element, { attributes: true, attributeFilter: ['data-state'] })
   })
-  await page.getByRole('link', { name: 'Factorial', exact: true }).click()
+  await page.getByTestId('problem-index').getByRole('link', { name: 'Factorial', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Factorial', level: 1 })).toBeVisible()
   expect(await page.evaluate(() => (window as unknown as { __barLeftIdle: boolean }).__barLeftIdle)).toBe(true)
   expect(await page.evaluate(() => (window as unknown as { __navHolds: unknown[] }).__navHolds.length)).toBe(holdsBefore)
