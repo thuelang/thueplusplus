@@ -54,12 +54,19 @@ describe('heroes', () => {
     for (const path of paths) {
       const wrapper = await mountPath(path)
       expect(wrapper.get('h1').text().length, path).toBeGreaterThan(0)
-      expect(wrapper.get('[data-test="page-summary"]').text().length, path).toBeGreaterThan(0)
+      const problemPage = path.startsWith('/problems/')
+      if (problemPage) {
+        expect(wrapper.find('[data-test="page-summary"]').exists(), path).toBe(false)
+        expect(wrapper.findAll('[data-test="problem-description"]'), path).toHaveLength(1)
+        expect(wrapper.get('[data-test="problem-description"]').text().length, path).toBeGreaterThan(0)
+      } else {
+        expect(wrapper.get('[data-test="page-summary"]').text().length, path).toBeGreaterThan(0)
+      }
       wrapper.get('[data-test="page-hero"]')
       wrapper.get('[data-test="page-details"]')
       const scene = wrapper.find('[data-test="rex-scene"]')
       const sandbox = wrapper.find('[data-test="sandbox-scene"]')
-      const sceneFree = path === '/sandboxes' || path === '/problems' || path.startsWith('/sandboxes/')
+      const sceneFree = path === '/sandboxes' || path === '/problems' || path.startsWith('/sandboxes/') || problemPage
       if (path === '/') {
         expect(sandbox.attributes('data-test')).toBe('sandbox-scene')
         expect(wrapper.get('[data-test="landing-languages"]').text()).toContain('Available in')

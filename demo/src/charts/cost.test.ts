@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { axisLabelPad, axisTicks, chooseScale, costY, formatCost, polylineLength, runningMin, separateDots, summedCostSeries, timeLabels, timeX } from './cost'
+import { axisLabelPad, axisTicks, chartLayout, chooseScale, costY, formatCost, polylineLength, runningMin, separateDots, summedCostSeries, textWidth, timeLabels, timeX } from './cost'
 
 describe('cost chart geometry', () => {
   it('keeps the minimum cost seen so far', () => {
@@ -29,6 +29,24 @@ describe('cost chart geometry', () => {
     expect(chooseScale([17391333, 125979265, 20973102])).toBe('linear')
     expect(chooseScale([10, 199])).toBe('linear')
     expect(chooseScale([10, 200])).toBe('log')
+  })
+
+  it('keeps a linear axis and names the latest cost when one line dwarfs another', () => {
+    const series = [
+      { id: 'low', label: 'Low', color: '#4c9dff', points: [{ time: 1_000, cost: 10 }, { time: 2_000, cost: 10 }] },
+      { id: 'high', label: 'High', color: '#ff5a36', points: [{ time: 1_000, cost: 1000 }, { time: 2_000, cost: 1000 }] },
+    ]
+    const layout = chartLayout(series, { width: 640, height: 280, track: 'sum', progress: 1 })
+    expect(layout.scale).toBe('linear')
+    expect(layout.ends.map(end => end.text).sort()).toEqual(['High 1,000', 'Low 10'])
+    const stacked = [...layout.ends].sort((left, right) => left.y - right.y)
+    expect(stacked[1].y - stacked[0].y).toBeGreaterThanOrEqual(14)
+    for (const label of layout.labels) {
+      const half = textWidth(label.text) / 2
+      expect(label.x - half).toBeGreaterThanOrEqual(0)
+      expect(label.x + half).toBeLessThanOrEqual(layout.width)
+    }
+    expect(() => chartLayout(series, { width: 640, height: 280, scale: 'log' })).toThrow(/linear/)
   })
 
   it('offsets dots that share a point and leaves separated dots alone', () => {

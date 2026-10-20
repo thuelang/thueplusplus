@@ -6,7 +6,18 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 const catalogPath = join(repoRoot, 'demo/src/generated/catalog.json')
 const summaryPath = join(repoRoot, 'demo/src/generated/summary.json')
-const CHARTS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--chart-6)', 'var(--chart-7)', 'var(--chart-8)', 'var(--chart-9)']
+const SANDBOX_COLORS = {
+  forth: 'var(--sandbox-forth)',
+  lisp: 'var(--sandbox-lisp)',
+  basic: 'var(--sandbox-basic)',
+  expr: 'var(--sandbox-expr)',
+}
+
+function chartColor(id) {
+  if (SANDBOX_COLORS[id]) return SANDBOX_COLORS[id]
+  if (id === 'direct') return 'var(--ash)'
+  throw new CatalogError(`${id} has no chart color`)
+}
 const SITE = 'https://thuelang.org'
 
 export class CatalogError extends Error {}
@@ -198,7 +209,7 @@ function rulesetOrder(present) {
   for (const id of [...present].sort()) {
     if (!ordered.includes(id)) ordered.push(id)
   }
-  if (ordered.length > CHARTS.length) throw new CatalogError(`rulesets need more than ${CHARTS.length} chart colors`)
+  for (const id of ordered) chartColor(id)
   return ordered
 }
 
@@ -515,7 +526,7 @@ function build() {
     }
   }
   const ordered = rulesetOrder(present)
-  const colors = Object.fromEntries(ordered.map((id, index) => [id, CHARTS[index]]))
+  const colors = Object.fromEntries(ordered.map(id => [id, chartColor(id)]))
   const names = Object.fromEntries(ordered.map(id => [id, id === 'direct' ? 'direct' : langName(id)]))
   const commits = []
   const seen = new Set()
@@ -632,7 +643,7 @@ function build() {
   const listed = sandboxes.map(sandbox => ({
     ...sandbox,
     total: sandboxTotals[sandbox.id] === undefined ? null : sandboxTotals[sandbox.id],
-    color: colors[sandbox.id] ?? null,
+    color: SANDBOX_COLORS[sandbox.id] ?? chartColor(sandbox.id),
   }))
   const improvementEvents = []
   for (const solution of solutions) {

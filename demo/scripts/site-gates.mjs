@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { chartLayout, chooseScale, sandboxSeriesFromCatalog } from '../src/charts/geometry.mjs'
+import { bestSandboxMarks, chartLayout, formatCost, runningMin, sandboxSeriesFromCatalog, textWidth } from '../src/charts/geometry.mjs'
 import { guideFor, readmeSection, sandboxGuides } from '../src/sandboxGuides.mjs'
 import { commonProblems, costDrops, discoverSandboxIds, readGeneratedCatalog } from './build-site.mjs'
 
@@ -42,6 +42,13 @@ const handlers = {
   shots,
   pr,
   production,
+  'rex-problem': rexProblem,
+  colors,
+  labels,
+  'time-fit': timeFit,
+  cards,
+  direct,
+  description,
 }
 
 const handler = handlers[name]
@@ -126,17 +133,13 @@ function homeChart() {
 
 function homeScale() {
   const series = sandboxSeriesFromCatalog(catalog())
-  const values = series.flatMap(line => line.points.map(point => point.cost))
-  const positive = values.filter(value => value > 0)
-  const ratio = Math.max(...positive) / Math.min(...positive)
-  const scale = chooseScale(values)
-  if (scale !== (ratio >= 20 ? 'log' : 'linear')) fail(`scale ${scale} does not follow ratio ${ratio}`)
-  const home = source('pages/HomePage.vue')
-  const chart = source('components/CostChart.vue')
-  if (!home.includes('chooseScale')) fail('home does not choose the scale from the costs')
-  if (!chart.includes('Log scale.')) fail('a log scale would be unlabeled')
   const layout = chartLayout(series, { width: 640, height: 280, track: 'sum', progress: 1 })
-  if (layout.scale !== scale) fail('drawn scale does not match the costs')
+  if (layout.scale !== 'linear') fail('home chart left the linear axis')
+  const wide = chartLayout([
+    { id: 'a', label: 'A', color: '#000', points: [{ time: 1, cost: 10 }] },
+    { id: 'b', label: 'B', color: '#fff', points: [{ time: 1, cost: 1000 }] },
+  ], { width: 640, height: 280, track: 'sum', progress: 1 })
+  if (wide.scale !== 'linear') fail('a large ratio left the linear axis')
   console.log('home-scale ok')
 }
 
@@ -259,7 +262,7 @@ function expr() {
 function problemsIndex() {
   const data = catalog()
   const page = source('pages/ProblemsPage.vue')
-  if (!page.includes('data-test="problem-card"') || !page.includes('<CostChart') || !page.includes('problem.description') || !page.includes('grid-cols-1')) fail('problem cards are missing a chart, a description, or a grid')
+  if (!page.includes('data-test="problem-card"') || !page.includes('SandboxMarks') || !page.includes('problem.description') || !page.includes('grid-cols-1')) fail('problem cards are missing a chart, a description, or a grid')
   if (data.problems.length === 0) fail('no problems')
   for (const problem of data.problems) {
     if (!problem.summary || !problem.description) fail(`${problem.id} has no description`)
@@ -291,8 +294,9 @@ function problemChart() {
   const data = catalog()
   const problem = data.problems.find(item => item.id === 'factorial') ?? data.problems[0]
   if (!problem) fail('no problem to chart')
-  const series = problemSeries(data, problem)
-  if (!series.some(item => item.id === 'direct')) fail(`${problem.id} chart has no direct series`)
+  const series = problemSeries(data, problem).filter(item => item.id !== 'direct')
+  if (series.length === 0) fail(`${problem.id} chart has no sandbox series`)
+  if (series.some(item => item.id === 'direct')) fail(`${problem.id} chart still draws direct`)
   const layout = chartLayout(series, { width: 640, height: 280, track: 'best', progress: 1 })
   if (layout.labels.length === 0) fail('problem chart has no time labels')
   const dots = layout.series.flatMap(item => item.dots)
@@ -467,7 +471,7 @@ function changelog() {
 
 function shots() {
   const root = '/opt/cursor/artifacts'
-  const pages = ['home', 'sandboxes', 'sandbox-lisp', 'sandbox-forth', 'sandbox-basic', 'sandbox-expr', 'problems', 'problem']
+  const pages = ['home', 'problems', 'problem']
   const themes = ['dark', 'light']
   const widths = ['390', '1440']
   for (const page of pages) {
@@ -492,7 +496,7 @@ function shots() {
 function pr() {
   const view = gh(['pr', 'view', '--json', 'body,mergeable,state,baseRefName'])
   const data = JSON.parse(view)
-  if (!/closes\s+#153/i.test(data.body ?? '')) fail('PR body does not close #153')
+  if (!/closes\s+#158/i.test(data.body ?? '')) fail('PR body does not close #158')
   if (data.baseRefName !== 'main') fail(`PR base is ${data.baseRefName}`)
   if (data.mergeable !== 'MERGEABLE') fail(`PR mergeable is ${data.mergeable}`)
   console.log('pr ok')
@@ -503,11 +507,199 @@ function production() {
   if (view.state !== 'MERGED' || !view.mergeCommit?.oid) fail(`PR is ${view.state}`)
   const sha = view.mergeCommit.oid
   const statuses = JSON.parse(gh(['api', `repos/thuelang/thueplusplus/commits/${sha}/statuses`]))
-  const vercel = statuses.filter(status => /vercel/i.test(`${status.context} ${status.description}`))
-  const productionStatus = vercel.find(status => /production/i.test(`${status.context} ${status.description} ${status.target_url}`))
-  if (!productionStatus) fail(`no Vercel production status for ${sha}`)
-  if (productionStatus.state !== 'success') fail(`Vercel production is ${productionStatus.state}: ${productionStatus.description}`)
+  const vercel = statuses.filter(status => /vercel/i.test(status.context ?? ''))
+  const productionStatus = vercel.find(status => status.state === 'success' && /completed/i.test(status.description ?? '') && !/ignored|canceled|error|fail/i.test(status.description ?? ''))
+  if (!productionStatus) fail(`no completed Vercel deploy for ${sha}`)
   console.log('production ok')
+}
+
+function rexProblem() {
+  const page = source('pages/ProblemPage.vue')
+  const home = source('pages/HomePage.vue')
+  if (page.includes('ProblemScene') || page.includes('#scene') || page.includes('rex-scene')) fail('problem page mounts Rex')
+  if (!home.includes('<SandboxScene')) fail('home hero lost its scene')
+  console.log('rex-problem ok')
+}
+
+function themeHexes(block, theme) {
+  const found = {}
+  for (const id of ['forth', 'lisp', 'basic', 'expr']) {
+    const match = block.match(new RegExp(`--sandbox-${id}:\\s*(#[0-9a-fA-F]{6})`))
+    if (!match) fail(`${theme} is missing --sandbox-${id}`)
+    found[id] = match[1].toLowerCase()
+  }
+  return found
+}
+
+function rgbOf(hex) {
+  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)]
+}
+
+function colors() {
+  const css = source('style.css')
+  const darkStart = css.indexOf(':root,')
+  const lightStart = css.indexOf('html:not(.dark)')
+  if (darkStart < 0 || lightStart < darkStart) fail('theme blocks are missing')
+  const themes = {
+    dark: themeHexes(css.slice(darkStart, lightStart), 'dark'),
+    light: themeHexes(css.slice(lightStart), 'light'),
+  }
+  for (const [theme, hexes] of Object.entries(themes)) {
+    const ids = Object.keys(hexes)
+    for (const id of ids) {
+      const [red, green, blue] = rgbOf(hexes[id])
+      if (Math.max(red, green, blue) - Math.min(red, green, blue) < 50) fail(`${theme} ${id} ${hexes[id]} is gray`)
+    }
+    for (let left = 0; left < ids.length; left += 1) {
+      for (let right = left + 1; right < ids.length; right += 1) {
+        const [ar, ag, ab] = rgbOf(hexes[ids[left]])
+        const [br, bg, bb] = rgbOf(hexes[ids[right]])
+        const distance = Math.hypot(ar - br, ag - bg, ab - bb)
+        if (distance < 100) fail(`${theme} ${ids[left]} and ${ids[right]} are ${distance.toFixed(1)} apart`)
+      }
+    }
+  }
+  const data = catalog()
+  for (const id of ['forth', 'lisp', 'basic', 'expr']) {
+    const expected = `var(--sandbox-${id})`
+    const sandbox = data.sandboxes.find(item => item.id === id)
+    if (!sandbox || sandbox.color !== expected) fail(`${id} sandbox color is ${sandbox?.color}`)
+    const ruleset = data.rulesets.find(item => item.id === id)
+    if (ruleset && ruleset.color !== expected) fail(`${id} ruleset color is ${ruleset.color}`)
+  }
+  const directRuleset = data.rulesets.find(item => item.id === 'direct')
+  if (!directRuleset || directRuleset.color.includes('--sandbox-')) fail('direct uses a sandbox color')
+  console.log('colors ok')
+}
+
+function shownCost(series, track) {
+  const ordered = [...series.points].sort((left, right) => left.time - right.time || left.cost - right.cost)
+  const shown = track === 'best' ? runningMin(ordered) : ordered
+  return shown[shown.length - 1]?.cost
+}
+
+function assertEnds(layout, series, track) {
+  if (layout.scale !== 'linear') fail('chart scale is not linear')
+  if (layout.ends.length !== series.length) fail('a line has no end label')
+  const stacked = [...layout.ends].sort((left, right) => left.y - right.y)
+  for (let index = 1; index < stacked.length; index += 1) {
+    if (stacked[index].y - stacked[index - 1].y < 14) fail('end labels collide')
+  }
+  for (const end of layout.ends) {
+    const item = series.find(seriesItem => seriesItem.id === end.id)
+    const cost = shownCost(item, track)
+    const text = `${item.label} ${formatCost(cost)}`
+    if (end.text !== text) fail(`end label ${end.text} is not ${text}`)
+  }
+  const dots = layout.series.flatMap(item => item.dots)
+  for (let left = 0; left < dots.length; left += 1) {
+    for (let right = left + 1; right < dots.length; right += 1) {
+      if (dots[left].id === dots[right].id) continue
+      if (Math.hypot(dots[left].x - dots[right].x, dots[left].y - dots[right].y) < 9) fail('dots that share a value still cover each other')
+    }
+  }
+}
+
+function labels() {
+  const home = source('pages/HomePage.vue')
+  const chart = source('components/CostChart.vue')
+  if (home.includes('chooseScale')) fail('home still chooses a log scale')
+  if (!home.includes('data-scale="linear"')) fail('home chart is not marked linear')
+  if (chart.includes('Log scale.')) fail('chart still says log scale')
+  const data = catalog()
+  const homeSeries = sandboxSeriesFromCatalog(data)
+  assertEnds(chartLayout(homeSeries, { width: 640, height: 280, track: 'sum', progress: 1 }), homeSeries, 'sum')
+  const factorial = data.problems.find(item => item.id === 'factorial')
+  if (!factorial) fail('factorial is missing')
+  const factorialSeries = problemSeries(data, factorial).filter(item => item.id !== 'direct')
+  assertEnds(chartLayout(factorialSeries, { width: 640, height: 280, track: 'best', progress: 1 }), factorialSeries, 'best')
+  const spreadSeries = [
+    { id: 'low', label: 'Low', color: '#4c9dff', points: [{ time: 1, cost: 10 }, { time: 2, cost: 10 }] },
+    { id: 'high', label: 'High', color: '#ff5a36', points: [{ time: 1, cost: 1000 }, { time: 2, cost: 1000 }] },
+  ]
+  const spread = chartLayout(spreadSeries, { width: 640, height: 280, track: 'sum', progress: 1 })
+  if (spread.scale !== 'linear') fail('a hundred-fold gap left the linear axis')
+  let rejected = false
+  try {
+    chartLayout(spreadSeries, { width: 640, height: 280, scale: 'log' })
+  } catch {
+    rejected = true
+  }
+  if (!rejected) fail('chartLayout accepted a log scale')
+  console.log('labels ok')
+}
+
+function assertInside(layout) {
+  for (const label of layout.labels) {
+    const half = textWidth(label.text) / 2
+    if (label.x - half < 0 || label.x + half > layout.width) fail(`time label ${label.text} is clipped`)
+  }
+  for (const end of layout.ends) {
+    if (end.x < 0 || end.x + textWidth(end.text) > layout.width) fail(`end label ${end.text} is clipped`)
+  }
+}
+
+function timeFit() {
+  const data = catalog()
+  const homeSeries = sandboxSeriesFromCatalog(data)
+  assertInside(chartLayout(homeSeries, { width: 640, height: 280, track: 'sum', progress: 1 }))
+  const factorial = data.problems.find(item => item.id === 'factorial')
+  const factorialSeries = problemSeries(data, factorial).filter(item => item.id !== 'direct')
+  assertInside(chartLayout(factorialSeries, { width: 640, height: 280, track: 'best', progress: 1 }))
+  console.log('time-fit ok')
+}
+
+function cards() {
+  const page = source('pages/ProblemsPage.vue')
+  const marksAt = page.indexOf('<SandboxMarks')
+  const titleAt = page.indexOf('<h2')
+  const descriptionAt = page.indexOf('problem.description')
+  if (marksAt < 0 || titleAt < 0 || descriptionAt < 0 || !(marksAt < titleAt && titleAt < descriptionAt)) fail('card order is not chart, title, description')
+  if (page.includes('spark') || page.includes('CostChart')) fail('problem cards still use a time-series spark')
+  const data = catalog()
+  let empty = 0
+  for (const problem of data.problems) {
+    const marks = bestSandboxMarks(problem)
+    const expected = problem.versions.filter(version => version.id !== 'direct' && version.series.length > 0)
+    if (marks.length !== expected.length) fail(`${problem.id} has ${marks.length} marks for ${expected.length} sandbox series`)
+    if (marks.length === 0) empty += 1
+    for (const mark of marks) {
+      const version = expected.find(item => item.id === mark.id)
+      const best = Math.min(...version.series.map(point => point.cost))
+      if (mark.cost !== best) fail(`${problem.id} ${mark.id} mark is not the best cost`)
+      if (mark.color !== version.color) fail(`${problem.id} ${mark.id} mark color differs from the chart`)
+    }
+  }
+  if (empty === 0) fail('no direct-only problem, so an empty card chart was not measured')
+  console.log('cards ok')
+}
+
+function direct() {
+  const home = source('pages/HomePage.vue')
+  if (!home.includes("event.sandbox !== 'direct'")) fail('home feed still lists direct')
+  if (home.includes('>direct<')) fail('home renders direct as a sandbox name')
+  const series = source('charts/series.ts')
+  if (!series.includes("version.id !== 'direct'")) fail('problem charts include direct')
+  const page = source('pages/ProblemPage.vue')
+  if (!page.includes('Direct Thue')) fail('solutions table does not call the baseline Direct Thue')
+  if (!page.includes('>Entry<')) fail('solutions column still treats every row as a sandbox')
+  const data = catalog()
+  const factorial = data.problems.find(item => item.id === 'factorial')
+  const all = problemSeries(data, factorial)
+  const drawn = all.filter(item => item.id !== 'direct')
+  if (!all.some(item => item.id === 'direct') || drawn.length === all.length) fail('factorial has no direct series to keep off the chart')
+  if (!drawn.some(item => item.id === 'forth')) fail('factorial chart dropped a sandbox')
+  const events = data.improvements.filter(event => event.sandbox === 'direct')
+  if (events.length === 0) fail('catalog has no direct drop, so the feed filter was not measured')
+  console.log('direct ok')
+}
+
+function description() {
+  const page = source('pages/ProblemPage.vue')
+  const count = page.split('problem.description').length - 1
+  if (count !== 1) fail(`problem description appears ${count} times`)
+  if (page.includes('problem.summary')) fail('problem page also shows the summary')
+  console.log('description ok')
 }
 
 function prBody() {

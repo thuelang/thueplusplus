@@ -13,7 +13,7 @@ export function sandboxCostSeries(): ChartSeries[] {
 }
 
 export function problemSeries(problem: CatalogProblem): ChartSeries[] {
-  return problem.versions.map(version => ({
+  return problem.versions.filter(version => version.id !== 'direct').map(version => ({
     id: version.id,
     label: version.name,
     color: version.color,
