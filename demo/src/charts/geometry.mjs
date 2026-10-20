@@ -30,6 +30,7 @@ export function solutionLink(fields) {
   if (!fields.problemId || !fields.problem || !fields.label) throw new Error(`solution ${solutionPath} is missing a label`)
   const author = typeof fields.author === 'string' ? fields.author.trim() : ''
   if (author.length === 0) throw new Error(`solution ${solutionPath} has no author`)
+  const title = typeof fields.title === 'string' ? fields.title.trim() : ''
   return {
     problemId: fields.problemId,
     problem: fields.problem,
@@ -38,6 +39,7 @@ export function solutionLink(fields) {
     time: fields.time,
     sha,
     author,
+    title,
     solutionPath,
     blobUrl: `${REPOSITORY}/blob/${sha}/${solutionPath}`,
     commitUrl: `${REPOSITORY}/commit/${sha}`,
@@ -110,6 +112,9 @@ export function summedCostSeries(perProblem, commits) {
 
 function linkFor(problem, version, point, time) {
   if (!point?.sha || !point.solutionPath || !problem?.title) return null
+  const solution = (version.solutions || []).find(item => item.id === point.solution)
+  const title = typeof solution?.title === 'string' ? solution.title.trim() : ''
+  const fileAuthor = typeof solution?.author === 'string' ? solution.author.trim() : ''
   return solutionLink({
     problemId: problem.id,
     problem: problem.title,
@@ -117,7 +122,8 @@ function linkFor(problem, version, point, time) {
     cost: point.cost,
     time,
     sha: point.sha,
-    author: point.author || version.author || '',
+    author: fileAuthor || point.author || version.author || '',
+    title,
     solutionPath: point.solutionPath,
   })
 }

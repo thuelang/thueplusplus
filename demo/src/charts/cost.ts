@@ -15,6 +15,7 @@ export interface ChartLink {
   time: number
   sha: string
   author: string
+  title: string
   solutionPath: string
   blobUrl: string
   commitUrl: string
@@ -36,6 +37,7 @@ export interface SolutionLinkFields {
   time: number
   sha: string
   author: string
+  title?: string
   solutionPath: string
 }
 

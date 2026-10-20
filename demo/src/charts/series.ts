@@ -17,6 +17,7 @@ function pointAt(problem: CatalogProblem, version: CatalogVersion, point: Catalo
   if (!commit) throw new Error(`${problem.id} commit ${point.commit} is not in the catalog`)
   const time = Date.parse(commit.timestamp)
   if (Number.isNaN(time)) throw new Error(`${problem.id} commit ${point.commit} has no time`)
+  const solution = version.solutions.find(item => item.id === point.solution)
   const link: ChartLink = solutionLink({
     problemId: problem.id,
     problem: problem.title,
@@ -24,7 +25,8 @@ function pointAt(problem: CatalogProblem, version: CatalogVersion, point: Catalo
     cost: point.cost,
     time,
     sha: point.sha ?? '',
-    author: point.author || version.author,
+    author: solution?.author || point.author || version.author,
+    title: solution?.title ?? '',
     solutionPath: point.solutionPath ?? '',
   })
   return { time, cost: point.cost, version: point.solution, link }
