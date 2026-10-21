@@ -90,6 +90,7 @@ test('back and forward restore the hash', async ({ page }) => {
 
 test('cross-route hash scrolls after the lazy page', async ({ page }) => {
   await page.goto('/docs')
+  await page.locator('[data-test="page-main"]').waitFor()
   await page.evaluate(() => {
     const link = document.createElement('a')
     link.href = '/docs/go/install#cli'
