@@ -35,7 +35,11 @@ async function expectHashBand(page: Page, selector: string): Promise<void> {
 async function readAccent(page: Page, selector: string): Promise<string> {
   return page.locator(selector).evaluate(el => {
     const target = el.closest('.hash-target')
-    return target ? getComputedStyle(target).borderLeftWidth : '0px'
+    if (!target) return '0px'
+    const host = target.matches('tr') ? target.querySelector(':scope > :first-child') : target
+    if (!(host instanceof Element)) return '0px'
+    const width = getComputedStyle(host, '::before').width
+    return width && width !== 'auto' ? width : '0px'
   })
 }
 
@@ -43,9 +47,64 @@ async function accent(page: Page, selector: string): Promise<string> {
   await page.waitForFunction(sel => {
     const node = document.querySelector(sel)
     const target = node?.closest('.hash-target')
-    return !!target && parseFloat(getComputedStyle(target).borderLeftWidth) >= 2
+    if (!target) return false
+    const host = target.matches('tr') ? target.querySelector(':scope > :first-child') : target
+    return host instanceof Element && parseFloat(getComputedStyle(host, '::before').width) >= 2
   }, selector)
   return readAccent(page, selector)
+}
+
+async function expectMarkClearsText(page: Page, selector: string): Promise<void> {
+  const report = await page.locator(selector).evaluate(el => {
+    const target = el.closest('.hash-target')
+    if (!(target instanceof HTMLElement)) return { ok: false, reason: 'no target' }
+    const host = target.matches('tr') ? target.querySelector(':scope > :first-child') : target
+    if (!(host instanceof HTMLElement)) return { ok: false, reason: 'no host' }
+    const before = getComputedStyle(host, '::before')
+    const border = parseFloat(getComputedStyle(host).borderLeftWidth)
+    const targetBorder = parseFloat(getComputedStyle(target).borderLeftWidth)
+    const hostBox = host.getBoundingClientRect()
+    const edge = hostBox.left + border
+    const barRight = edge + parseFloat(before.left) + parseFloat(before.width)
+    const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        return node.textContent?.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+      },
+    })
+    const text = walker.nextNode()
+    if (!text) return { ok: false, reason: 'no text' }
+    const range = document.createRange()
+    range.selectNodeContents(text)
+    const textBox = range.getBoundingClientRect()
+    const gap = textBox.left - barRight
+    const widthBefore = target.getBoundingClientRect().width
+    const scrollBefore = document.documentElement.scrollWidth
+    target.classList.remove('hash-target')
+    const widthAfter = target.getBoundingClientRect().width
+    const scrollAfter = document.documentElement.scrollWidth
+    const borderAfter = parseFloat(getComputedStyle(host).borderLeftWidth)
+    const targetBorderAfter = parseFloat(getComputedStyle(target).borderLeftWidth)
+    const bare = document.createRange()
+    bare.selectNodeContents(text)
+    const textAfter = bare.getBoundingClientRect().left
+    target.classList.add('hash-target')
+    return {
+      ok: gap >= 6
+        && targetBorder === targetBorderAfter
+        && border === borderAfter
+        && Math.abs(widthBefore - widthAfter) < 0.5
+        && Math.abs(textBox.left - textAfter) < 0.5
+        && Math.abs(scrollBefore - scrollAfter) < 1,
+      gap,
+      border,
+      targetBorder,
+      targetBorderAfter,
+      widthDelta: widthBefore - widthAfter,
+      textDelta: textBox.left - textAfter,
+      scrollDelta: scrollBefore - scrollAfter,
+    }
+  })
+  expect(report.ok, JSON.stringify(report)).toBe(true)
 }
 
 test('direct load highlights solutions', async ({ page }) => {
@@ -53,8 +112,36 @@ test('direct load highlights solutions', async ({ page }) => {
   await expectHashBand(page, '#solutions')
   await page.waitForTimeout(700)
   await expectHashBand(page, '#solutions')
-  expect(await accent(page, '#solutions')).toBe('3px')
+  expect(await accent(page, '#solutions')).toBe('2px')
   expect(await page.locator('#solutions').evaluate(el => el.tagName === 'H2' && el.closest('.hash-target')?.tagName === 'SECTION')).toBe(true)
+  await expectMarkClearsText(page, '#solutions')
+  const faded = await page.locator('#solutions').evaluate(el => {
+    const target = el.closest('.hash-target')
+    if (!(target instanceof HTMLElement)) return { ok: false, reason: 'missing' }
+    const owned = (anim: Animation) => anim.effect instanceof KeyframeEffect && anim.effect.target === target
+    const anims = document.getAnimations().filter(owned)
+    const wash = anims.find(anim => anim.animationName === 'hash-wash')
+    const bar = anims.find(anim => anim.animationName === 'hash-bar')
+    if (!wash || !bar) return { ok: false, reason: 'anims', names: anims.map(anim => `${anim.animationName}${anim.effect instanceof KeyframeEffect ? anim.effect.pseudoElement ?? '' : ''}`) }
+    const duration = Number(wash.effect?.getTiming().duration ?? 0)
+    wash.currentTime = duration * 0.3
+    bar.currentTime = duration * 0.3
+    const held = parseFloat(getComputedStyle(target).getPropertyValue('--hash-ink'))
+    const heldOpacity = parseFloat(getComputedStyle(target, '::before').opacity)
+    wash.currentTime = duration
+    bar.currentTime = duration
+    const ink = parseFloat(getComputedStyle(target).getPropertyValue('--hash-ink'))
+    const opacity = parseFloat(getComputedStyle(target, '::before').opacity)
+    return {
+      ok: held >= 10 && heldOpacity > 0.9 && ink > 0 && ink < 6 && opacity > 0.2 && opacity < 0.6,
+      held,
+      heldOpacity,
+      ink,
+      opacity,
+      duration,
+    }
+  })
+  expect(faded.ok, JSON.stringify(faded)).toBe(true)
   console.log('hash-direct')
 })
 
@@ -64,16 +151,16 @@ test('back and forward restore the hash', async ({ page }) => {
   await page.locator('#on-this-page a[href="#cost"]').click()
   await expect(page).toHaveURL(/\/problems\/factorial#cost$/)
   await expectHashBand(page, '#cost')
-  expect(await accent(page, '#cost')).toBe('3px')
+  expect(await accent(page, '#cost')).toBe('2px')
   expect(await readAccent(page, '#solutions')).toBe('0px')
   await page.goBack()
   await expect(page).toHaveURL(/\/problems\/factorial#solutions$/)
   await expectHashBand(page, '#solutions')
-  expect(await accent(page, '#solutions')).toBe('3px')
+  expect(await accent(page, '#solutions')).toBe('2px')
   await page.goForward()
   await expect(page).toHaveURL(/\/problems\/factorial#cost$/)
   await expectHashBand(page, '#cost')
-  expect(await accent(page, '#cost')).toBe('3px')
+  expect(await accent(page, '#cost')).toBe('2px')
 
   await page.goto('/sandboxes/expr')
   await page.locator('#call').waitFor()
@@ -101,7 +188,7 @@ test('cross-route hash scrolls after the lazy page', async ({ page }) => {
   await page.getByTestId('cross-hash').click()
   await expect(page).toHaveURL(/\/docs\/go\/install#cli$/)
   await expectScrolledTo(page, '#cli')
-  expect(await accent(page, '#cli')).toBe('3px')
+  expect(await accent(page, '#cli')).toBe('2px')
   console.log('hash-cross')
 })
 
@@ -128,9 +215,19 @@ test('reduced motion scrolls instantly', async ({ page }) => {
   const motion = await page.locator('#solutions').evaluate(el => {
     const target = el.closest('.hash-target') ?? el
     const style = getComputedStyle(target)
-    return { name: style.animationName, duration: style.animationDuration }
+    const bar = getComputedStyle(target, '::before')
+    return {
+      name: style.animationName,
+      duration: style.animationDuration,
+      ink: parseFloat(style.getPropertyValue('--hash-ink')),
+      opacity: parseFloat(bar.opacity),
+      border: parseFloat(style.borderLeftWidth),
+    }
   })
   expect(motion.name === 'none' || motion.duration === '0s').toBe(true)
+  expect(motion.ink).toBeGreaterThanOrEqual(10)
+  expect(motion.opacity).toBeGreaterThan(0.9)
+  expect(motion.border).toBe(0)
   console.log('hash-reduced')
 })
 
@@ -179,17 +276,26 @@ test('logical parent gets the highlight', async ({ page }) => {
   await page.goto(`/problems/factorial#${rowId}`)
   await expectHashBand(page, `#${rowId}`)
   expect(await page.locator(`#${rowId}`).evaluate(el => el.tagName)).toBe('TR')
-  expect(await accent(page, `#${rowId}`)).toBe('3px')
+  expect(await accent(page, `#${rowId}`)).toBe('2px')
+  await expectMarkClearsText(page, `#${rowId}`)
 
   await page.goto('/sandboxes#lisp')
   await expectHashBand(page, '#lisp')
   expect(await page.locator('#lisp').evaluate(el => el.tagName)).toBe('LI')
-  expect(await accent(page, '#lisp')).toBe('3px')
+  expect(await accent(page, '#lisp')).toBe('2px')
+  await expectMarkClearsText(page, '#lisp')
+
+  await page.goto('/install#hosts')
+  await expectHashBand(page, '#hosts')
+  expect(await page.locator('#hosts').evaluate(el => el.tagName)).toBe('SECTION')
+  expect(await accent(page, '#hosts')).toBe('2px')
+  await expectMarkClearsText(page, '#hosts')
 
   await page.goto('/problems/factorial#solutions')
   await page.waitForFunction(() => {
     const heading = document.getElementById('solutions')
     return heading?.tagName === 'H2' && heading.closest('.hash-target')?.tagName === 'SECTION' && !heading.classList.contains('hash-target')
   })
+  await expectMarkClearsText(page, '#solutions')
   console.log('hash-parent')
 })

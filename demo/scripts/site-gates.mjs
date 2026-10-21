@@ -1070,10 +1070,38 @@ function hashLegacy() {
 
 function shots186() {
   const names = [
-    'factorial-solutions-dark.png',
-    'factorial-solutions-light.png',
-    'factorial-row-dark.png',
-    'factorial-row-light.png',
+    'hosts-before-light-desktop.png',
+    'hosts-before-dark-desktop.png',
+    'hosts-before-light-mobile.png',
+    'hosts-before-dark-mobile.png',
+    'hosts-after-light-desktop.png',
+    'hosts-after-dark-desktop.png',
+    'hosts-after-light-mobile.png',
+    'hosts-after-dark-mobile.png',
+    'solutions-before-light-desktop.png',
+    'solutions-before-dark-desktop.png',
+    'solutions-before-light-mobile.png',
+    'solutions-before-dark-mobile.png',
+    'solutions-after-light-desktop.png',
+    'solutions-after-dark-desktop.png',
+    'solutions-after-light-mobile.png',
+    'solutions-after-dark-mobile.png',
+    'row-before-light-desktop.png',
+    'row-before-dark-desktop.png',
+    'row-before-light-mobile.png',
+    'row-before-dark-mobile.png',
+    'row-after-light-desktop.png',
+    'row-after-dark-desktop.png',
+    'row-after-light-mobile.png',
+    'row-after-dark-mobile.png',
+    'list-before-light-desktop.png',
+    'list-before-dark-desktop.png',
+    'list-before-light-mobile.png',
+    'list-before-dark-mobile.png',
+    'list-after-light-desktop.png',
+    'list-after-dark-desktop.png',
+    'list-after-light-mobile.png',
+    'list-after-dark-mobile.png',
   ]
   const body = prBody()
   for (const name of names) {
@@ -1086,7 +1114,7 @@ function shots186() {
 
 function pr186() {
   const view = JSON.parse(gh(['pr', 'view', '--json', 'body,mergeable']))
-  if (!String(view.body ?? '').includes('Closes #186')) fail('PR body does not close #186')
+  if (!String(view.body ?? '').includes('Closes #189')) fail('PR body does not close #189')
   if (view.mergeable === 'CONFLICTING') fail('PR has conflicts')
   console.log('pr-ok')
 }
@@ -1141,7 +1169,11 @@ async function live186() {
     }, null, { timeout: 20_000 })
     const accent = await page.locator('#solutions').evaluate(el => {
       const target = el.closest('.hash-target')
-      return target?.tagName === 'SECTION' && parseFloat(getComputedStyle(target).borderLeftWidth) >= 2
+      if (!(target instanceof HTMLElement) || target.tagName !== 'SECTION') return false
+      if (parseFloat(getComputedStyle(target).borderLeftWidth) !== 0) return false
+      const bar = getComputedStyle(target, '::before')
+      const width = parseFloat(bar.width)
+      return width >= 2 && width <= 3 && parseFloat(bar.left) + width < -4
     })
     if (!accent) fail('solutions is not highlighted')
     if (errors.length) fail(errors.join('\n'))
