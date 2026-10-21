@@ -30,8 +30,7 @@ def main() -> int:
     except (RunError, RuntimeError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
-    print(f"solutions: {len(runs)} runs passed with host parity")
-    print("solutions: current versions measured")
+    print(f"solutions: {len(runs)} current runs passed with host parity")
     return 0
 
 

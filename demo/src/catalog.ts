@@ -41,6 +41,7 @@ export interface CatalogSolution {
   solutionPath: string
   title: string
   author: string | null
+  failureReason: string | null
 }
 
 export interface CatalogVersion {
