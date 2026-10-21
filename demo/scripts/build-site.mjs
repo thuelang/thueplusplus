@@ -486,16 +486,16 @@ function stampToIso(stamp) {
 }
 
 function metricPoint(item) {
-  if (!/^[0-9a-f]{40}$/.test(item.chartSha)) throw new CatalogError(`${item.rel} has no chart commit`)
-  if (!item.chartAuthor || !item.chartAuthor.trim()) throw new CatalogError(`${item.rel} has no chart author`)
+  if (!/^[0-9a-f]{40}$/.test(item.gitCommit || '')) throw new CatalogError(`${item.rel} has no measuring commit`)
   if (!item.rel || item.rel.startsWith('/') || item.rel.split('/').includes('..')) throw new CatalogError(`${item.name} has no solution path`)
+  const solutionPath = pathAtCommit(item.gitCommit, item.rel)
   const data = item.metric
   return {
     commit: item.iso,
     solution: item.name,
-    sha: item.chartSha,
-    author: item.chartAuthor,
-    solutionPath: item.rel,
+    sha: item.gitCommit,
+    author: item.author || '',
+    solutionPath,
     cost: data.cost,
     steps: data.applied_steps,
     regexEvals: data.regex_evals,
@@ -507,20 +507,39 @@ function metricPoint(item) {
   }
 }
 
-const pathCommits = new Map()
-function chartCommit(rel) {
-  const cached = pathCommits.get(rel)
-  if (cached) return cached
-  const line = git(['log', '-1', '--format=%H%x09%an <%ae>', '--', rel])
-  const tab = line.indexOf('\t')
-  const sha = tab < 0 ? '' : line.slice(0, tab)
-  const author = tab < 0 ? '' : line.slice(tab + 1).trim()
-  if (!/^[0-9a-f]{40}$/.test(sha)) throw new CatalogError(`${rel} has no commit`)
-  if (!author) throw new CatalogError(`${rel} has no author`)
-  if (!gitShowBuffer(sha, rel)) throw new CatalogError(`${rel} is not in ${sha}`)
-  const row = { sha, author }
-  pathCommits.set(rel, row)
-  return row
+function commitObject(sha) {
+  try {
+    execFileSync('git', ['cat-file', '-e', `${sha}^{commit}`], { cwd: repoRoot, stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function pathAtCommit(sha, rel) {
+  // A depth-1 checkout has the metrics commit id and the current file, and not the old tree.
+  if (!commitObject(sha)) return rel
+  if (gitShowBuffer(sha, rel)) return rel
+  const slash = rel.lastIndexOf('/')
+  if (slash > 0) {
+    let listed = ''
+    try {
+      listed = execFileSync('git', ['ls-tree', '-r', '--name-only', sha, rel.slice(0, slash)], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    } catch {
+      listed = ''
+    }
+    const files = listed.split('\n').map(line => line.trim()).filter(name => name && !name.endsWith('/README.md'))
+    if (files.length === 1 && gitShowBuffer(sha, files[0])) return files[0]
+  }
+  const legacy = legacySolutionPath(rel)
+  if (legacy && gitShowBuffer(sha, legacy)) return legacy
+  throw new CatalogError(`${rel} is not in ${sha}`)
+}
+
+function legacySolutionPath(rel) {
+  const match = /^problems\/([^/]+)\/solutions\/([^/]+)\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\/[^/]+\.([a-z0-9]+)$/.exec(rel)
+  if (!match) return null
+  return `problems/${match[1]}/solutions/${match[2]}/solution.${match[3]}`
 }
 
 function listVersionFiles(problem, ruleset) {
@@ -698,15 +717,15 @@ function build() {
       for (const file of files) {
         file.problem = problem
         file.ruleset = entry.name
-        const chart = chartCommit(file.rel)
         const pricedVersion = costForVersion(file, historical, latest, shallow, file === newest)
         if (!pricedVersion) {
           if (!shallow && file === newest) throw new CatalogError(`${file.rel} has no recorded cost`)
           console.log(`site: omit ${file.rel} from the cost chart (no recorded cost)`)
-          priced.push({ ...file, metric: null, gitCommit: head.commit, chartSha: chart.sha, chartAuthor: chart.author })
+          priced.push({ ...file, metric: null, gitCommit: head.commit })
           continue
         }
-        priced.push({ ...file, metric: pricedVersion.metric, gitCommit: pricedVersion.gitCommit || head.commit, chartSha: chart.sha, chartAuthor: chart.author })
+        if (!/^[0-9a-f]{40}$/.test(pricedVersion.gitCommit || '')) throw new CatalogError(`${file.rel} metrics history has no commit`)
+        priced.push({ ...file, metric: pricedVersion.metric, gitCommit: pricedVersion.gitCommit })
       }
       if (shallow && priced.filter(item => item.metric).length < files.length) historyTruncated = true
       const measured = priced.filter(item => item.metric)

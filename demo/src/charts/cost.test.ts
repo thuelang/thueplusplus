@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatCost, runningMin, sandboxSeriesFromCatalog, summedCostSeries } from './cost'
+import { formatCost, formatTick, runningMin, sandboxSeriesFromCatalog, solutionLink, summedCostSeries } from './cost'
 
 function problem(id: string, versions: Record<string, { series: { commit: string; cost: number; solution?: string }[]; cost: number | null }>) {
   return {
@@ -115,6 +115,46 @@ describe('cost chart geometry', () => {
       ],
     }
     expect(sandboxSeriesFromCatalog(missing).map(line => line.id)).toEqual(['forth'])
+  })
+
+  it('trims tick labels and keeps three significant digits on the cost formatter', () => {
+    expect(formatTick(90000000)).toBe('90M')
+    expect(formatTick(3000000)).toBe('3M')
+    expect(formatTick(1500000)).toBe('1.5M')
+    expect(formatTick(150000)).toBe('150k')
+    expect(formatTick(0)).toBe('0')
+    expect(formatCost(90000000)).toBe('90.0M')
+    expect(formatCost(3000000)).toBe('3.00M')
+    expect(formatCost(1500000)).toBe('1.50M')
+    expect(formatCost(150000)).toBe('150k')
+    expect(formatCost(1300000)).toBe('1.30M')
+  })
+
+  it('records the measuring commit that produced a summed point', () => {
+    const sha = 'a'.repeat(40)
+    const other = 'b'.repeat(40)
+    const link = (problemId: string, commitSha: string) => solutionLink({
+      problemId,
+      problem: problemId,
+      label: 'Lisp',
+      title: 'A title',
+      cost: 10,
+      time: 1,
+      sha: commitSha,
+      author: 'Ada Lovelace',
+      solutionPath: `problems/${problemId}/solutions/lisp/2026-10-17_13-58-55/a-title.lisp`,
+    })
+    const points = summedCostSeries([
+      [{ time: 1, cost: 10, link: link('hello-world', sha) }],
+      [{ time: 1, cost: 5, link: link('fizzbuzz', sha) }],
+    ], [1, 2])
+    expect(points[0]?.sha).toBe(sha)
+    expect(points[1]?.sha).toBe(sha)
+    expect(points[1]?.time).toBe(2)
+    expect(() => summedCostSeries([
+      [{ time: 1, cost: 10, link: link('hello-world', sha) }],
+      [{ time: 1, cost: 5, link: link('fizzbuzz', other) }],
+    ], [1])).toThrow(/comes from commits/)
   })
 
   it('formats costs in SI', () => {

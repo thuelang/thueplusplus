@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { catalog } from '@/catalog'
 import { bestSandboxMarks, solutionLink } from './cost'
 import { problemSeries, sandboxCostSeries } from './series'
-import { escapeHtml, tooltipHtml } from './tooltip'
+import { tooltipHtml } from './tooltip'
 
 describe('problem series', () => {
   it('includes Direct Thue when a direct solution exists and omits it when one does not', () => {
@@ -79,12 +79,15 @@ describe('problem series', () => {
     expect(point.link.problem).toBe('Leap year')
     expect(point.link.title).toBe('Mod 400, 4, and 100')
     const html = tooltipHtml('Direct Thue', point)
+    const name = point.link.author.replace(/\s*<.*/, '')
     expect(html).toContain(point.link.blobUrl)
     expect(html).toContain(point.link.commitUrl)
-    expect(html).toContain('Leap year')
-    expect(html).toContain('Mod 400, 4, and 100')
-    expect(html).toContain(point.link.sha.slice(0, 7))
-    expect(html).toContain(escapeHtml(point.link.author))
+    expect(html).toContain('Direct Thue: Mod 400, 4, and 100')
+    expect(html).not.toContain('Leap year')
+    expect(html).toContain(`View commit ${point.link.sha.slice(0, 7)}`)
+    expect(html).toContain('View solution')
+    expect(html).toContain(`by ${name}`)
+    expect(html).not.toContain('@')
   })
 
   it('keeps a slug filename in the GitHub link', () => {
