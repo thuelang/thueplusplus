@@ -58,6 +58,12 @@ const handlers = {
   shots182,
   pr182,
   ci182,
+  'nav-source': navSource,
+  'layout-source': layoutSource,
+  copy184,
+  shots184,
+  pr184,
+  ci184,
 }
 
 const handler = handlers[name]
@@ -627,7 +633,17 @@ async function live() {
     await page.waitForSelector('[data-test="card-chart"] [data-test="end-label"]', { timeout: 15000 })
     const cards = (await page.locator('[data-test="card-chart"] [data-test="end-label"]').allTextContents()).map(item => item.trim())
     if (cards.some(item => /\d,\d{3}/.test(item)) || !cards.some(item => /\d/.test(item))) fail(`card costs are not SI: ${cards.slice(0, 8).join(' | ')}`)
+    await page.setViewportSize({ width: 1600, height: 900 })
     await page.goto('https://www.thuelang.org/problems/factorial', { waitUntil: 'networkidle', timeout: 60000 })
+    await page.waitForSelector('[data-test="section-nav"] [aria-current="page"]', { timeout: 15000 })
+    const currentHref = await page.locator('[data-test="section-nav"] [aria-current="page"]').getAttribute('href')
+    if (currentHref !== '/problems/factorial') fail(`factorial current page is ${currentHref}`)
+    const mainBox = await page.locator('[data-test="page-main"]').boundingBox()
+    const tocBox = await page.locator('#on-this-page').boundingBox()
+    const navBox = await page.locator('[data-test="section-nav"]').boundingBox()
+    if (!mainBox || !tocBox || !navBox) fail('factorial layout is missing a column')
+    if (tocBox.x < mainBox.x + mainBox.width - 1) fail('On this page is not to the right of the content')
+    if (navBox.x + navBox.width > mainBox.x + 1) fail('section nav is not to the left of the content')
     await page.waitForSelector('[data-test="end-label"][data-sandbox="direct"]', { timeout: 15000 })
     const directLabel = (await page.locator('[data-test="end-label"][data-sandbox="direct"]').evaluate(node => node.textContent ?? '')).trim()
     if (!directLabel.startsWith('Direct Thue ')) fail(`factorial chart label is ${directLabel}`)
@@ -895,6 +911,99 @@ function pr182() {
 }
 
 function ci182() {
+  spawnSync('gh', ['pr', 'checks', '--watch', '--fail-fast'], { cwd: repoRoot, stdio: 'ignore' })
+  const words = ['deploy cap', 'daily', 'ignored build', 'resource', 'exceeded']
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const rows = JSON.parse(gh(['pr', 'checks', '--json', 'name,bucket,description']))
+    const bad = []
+    let pending = false
+    for (const row of rows) {
+      if (row.bucket === 'pass' || row.bucket === 'skipping') continue
+      const description = `${row.description ?? ''}`.toLowerCase()
+      if (/vercel/i.test(row.name) && words.some(word => description.includes(word))) continue
+      if (row.bucket === 'pending') {
+        pending = true
+        continue
+      }
+      bad.push(`${row.name}: ${row.bucket} ${row.description ?? ''}`)
+    }
+    if (bad.length > 0) fail(bad.join('\n'))
+    if (!pending) {
+      console.log('ci-green')
+      return
+    }
+    spawnSync('sleep', ['15'])
+  }
+  fail('checks are still pending')
+}
+
+function navSource() {
+  const source = read('demo/src/sectionNav.ts')
+  if (!source.includes('catalog.problems') || !source.includes('catalog.sandboxes') || !source.includes('siteHosts') || !source.includes('routes')) {
+    fail('section nav is not built from the catalog and the router')
+  }
+  if (source.includes('Factorial') || source.includes('hello-world') || source.includes('Direct Thue')) {
+    fail('section nav hardcodes a page')
+  }
+  console.log('nav-source')
+}
+
+function layoutSource() {
+  const shell = read('demo/src/components/AppShell.vue')
+  const views = [...shell.matchAll(/<RouterView/g)].map(match => match.index ?? -1)
+  const main = views[views.length - 1] ?? -1
+  const section = shell.indexOf('data-test="section-nav"')
+  const sidebar = shell.indexOf('data-test="page-sidebar"')
+  const toc = shell.indexOf('<OnThisPage')
+  if (section < 0 || sidebar < 0 || toc < 0 || main < 0) fail('layout markers are missing')
+  if (!(section < main && main < sidebar)) fail('On this page is still left of the content')
+  if (!(sidebar < toc)) fail('On this page is not in the right column')
+  if ((shell.match(/<OnThisPage/g) ?? []).length !== 1) fail('On this page is duplicated')
+  if (/legacy|fallback|backcompat|backwards/i.test(shell)) fail('the shell keeps a second layout')
+  if (!shell.includes('max-w-[65ch]')) fail('the narrow column lost its measure')
+  if (!shell.includes('max-w-[calc(1180px+13.5rem)]') || !shell.includes('max-w-[calc(65ch+27rem)]')) fail('the shell did not grow for the right column')
+  if (shell.includes('max-w-[1180px]') || shell.includes('max-w-[calc(65ch+13.5rem)]')) fail('the old shell width is still there')
+  const uses = walk(join(repoRoot, 'demo/src')).filter(path => path.endsWith('.vue') && readFileSync(path, 'utf8').includes('OnThisPage') && !path.endsWith('OnThisPage.vue'))
+  if (uses.length !== 1 || !uses[0].endsWith('AppShell.vue')) fail(`On this page is mounted from ${uses.join(', ')}`)
+  console.log('no-legacy')
+}
+
+function copy184() {
+  const changelog = read('CHANGELOG.md')
+  const added = changelog.split('### Changed')[1]?.split('\n- ')[1] ?? ''
+  if (!added.includes('section nav')) fail('the changelog has no section nav entry')
+  const blob = [read('demo/src/sectionNav.ts'), read('demo/src/components/AppShell.vue'), read('demo/src/components/OnThisPage.vue'), added].join('\n')
+  if (blob.includes('RE2')) fail('user-facing copy mentions RE2')
+  console.log('no-re2')
+}
+
+function shots184() {
+  const names = []
+  for (const page of ['factorial-nav', 'sandbox-nav', 'docs-nav']) {
+    for (const theme of ['dark', 'light']) {
+      for (const width of ['1440', '390']) names.push(`${page}-${theme}-${width}.png`)
+    }
+  }
+  for (const name of names) {
+    const path = join('/opt/cursor/artifacts', name)
+    if (!existsSync(path) || statSync(path).size < 1000) fail(`missing screenshot ${path}`)
+  }
+  const body = prBody()
+  for (const name of names) {
+    if (!body.includes(name)) fail(`PR body is missing ${name}`)
+  }
+  console.log('shots-ok')
+}
+
+function pr184() {
+  const data = JSON.parse(gh(['pr', 'view', '--json', 'body,baseRefName,mergeable,state']))
+  if (!/closes\s+#184/i.test(data.body ?? '')) fail('PR body does not close #184')
+  if (data.baseRefName !== 'main') fail(`PR base is ${data.baseRefName}`)
+  if (data.state !== 'MERGED' && data.mergeable !== 'MERGEABLE') fail(`PR mergeable is ${data.mergeable}`)
+  console.log('pr-ok')
+}
+
+function ci184() {
   spawnSync('gh', ['pr', 'checks', '--watch', '--fail-fast'], { cwd: repoRoot, stdio: 'ignore' })
   const words = ['deploy cap', 'daily', 'ignored build', 'resource', 'exceeded']
   for (let attempt = 0; attempt < 40; attempt += 1) {

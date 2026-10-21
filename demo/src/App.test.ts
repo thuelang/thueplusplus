@@ -185,9 +185,10 @@ describe('Go-WASM demo UI', () => {
     window.history.pushState({}, '', '/docs')
     const wrapper = await mountApp()
     expect(wrapper.get('h1').text()).toBe('Docs.')
-    expect(wrapper.get('a[href="/docs/go/install"]').text()).toBe('Install')
-    expect(wrapper.get('a[href="/docs/go/api"]').text()).toBe('API')
-    expect(wrapper.get('a[href="/docs/go/examples"]').text()).toBe('Examples')
+    const main = wrapper.get('[data-test="page-main"]')
+    expect(main.get('a[href="/docs/go/install"]').text()).toBe('Install')
+    expect(main.get('a[href="/docs/go/api"]').text()).toBe('API')
+    expect(main.get('a[href="/docs/go/examples"]').text()).toBe('Examples')
     expect(wrapper.get('[data-test="site-nav"]').get('a[href="/docs"]').attributes('aria-current')).toBe('page')
   })
 
