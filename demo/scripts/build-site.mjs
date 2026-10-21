@@ -507,11 +507,27 @@ function metricPoint(item) {
   }
 }
 
+function commitObject(sha) {
+  try {
+    execFileSync('git', ['cat-file', '-e', `${sha}^{commit}`], { cwd: repoRoot, stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
 function pathAtCommit(sha, rel) {
+  // A depth-1 checkout has the metrics commit id and the current file, and not the old tree.
+  if (!commitObject(sha)) return rel
   if (gitShowBuffer(sha, rel)) return rel
   const slash = rel.lastIndexOf('/')
   if (slash > 0) {
-    const listed = git(['ls-tree', '-r', '--name-only', sha, rel.slice(0, slash)])
+    let listed = ''
+    try {
+      listed = execFileSync('git', ['ls-tree', '-r', '--name-only', sha, rel.slice(0, slash)], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    } catch {
+      listed = ''
+    }
     const files = listed.split('\n').map(line => line.trim()).filter(name => name && !name.endsWith('/README.md'))
     if (files.length === 1 && gitShowBuffer(sha, files[0])) return files[0]
   }
