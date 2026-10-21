@@ -13,6 +13,10 @@ export interface PageSection {
   links: SectionLink[]
 }
 
+function overviewTitle(kicker: string): string {
+  return `All ${kicker.toLowerCase()}`
+}
+
 function routeExists(path: string): boolean {
   return routes.some(route => route.path === path)
 }
@@ -26,7 +30,7 @@ function problemSection(): PageSection | null {
   return {
     label: pages.problems.kicker,
     links: [
-      { title: pages.problems.kicker, href: pages.problems.path },
+      { title: overviewTitle(pages.problems.kicker), href: pages.problems.path },
       ...catalog.problems.map(problem => ({ title: problem.title, href: problem.path })),
     ],
   }
@@ -37,7 +41,7 @@ function sandboxSection(): PageSection | null {
   return {
     label: pages.sandboxes.kicker,
     links: [
-      { title: pages.sandboxes.kicker, href: pages.sandboxes.path },
+      { title: overviewTitle(pages.sandboxes.kicker), href: pages.sandboxes.path },
       ...catalog.sandboxes.map(sandbox => ({ title: sandbox.name, href: `/sandboxes/${sandbox.id}` })),
     ],
   }
@@ -48,7 +52,7 @@ function docsSection(): PageSection | null {
   return {
     label: pages.docs.kicker,
     links: [
-      { title: pages.docs.kicker, href: pages.docs.path },
+      { title: overviewTitle(pages.docs.kicker), href: pages.docs.path },
       { title: pages.install.kicker, href: pages.install.path },
       ...siteHosts.map(host => ({ title: host.title, href: host.href })),
     ],
