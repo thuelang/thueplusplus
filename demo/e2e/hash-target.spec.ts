@@ -62,6 +62,7 @@ async function expectMarkClearsText(page: Page, selector: string): Promise<void>
     if (!(host instanceof HTMLElement)) return { ok: false, reason: 'no host' }
     const before = getComputedStyle(host, '::before')
     const border = parseFloat(getComputedStyle(host).borderLeftWidth)
+    const targetBorder = parseFloat(getComputedStyle(target).borderLeftWidth)
     const hostBox = host.getBoundingClientRect()
     const edge = hostBox.left + border
     const barRight = edge + parseFloat(before.left) + parseFloat(before.width)
@@ -81,19 +82,23 @@ async function expectMarkClearsText(page: Page, selector: string): Promise<void>
     target.classList.remove('hash-target')
     const widthAfter = target.getBoundingClientRect().width
     const scrollAfter = document.documentElement.scrollWidth
+    const borderAfter = parseFloat(getComputedStyle(host).borderLeftWidth)
+    const targetBorderAfter = parseFloat(getComputedStyle(target).borderLeftWidth)
     const bare = document.createRange()
     bare.selectNodeContents(text)
     const textAfter = bare.getBoundingClientRect().left
     target.classList.add('hash-target')
     return {
       ok: gap >= 6
-        && border === 0
-        && parseFloat(getComputedStyle(target).borderLeftWidth) === 0
+        && targetBorder === targetBorderAfter
+        && border === borderAfter
         && Math.abs(widthBefore - widthAfter) < 0.5
         && Math.abs(textBox.left - textAfter) < 0.5
         && Math.abs(scrollBefore - scrollAfter) < 1,
       gap,
       border,
+      targetBorder,
+      targetBorderAfter,
       widthDelta: widthBefore - widthAfter,
       textDelta: textBox.left - textAfter,
       scrollDelta: scrollBefore - scrollAfter,
@@ -113,10 +118,11 @@ test('direct load highlights solutions', async ({ page }) => {
   const faded = await page.locator('#solutions').evaluate(el => {
     const target = el.closest('.hash-target')
     if (!(target instanceof HTMLElement)) return { ok: false, reason: 'missing' }
-    const anims = target.getAnimations()
+    const owned = (anim: Animation) => anim.effect instanceof KeyframeEffect && anim.effect.target === target
+    const anims = document.getAnimations().filter(owned)
     const wash = anims.find(anim => anim.animationName === 'hash-wash')
     const bar = anims.find(anim => anim.animationName === 'hash-bar')
-    if (!wash || !bar) return { ok: false, reason: 'anims', names: anims.map(anim => anim.animationName) }
+    if (!wash || !bar) return { ok: false, reason: 'anims', names: anims.map(anim => `${anim.animationName}${anim.effect instanceof KeyframeEffect ? anim.effect.pseudoElement ?? '' : ''}`) }
     const duration = Number(wash.effect?.getTiming().duration ?? 0)
     wash.currentTime = duration * 0.3
     bar.currentTime = duration * 0.3
