@@ -1,7 +1,14 @@
 import type { Router } from 'vue-router'
 import { isNavigationFailure } from 'vue-router'
 
-export const HASH_TOP = 72
+const HEADER_GAP = 24
+
+export function hashOffset(): number {
+  const quarter = window.innerHeight * 0.25
+  const header = document.querySelector('[data-test="site-header"]')
+  const headerBottom = header instanceof HTMLElement ? header.getBoundingClientRect().bottom : 0
+  return Math.max(quarter, headerBottom + HEADER_GAP)
+}
 
 let lockedId = ''
 let programmatic = false
@@ -147,7 +154,7 @@ export async function hashScroll(hash: string): Promise<{ el: HTMLElement, top: 
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const behavior: ScrollBehavior = reduce ? 'instant' : 'smooth'
   armProgrammaticScroll(behavior === 'smooth')
-  return { el: target, top: HASH_TOP, behavior }
+  return { el: target, top: hashOffset(), behavior }
 }
 
 function onDocumentClick(event: MouseEvent): void {

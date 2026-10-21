@@ -14,13 +14,13 @@ async function expectScrolledTo(page: Page, selector: string): Promise<void> {
     const bottom = header.getBoundingClientRect().bottom
     const root = document.scrollingElement
     const max = root ? root.scrollHeight - root.clientHeight : 0
-    const placed = top >= bottom - 1 && top <= bottom + 28
-    const pinned = window.scrollY >= max - 2 && top >= bottom - 1
-    return placed || pinned
+    const band = top > bottom && top <= window.innerHeight * 0.3
+    const pinned = window.scrollY >= max - 2 && top > bottom
+    return band || pinned
   }, selector)
 }
 
-async function expectJustBelowHeader(page: Page, selector: string): Promise<void> {
+async function expectHashBand(page: Page, selector: string): Promise<void> {
   await page.waitForFunction(sel => {
     const header = document.querySelector('[data-test="site-header"]')
     const node = document.querySelector(sel)
@@ -28,7 +28,7 @@ async function expectJustBelowHeader(page: Page, selector: string): Promise<void
     const el = node.closest('.hash-target') ?? node
     const top = el.getBoundingClientRect().top
     const bottom = header.getBoundingClientRect().bottom
-    return top >= bottom - 1 && top <= bottom + 28
+    return top > bottom && top <= window.innerHeight * 0.3
   }, selector)
 }
 
@@ -50,9 +50,9 @@ async function accent(page: Page, selector: string): Promise<string> {
 
 test('direct load highlights solutions', async ({ page }) => {
   await page.goto('/problems/factorial#solutions')
-  await expectJustBelowHeader(page, '#solutions')
+  await expectHashBand(page, '#solutions')
   await page.waitForTimeout(700)
-  await expectJustBelowHeader(page, '#solutions')
+  await expectHashBand(page, '#solutions')
   expect(await accent(page, '#solutions')).toBe('3px')
   expect(await page.locator('#solutions').evaluate(el => el.tagName === 'H2' && el.closest('.hash-target')?.tagName === 'SECTION')).toBe(true)
   console.log('hash-direct')
@@ -60,19 +60,19 @@ test('direct load highlights solutions', async ({ page }) => {
 
 test('back and forward restore the hash', async ({ page }) => {
   await page.goto('/problems/factorial#solutions')
-  await expectJustBelowHeader(page, '#solutions')
+  await expectHashBand(page, '#solutions')
   await page.locator('#on-this-page a[href="#cost"]').click()
   await expect(page).toHaveURL(/\/problems\/factorial#cost$/)
-  await expectJustBelowHeader(page, '#cost')
+  await expectHashBand(page, '#cost')
   expect(await accent(page, '#cost')).toBe('3px')
   expect(await readAccent(page, '#solutions')).toBe('0px')
   await page.goBack()
   await expect(page).toHaveURL(/\/problems\/factorial#solutions$/)
-  await expectJustBelowHeader(page, '#solutions')
+  await expectHashBand(page, '#solutions')
   expect(await accent(page, '#solutions')).toBe('3px')
   await page.goForward()
   await expect(page).toHaveURL(/\/problems\/factorial#cost$/)
-  await expectJustBelowHeader(page, '#cost')
+  await expectHashBand(page, '#cost')
   expect(await accent(page, '#cost')).toBe('3px')
 
   await page.goto('/sandboxes/expr')
@@ -121,7 +121,7 @@ test('reduced motion scrolls instantly', async ({ page }) => {
     }) as typeof window.scrollTo
   })
   await page.goto('/problems/factorial#solutions')
-  await expectJustBelowHeader(page, '#solutions')
+  await expectHashBand(page, '#solutions')
   const behaviors = await page.evaluate(() => (window as unknown as { __scrollBehaviors: string[] }).__scrollBehaviors)
   expect(behaviors.includes('smooth')).toBe(false)
   expect(behaviors.includes('instant')).toBe(true)
@@ -142,7 +142,7 @@ test('scroll spy waits for the reader', async ({ page }) => {
   await expect(page.locator('#on-this-page a[href="#install"]')).toHaveAttribute('aria-current', 'location')
 
   await page.goto('/problems/factorial#solutions')
-  await expectJustBelowHeader(page, '#solutions')
+  await expectHashBand(page, '#solutions')
   await expect(page.locator('#on-this-page a[href="#solutions"]')).toHaveAttribute('aria-current', 'location')
   await page.locator('#solutions').hover()
   await page.mouse.wheel(0, -1400)
@@ -157,9 +157,9 @@ test('unknown hash is a no-op', async ({ page }) => {
     if (message.type() === 'error') errors.push(message.text())
   })
   await page.goto('/problems/factorial#solutions')
-  await expectJustBelowHeader(page, '#solutions')
+  await expectHashBand(page, '#solutions')
   await page.locator('#on-this-page a[href="#cost"]').click()
-  await expectJustBelowHeader(page, '#cost')
+  await expectHashBand(page, '#cost')
   expect(await readAccent(page, '#solutions')).toBe('0px')
   await page.goto('/problems/factorial')
   await expect(page.locator('.doc-page :target')).toHaveCount(0)
@@ -177,12 +177,12 @@ test('logical parent gets the highlight', async ({ page }) => {
   const rowId = await page.locator('[data-test="solution-row"]').first().getAttribute('id')
   expect(rowId).toBeTruthy()
   await page.goto(`/problems/factorial#${rowId}`)
-  await expectJustBelowHeader(page, `#${rowId}`)
+  await expectHashBand(page, `#${rowId}`)
   expect(await page.locator(`#${rowId}`).evaluate(el => el.tagName)).toBe('TR')
   expect(await accent(page, `#${rowId}`)).toBe('3px')
 
   await page.goto('/sandboxes#lisp')
-  await expectJustBelowHeader(page, '#lisp')
+  await expectHashBand(page, '#lisp')
   expect(await page.locator('#lisp').evaluate(el => el.tagName)).toBe('LI')
   expect(await accent(page, '#lisp')).toBe('3px')
 

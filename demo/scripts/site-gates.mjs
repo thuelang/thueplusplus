@@ -1132,11 +1132,12 @@ async function live186() {
     await page.goto('https://www.thuelang.org/problems/factorial#solutions', { waitUntil: 'networkidle', timeout: 60_000 })
     await page.waitForFunction(() => {
       const header = document.querySelector('[data-test="site-header"]')
-      const el = document.getElementById('solutions')
-      if (!(header instanceof HTMLElement) || !(el instanceof HTMLElement)) return false
+      const node = document.getElementById('solutions')
+      if (!(header instanceof HTMLElement) || !(node instanceof HTMLElement)) return false
+      const el = node.closest('.hash-target') ?? node
       const top = el.getBoundingClientRect().top
       const bottom = header.getBoundingClientRect().bottom
-      return top >= bottom - 1 && top <= bottom + 28
+      return top > bottom && top <= window.innerHeight * 0.3
     }, null, { timeout: 20_000 })
     const accent = await page.locator('#solutions').evaluate(el => {
       const target = el.closest('.hash-target')
