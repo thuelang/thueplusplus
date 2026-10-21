@@ -1,6 +1,7 @@
 import {
   bestSandboxMarks as bestSandboxMarksJs,
   formatCost as formatCostJs,
+  formatTick as formatTickJs,
   runningMin as runningMinJs,
   sandboxSeriesFromCatalog as sandboxSeriesFromCatalogJs,
   solutionLink as solutionLinkJs,
@@ -27,6 +28,7 @@ export interface TimePoint {
   version?: string
   link?: ChartLink
   parts?: ChartLink[]
+  sha?: string
 }
 
 export interface SolutionLinkFields {
@@ -43,6 +45,7 @@ export interface SolutionLinkFields {
 
 export const runningMin = runningMinJs as (points: readonly TimePoint[]) => TimePoint[]
 export const formatCost = formatCostJs as (value: number) => string
+export const formatTick = formatTickJs as (value: number) => string
 export const solutionLink = solutionLinkJs as (fields: SolutionLinkFields) => ChartLink
 export const summedCostSeries = summedCostSeriesJs as (perProblem: readonly (readonly TimePoint[])[], commits: readonly number[]) => TimePoint[]
 export const sandboxSeriesFromCatalog = sandboxSeriesFromCatalogJs as (catalog: {

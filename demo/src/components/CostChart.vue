@@ -8,7 +8,7 @@ import VChart from 'vue-echarts'
 import type { ComposeOption } from 'echarts/core'
 import type { LineSeriesOption } from 'echarts/charts'
 import type { GridComponentOption, LegendComponentOption, TooltipComponentOption } from 'echarts/components'
-import { formatCost, type TimePoint } from '@/charts/cost'
+import { formatCost, formatTick, type TimePoint } from '@/charts/cost'
 import { tooltipHtml } from '@/charts/tooltip'
 
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, SVGRenderer])
@@ -152,7 +152,7 @@ const option = computed<ChartOption>(() => {
       type: scale.value === 'log' ? 'log' : 'value',
       min: scale.value === 'log' ? 'dataMin' : 0,
       max: costs.length === 0 ? 1 : undefined,
-      axisLabel: { color: ash, fontFamily: font, hideOverlap: true, formatter: (value: number) => formatCost(value) },
+      axisLabel: { color: ash, fontFamily: font, hideOverlap: true, formatter: (value: number) => formatTick(value) },
       splitLine: { lineStyle: { color: line } },
       axisLine: { lineStyle: { color: line } },
     },
@@ -173,6 +173,7 @@ const option = computed<ChartOption>(() => {
           time: point.time,
           link: point.link,
           parts: point.parts,
+          sha: point.sha,
         })),
     })),
   } as unknown as ChartOption

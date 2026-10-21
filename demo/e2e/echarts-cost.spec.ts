@@ -18,13 +18,29 @@ async function expectSi(text: string) {
   expect(text).not.toMatch(/\d,\d{3}/)
 }
 
-async function openTooltip(page: import('@playwright/test').Page) {
-  const dot = symbol(page.locator('[data-test="cost-chart"]')).last()
-  await dot.click()
+function axisText(page: import('@playwright/test').Page) {
+  return page.locator('[data-test="cost-chart"] svg text').allTextContents()
+}
+
+async function openHomeTooltip(page: import('@playwright/test').Page) {
+  await symbol(page.locator('[data-test="cost-chart"]')).last().hover()
+  const tip = page.locator('.cost-tip')
+  await expect(tip).toBeVisible()
+  await expect(tip.locator('a[href*="/blob/"]')).toHaveCount(0)
+  await expect(tip.locator('a[href*="/commit/"]')).toHaveCount(1)
+  await expect(tip.locator('a[href*="/commit/"]')).toHaveAttribute('href', /\/commit\/[0-9a-f]{40}$/)
+  await expect(tip).toContainText(/View commit [0-9a-f]{7}/)
+  await expect(tip).toContainText(/Cost /)
+}
+
+async function openSolutionTooltip(page: import('@playwright/test').Page) {
+  await symbol(page.locator('[data-test="cost-chart"]')).last().hover()
   const link = page.locator('.cost-tip a[href*="github.com/thuelang/thueplusplus/blob/"]')
   await expect(link.first()).toBeVisible()
   await expect(link.first()).toHaveAttribute('href', /\/blob\/[0-9a-f]{40}\/problems\/.+\/solutions\/.+\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\/[^/]+$/)
   await expect(page.locator('.cost-tip a[href*="github.com/thuelang/thueplusplus/commit/"]').first()).toHaveAttribute('href', /\/commit\/[0-9a-f]{40}$/)
+  await expect(page.locator('.cost-tip')).toContainText('View solution')
+  await expect(page.locator('.cost-tip')).toContainText(/View commit [0-9a-f]{7}/)
 }
 
 test('home chart toggles series, scale, and a linked tooltip', async ({ page }) => {
@@ -36,24 +52,26 @@ test('home chart toggles series, scale, and a linked tooltip', async ({ page }) 
   await expect(page.getByTestId('cost-chart')).toHaveAttribute('data-x', 'date')
   await expect(page.getByTestId('cost-legend')).toContainText('Direct Thue')
   await expectSi(await page.getByTestId('cost-legend').innerText())
-  const linearAxis = (await page.locator('[data-test="cost-chart"] svg text').allTextContents()).join(' ')
+  const linearAxis = (await axisText(page)).join(' ')
   expect(linearAxis).toMatch(/\d/)
   expect(linearAxis).not.toMatch(/\d,\d{3}/)
+  expect(linearAxis).not.toMatch(/\d\.\d*0[kMGT]/)
   await hideSeries(page, 'forth')
   await page.getByTestId('y-log').click()
   await expect(page.getByTestId('cost-chart')).toHaveAttribute('data-scale', 'log')
   await expect(page.getByTestId('y-log')).toHaveAttribute('aria-pressed', 'true')
-  const logAxis = (await page.locator('[data-test="cost-chart"] svg text').allTextContents()).join(' ')
+  const logAxis = (await axisText(page)).join(' ')
   expect(logAxis).toMatch(/\d/)
   expect(logAxis).not.toMatch(/\d,\d{3}/)
+  expect(logAxis).not.toMatch(/\d\.\d*0[kMGT]/)
   await page.getByTestId('x-index').click()
   await expect(page.getByTestId('cost-chart')).toHaveAttribute('data-x', 'index')
   await expect(page.getByTestId('x-index')).toHaveAttribute('aria-pressed', 'true')
-  await openTooltip(page)
+  await openHomeTooltip(page)
   const tip = page.locator('.cost-tip')
-  await expect(tip).toContainText('Hello world')
+  await expect(tip).not.toContainText('Hello world')
   await expectSi(await tip.innerText())
-  await expect(tip.locator('a[href*="/blob/"]')).toHaveCount(5)
+  await expect(tip.locator('a[href*="/blob/"]')).toHaveCount(0)
   await expect(page.getByTestId('improvements')).toContainText('Direct Thue')
   await expect(page.locator('a[href="/sandboxes/direct"]')).toHaveCount(0)
 })
@@ -72,11 +90,12 @@ test('leap-year chart toggles series, scale, and a linked tooltip', async ({ pag
   const logAxis = (await page.locator('[data-test="cost-chart"] svg text').allTextContents()).join(' ')
   expect(logAxis).toMatch(/\d/)
   expect(logAxis).not.toMatch(/\d,\d{3}/)
+  expect(logAxis).not.toMatch(/\d\.\d*0[kMGT]/)
   await page.getByTestId('x-index').click()
   await expect(page.getByTestId('cost-chart')).toHaveAttribute('data-x', 'index')
-  await openTooltip(page)
+  await openSolutionTooltip(page)
   const tip = page.locator('.cost-tip')
-  await expect(tip).toContainText('Leap year')
+  await expect(tip).not.toContainText('Leap year')
   await expectSi(await tip.innerText())
 })
 

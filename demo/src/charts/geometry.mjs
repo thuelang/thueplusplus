@@ -41,6 +41,11 @@ export function formatCost(value) {
   return sign + text + suffix
 }
 
+export function formatTick(value) {
+  const text = formatCost(value)
+  return text.replace(/(\.\d*?)0+([kMGT])$/, (_, digits, suffix) => `${digits === '.' ? '' : digits}${suffix}`)
+}
+
 export function solutionLink(fields) {
   const sha = fields.sha
   const solutionPath = fields.solutionPath
@@ -110,16 +115,22 @@ export function summedCostSeries(perProblem, commits) {
   const points = []
   let previous = null
   let previousParts = null
+  let previousSha = null
   for (const time of times) {
     const winners = problems.map(series => bestAt(series, time))
     if (winners.some(item => item == null)) continue
     const cost = winners.reduce((sum, item) => sum + item.cost, 0)
     const links = winners.map(item => item.link).filter(Boolean)
     const parts = links.length === winners.length ? links : null
+    const sha = measuringSha(winners, time)
     if (previous == null || cost !== previous) {
       const point = { time, cost }
       if (parts) point.parts = parts
+      const commit = sha || previousSha
+      if (parts && !commit) throw new Error(`summed cost at ${time} has no measuring commit`)
+      if (commit) point.sha = commit
       points.push(point)
+      if (sha) previousSha = sha
     }
     previous = cost
     previousParts = parts
@@ -128,9 +139,18 @@ export function summedCostSeries(perProblem, commits) {
   if (points.length > 0 && points[points.length - 1].time !== end) {
     const point = { time: end, cost: previous }
     if (previousParts) point.parts = previousParts
+    if (previousParts && !previousSha) throw new Error('summed cost has no measuring commit')
+    if (previousSha) point.sha = previousSha
     points.push(point)
   }
   return points
+}
+
+function measuringSha(winners, time) {
+  const fresh = winners.filter(item => item.time === time && item.link && /^[0-9a-f]{40}$/.test(item.link.sha))
+  const shas = [...new Set(fresh.map(item => item.link.sha))]
+  if (shas.length > 1) throw new Error(`summed cost at ${time} comes from commits ${shas.join(', ')}`)
+  return shas[0] ?? null
 }
 
 function linkFor(problem, version, point, time) {

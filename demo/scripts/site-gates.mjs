@@ -53,6 +53,11 @@ const handlers = {
   'title-gap': titleGap,
   live,
   'comma-costs': commaCosts,
+  'tick-wiring': tickWiring,
+  'tooltip-copy': tooltipCopy,
+  shots182,
+  pr182,
+  ci182,
 }
 
 const handler = handlers[name]
@@ -634,6 +639,33 @@ async function live() {
     if (costs.length === 0 || costs.some(item => /\d,\d{3}/.test(item)) || !costs.some(item => /\d(?:\.\d+)?[kMGT]|\b\d{1,3}\b/.test(item))) {
       fail(`solution costs are not SI: ${costs.join(' | ')}`)
     }
+    const history = JSON.parse(read('metrics/versions.json'))
+    const entry = Object.values(history.versions).find(item => item.problem === 'factorial' && item.ruleset === 'lisp' && item.timestamp === '2026-10-17_13-58-55')
+    if (!entry?.commit || entry.commit.startsWith('75fa4d3')) fail('factorial lisp metrics entry has no measuring commit')
+    const buttons = page.locator('[data-test="cost-chart"] [data-test="end-label"]')
+    const count = await buttons.count()
+    for (let index = 0; index < count; index += 1) {
+      const button = buttons.nth(index)
+      const sandbox = await button.getAttribute('data-sandbox')
+      const pressed = await button.getAttribute('aria-pressed')
+      if (sandbox !== 'lisp' && pressed === 'true') await button.click()
+    }
+    await page.locator('[data-test="cost-chart"] svg path[d^="M1 0A1"]').last().hover()
+    await page.waitForSelector('.cost-tip a[href*="/commit/"]', { timeout: 10000 })
+    const text = await page.locator('.cost-tip').innerText()
+    if (!text.includes('Lisp: While loop from stdin')) fail(`factorial lisp tooltip is ${text}`)
+    if (!text.includes('Cost 15.5M,')) fail(`factorial lisp cost line is ${text}`)
+    if (!text.includes('by Cursor Agent')) fail(`factorial lisp author line is ${text}`)
+    if (text.includes('75fa4d3') || text.includes('@') || text.includes('<')) fail(`factorial lisp tooltip leaked the old commit or an email: ${text}`)
+    if (!text.includes('View solution') || !/View commit [0-9a-f]{7}/.test(text)) fail(`factorial lisp links are ${text}`)
+    const dates = text.match(/[A-Z][a-z]{2} \d{1,2}, \d{4}/g) ?? []
+    if (dates.length !== 1) fail(`factorial lisp date is not shown once: ${text}`)
+    const commitHref = await page.locator('.cost-tip a[href*="/commit/"]').getAttribute('href')
+    if (!commitHref || !commitHref.endsWith(entry.commit)) fail(`factorial lisp commit link is ${commitHref}`)
+    const blobHref = await page.locator('.cost-tip a[href*="/blob/"]').getAttribute('href')
+    if (!blobHref || !blobHref.includes(`/${entry.commit}/`)) fail(`factorial lisp solution link is ${blobHref}`)
+    const ticks = (await page.locator('[data-test="cost-chart"] svg text').allTextContents()).join(' ')
+    if (/\d\.\d*0[kMGT]/.test(ticks)) fail(`factorial ticks keep trailing zeros: ${ticks}`)
     if (errors.length > 0) fail(errors.join('\n'))
     console.log('live ok')
   } finally {
@@ -815,6 +847,78 @@ function description() {
   if (count !== 1) fail(`problem description appears ${count} times`)
   if (page.includes('problem.summary')) fail('problem page also shows the summary')
   console.log('description ok')
+}
+
+function tickWiring() {
+  const chart = source('components/CostChart.vue')
+  const tip = source('charts/tooltip.ts')
+  const page = source('pages/ProblemPage.vue')
+  if (!chart.includes('formatter: (value: number) => formatTick(value)')) fail('axis does not trim ticks')
+  if (!chart.includes("scale.value === 'log' ? 'log' : 'value'")) fail('log scale is gone')
+  if (chart.split('formatCost(endCost(item))').length - 1 !== 2) fail('legends dropped three-digit costs')
+  if (tip.includes('formatTick') || !tip.includes('formatCost')) fail('tooltip does not keep three significant digits')
+  if (!page.includes('formatCost(row.solution.cost)')) fail('table dropped three-digit costs')
+  console.log('trimmed-ticks')
+}
+
+function tooltipCopy() {
+  const changelog = read('CHANGELOG.md')
+  const added = changelog.split('### Changed')[1]?.split('\n- ')[1] ?? ''
+  const blob = [read('demo/src/charts/tooltip.ts'), read('demo/src/components/CostChart.vue'), added].join('\n')
+  if (blob.includes('RE2')) fail('user-facing copy mentions RE2')
+  const tip = read('demo/src/charts/tooltip.ts')
+  if (tip.includes('timeStyle') || tip.includes('solution ·')) fail('the old tooltip is still there')
+  const build = read('demo/scripts/build-site.mjs')
+  if (build.includes('sha: item.chartSha') || build.includes('function chartCommit')) fail('chart sha still follows the latest file commit')
+  console.log('no-legacy')
+}
+
+function shots182() {
+  const names = ['home-tooltip-axis-dark.png', 'home-tooltip-axis-light.png', 'factorial-tooltip-axis-dark.png', 'factorial-tooltip-axis-light.png']
+  for (const name of names) {
+    const path = join('/opt/cursor/artifacts', name)
+    if (!existsSync(path) || statSync(path).size < 1000) fail(`missing screenshot ${path}`)
+  }
+  const body = prBody()
+  for (const name of names) {
+    if (!body.includes(name)) fail(`PR body is missing ${name}`)
+  }
+  console.log('shots-ok')
+}
+
+function pr182() {
+  const data = JSON.parse(gh(['pr', 'view', '--json', 'body,baseRefName,mergeable,state']))
+  if (!/closes\s+#182/i.test(data.body ?? '')) fail('PR body does not close #182')
+  if (data.baseRefName !== 'main') fail(`PR base is ${data.baseRefName}`)
+  if (data.state !== 'MERGED' && data.mergeable !== 'MERGEABLE') fail(`PR mergeable is ${data.mergeable}`)
+  console.log('pr-ok')
+}
+
+function ci182() {
+  spawnSync('gh', ['pr', 'checks', '--watch', '--fail-fast'], { cwd: repoRoot, stdio: 'ignore' })
+  const words = ['deploy cap', 'daily', 'ignored build', 'resource', 'exceeded']
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const rows = JSON.parse(gh(['pr', 'checks', '--json', 'name,bucket,description']))
+    const bad = []
+    let pending = false
+    for (const row of rows) {
+      if (row.bucket === 'pass' || row.bucket === 'skipping') continue
+      const description = `${row.description ?? ''}`.toLowerCase()
+      if (/vercel/i.test(row.name) && words.some(word => description.includes(word))) continue
+      if (row.bucket === 'pending') {
+        pending = true
+        continue
+      }
+      bad.push(`${row.name}: ${row.bucket} ${row.description ?? ''}`)
+    }
+    if (bad.length > 0) fail(bad.join('\n'))
+    if (!pending) {
+      console.log('ci-green')
+      return
+    }
+    spawnSync('sleep', ['15'])
+  }
+  fail('checks are still pending')
 }
 
 function prBody() {
