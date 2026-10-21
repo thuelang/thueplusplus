@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { isProgrammaticScroll, lockedHashId, releaseHashLock } from '../hashTarget'
 
 interface PageHeading {
   id: string
@@ -35,6 +36,31 @@ function collect(): void {
     next.push({ id, text, level: node.tagName === 'H3' ? 3 : 2 })
   }
   headings.value = next
+  const locked = lockedHashId()
+  if (locked && next.some(heading => heading.id === locked)) {
+    activeHeadingId.value = locked
+    return
+  }
+  updateActiveHeading()
+}
+
+function onScroll(): void {
+  if (isProgrammaticScroll()) return
+  if (lockedHashId()) releaseHashLock()
+  updateActiveHeading()
+}
+
+function onUserScroll(): void {
+  if (lockedHashId()) releaseHashLock()
+  updateActiveHeading()
+}
+
+function onHashChange(): void {
+  const locked = lockedHashId()
+  if (locked && headings.value.some(heading => heading.id === locked)) {
+    activeHeadingId.value = locked
+    return
+  }
   updateActiveHeading()
 }
 
@@ -71,9 +97,11 @@ function updateActiveHeading(): void {
 
 onMounted(() => {
   void collectSoon()
-  window.addEventListener('scroll', updateActiveHeading, { passive: true })
+  window.addEventListener('scroll', onScroll, { passive: true })
+  window.addEventListener('wheel', onUserScroll, { passive: true })
+  window.addEventListener('touchmove', onUserScroll, { passive: true })
   window.addEventListener('resize', updateActiveHeading, { passive: true })
-  window.addEventListener('hashchange', updateActiveHeading)
+  window.addEventListener('hashchange', onHashChange)
 })
 
 watch(() => route.fullPath, () => {
@@ -81,9 +109,11 @@ watch(() => route.fullPath, () => {
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('scroll', updateActiveHeading)
+  window.removeEventListener('scroll', onScroll)
+  window.removeEventListener('wheel', onUserScroll)
+  window.removeEventListener('touchmove', onUserScroll)
   window.removeEventListener('resize', updateActiveHeading)
-  window.removeEventListener('hashchange', updateActiveHeading)
+  window.removeEventListener('hashchange', onHashChange)
 })
 </script>
 

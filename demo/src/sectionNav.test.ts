@@ -13,7 +13,7 @@ describe('section nav', () => {
       ...catalog.problems.map(problem => problem.path),
     ])
     expect(links?.map(link => link.title)).toEqual([
-      pages.problems.kicker,
+      `All ${pages.problems.kicker.toLowerCase()}`,
       ...catalog.problems.map(problem => problem.title),
     ])
     expect(sectionFor('/problems')?.links.map(link => link.href)).toEqual(links?.map(link => link.href))
@@ -26,7 +26,7 @@ describe('section nav', () => {
       ...catalog.sandboxes.map(sandbox => `/sandboxes/${sandbox.id}`),
     ])
     expect(links.map(link => link.title)).toEqual([
-      pages.sandboxes.kicker,
+      `All ${pages.sandboxes.kicker.toLowerCase()}`,
       ...catalog.sandboxes.map(sandbox => sandbox.name),
     ])
     expect(sectionFor('/sandboxes')?.links).toEqual(links)
@@ -41,7 +41,7 @@ describe('section nav', () => {
 
   it('lists docs and install pages from the host registry', () => {
     const expected = [
-      { title: pages.docs.kicker, href: pages.docs.path },
+      { title: `All ${pages.docs.kicker.toLowerCase()}`, href: pages.docs.path },
       { title: pages.install.kicker, href: pages.install.path },
       ...siteHosts.map(host => ({ title: host.title, href: host.href })),
     ]
@@ -49,6 +49,13 @@ describe('section nav', () => {
       expect(sectionFor(path)?.links).toEqual(expected)
     }
     expect(siteHosts.every(host => host.href === `/docs/${host.id}/install`)).toBe(true)
+  })
+
+  it('names the overview All problems, All sandboxes, and All docs', () => {
+    expect(sectionFor('/problems')?.links[0]).toEqual({ title: 'All problems', href: '/problems' })
+    expect(sectionFor('/sandboxes')?.links[0]).toEqual({ title: 'All sandboxes', href: '/sandboxes' })
+    expect(sectionFor('/docs')?.links[0]).toEqual({ title: 'All docs', href: '/docs' })
+    expect(sectionFor('/install')?.links[1]?.title).toBe(pages.install.kicker)
   })
 
   it('returns no section for home, embed, and a missing page', () => {

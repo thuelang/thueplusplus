@@ -13,6 +13,7 @@ declare module 'vue-router' {
   }
 }
 import { problemRouteMeta, sandboxById } from './catalog'
+import { clearHashMark, hashScroll, noteHashNavigation, releaseHashLock, watchHashClicks } from './hashTarget'
 import { siteHosts } from './hosts'
 import { pages } from './site'
 
@@ -92,13 +93,17 @@ export function createAppRouter() {
   const router = createRouter({
     history: createWebHistory(),
     routes,
-    scrollBehavior(to, _from, saved) {
+    async scrollBehavior(to, _from, saved) {
+      if (to.hash) return hashScroll(to.hash)
+      clearHashMark()
       if (saved) return saved
-      if (to.hash) return { el: to.hash, top: 72 }
       return { top: 0 }
     },
   })
+  watchHashClicks(router)
   router.beforeEach((to, from) => {
+    if (to.hash) noteHashNavigation(to.hash)
+    else releaseHashLock()
     const problemId = to.params.problemId
     if (typeof problemId === 'string') {
       const meta = problemRouteMeta(problemId)

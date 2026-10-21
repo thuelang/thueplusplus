@@ -36,6 +36,11 @@ type SolutionRow = {
   solution: CatalogSolution
   measured: string
   current: boolean
+  domId: string
+}
+
+function domId(versionId: string, solutionId: string): string {
+  return `solution-${versionId}-${solutionId}`.replace(/[^A-Za-z0-9_-]/g, '-')
 }
 
 function measuredAt(version: CatalogVersion, solution: CatalogSolution): string {
@@ -72,6 +77,7 @@ const rows = computed(() => {
     solution,
     measured: measuredAt(version, solution),
     current: index === 0,
+    domId: '',
   })))
   const sorted = [...flat].sort((left, right) => {
     const a = value(left, sortKey.value)
@@ -79,7 +85,15 @@ const rows = computed(() => {
     const order = a < b ? -1 : a > b ? 1 : left.key < right.key ? -1 : left.key > right.key ? 1 : 0
     return sortAsc.value ? order : -order
   })
-  return sorted
+  const bases = sorted.map(row => domId(row.version.id, row.solution.id))
+  const seen = new Map<string, number>()
+  return sorted.map((row, index) => {
+    const base = bases[index] ?? domId(row.version.id, row.solution.id)
+    const count = bases.filter(item => item === base).length
+    const n = (seen.get(base) ?? 0) + 1
+    seen.set(base, n)
+    return { ...row, domId: count > 1 ? `${base}-${n}` : base }
+  })
 })
 
 const showTitle = computed(() => rows.value.some(row => row.solution.title.length > 0))
@@ -98,16 +112,16 @@ function ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
 <template>
   <NotFoundPage v-if="!problem" />
   <DocPage v-else kicker="Problems" :title="problem.title" wide>
-    <section id="cost" class="flex flex-col gap-3">
-      <h2 class="text-xl font-semibold tracking-tight">Cost</h2>
+    <section class="flex flex-col gap-3">
+      <h2 id="cost" class="text-xl font-semibold tracking-tight">Cost</h2>
       <CostChart :series="problemSeries(problem)" :label="`${problem.title} cost over time`" />
     </section>
     <MarkdownBody data-test="problem-description" :source="problem.description" />
     <div data-test="problem-credit" class="text-ash">
       <MarkdownBody :source="problem.credit" />
     </div>
-    <section id="solutions" class="flex flex-col gap-3">
-      <h2 class="text-xl font-semibold tracking-tight">Solutions</h2>
+    <section class="flex flex-col gap-3">
+      <h2 id="solutions" class="text-xl font-semibold tracking-tight">Solutions</h2>
       <Table data-test="solutions-table">
         <TableHeader>
           <TableRow>
@@ -121,7 +135,7 @@ function ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
           </TableRow>
         </TableHeader>
         <TableBody>
-          <TableRow v-for="row in rows" :key="row.key" data-test="solution-row" :data-sandbox="row.version.id" :data-current="row.current ? 'true' : undefined" :data-slug="row.solution.id">
+          <TableRow v-for="row in rows" :id="row.domId" :key="row.key" data-test="solution-row" :data-sandbox="row.version.id" :data-current="row.current ? 'true' : undefined" :data-slug="row.solution.id">
             <TableCell>
               <span v-if="row.version.id !== 'direct'" data-test="sandbox-color" class="mr-2 inline-block size-2.5 align-middle" :style="{ background: row.version.color }" />
               <a data-test="solution-link" class="underline underline-offset-4" :href="sourceUrl(row.solution.solutionPath)" rel="noreferrer">{{ row.version.id === 'direct' ? 'Direct Thue' : row.version.name }}</a>

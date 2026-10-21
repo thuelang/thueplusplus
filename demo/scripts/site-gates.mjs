@@ -64,6 +64,13 @@ const handlers = {
   shots184,
   pr184,
   ci184,
+  'hash-router': hashRouter,
+  copy186,
+  'hash-legacy': hashLegacy,
+  shots186,
+  pr186,
+  ci186,
+  live186,
 }
 
 const handler = handlers[name]
@@ -1028,6 +1035,120 @@ function ci184() {
     spawnSync('sleep', ['15'])
   }
   fail('checks are still pending')
+}
+
+function hashRouter() {
+  const router = read('demo/src/router.ts')
+  const hash = read('demo/src/hashTarget.ts')
+  if (!router.includes('scrollBehavior') || !router.includes('hashScroll')) fail('scroll does not go through the router')
+  if (!hash.includes('getElementById') || !hash.includes('requestAnimationFrame')) fail('the hash scroll does not wait for content')
+  const pages = walk(join(repoRoot, 'demo/src/pages')).filter(path => path.endsWith('.vue'))
+  for (const path of pages) {
+    const source = readFileSync(path, 'utf8')
+    if (source.includes('scrollIntoView') || source.includes('scrollBehavior')) fail(`${path} scrolls on its own`)
+  }
+  console.log('hash-router')
+}
+
+function copy186() {
+  const changelog = read('CHANGELOG.md')
+  const added = changelog.split('### Changed')[1]?.split('\n- ')[1] ?? ''
+  if (!added.includes('hash target')) fail('the changelog has no hash entry')
+  const blob = [read('demo/src/hashTarget.ts'), read('demo/src/components/OnThisPage.vue'), read('demo/src/sectionNav.ts'), added].join('\n')
+  if (blob.includes('RE2')) fail('user-facing copy mentions RE2')
+  console.log('no-re2')
+}
+
+function hashLegacy() {
+  const router = read('demo/src/router.ts')
+  const hash = read('demo/src/hashTarget.ts')
+  if ((router.match(/scrollBehavior/g) ?? []).length !== 1) fail('more than one scroll behavior')
+  if (/legacy|fallback|backcompat|backwards/i.test(`${router}\n${hash}`)) fail('a second hash path is kept')
+  if (router.includes('el: to.hash')) fail('the old immediate hash scroll is still there')
+  console.log('no-legacy')
+}
+
+function shots186() {
+  const names = [
+    'factorial-solutions-dark.png',
+    'factorial-solutions-light.png',
+    'factorial-row-dark.png',
+    'factorial-row-light.png',
+  ]
+  const body = prBody()
+  for (const name of names) {
+    const path = join('/opt/cursor/artifacts', name)
+    if (!existsSync(path) || statSync(path).size < 1000) fail(`missing screenshot ${path}`)
+    if (!body.includes(name)) fail(`PR body is missing ${name}`)
+  }
+  console.log('shots-ok')
+}
+
+function pr186() {
+  const view = JSON.parse(gh(['pr', 'view', '--json', 'body,mergeable']))
+  if (!String(view.body ?? '').includes('Closes #186')) fail('PR body does not close #186')
+  if (view.mergeable === 'CONFLICTING') fail('PR has conflicts')
+  console.log('pr-ok')
+}
+
+function ci186() {
+  const deadline = Date.now() + 15 * 60 * 1000
+  while (Date.now() < deadline) {
+    const rows = JSON.parse(gh(['pr', 'checks', '--json', 'name,bucket,state,link']))
+    const bad = []
+    let pending = false
+    for (const row of rows) {
+      if (row.bucket === 'pending' || row.state === 'QUEUED' || row.state === 'IN_PROGRESS' || row.state === 'PENDING') {
+        pending = true
+        continue
+      }
+      if (row.bucket === 'pass' || row.bucket === 'skipping') continue
+      if (row.name === 'Vercel' && row.bucket === 'fail') {
+        const log = gh(['pr', 'checks', '--json', 'name,bucket,link'])
+        if (log.includes('Resource exhausted') || log.includes('deployments') || log.includes('limit')) continue
+      }
+      bad.push(`${row.name}: ${row.bucket}`)
+    }
+    if (bad.length > 0) fail(bad.join('\n'))
+    if (!pending) {
+      console.log('ci-green')
+      return
+    }
+    spawnSync('sleep', ['15'])
+  }
+  fail('checks are still pending')
+}
+
+async function live186() {
+  const { chromium } = await import('@playwright/test')
+  const browser = await chromium.launch({ headless: true })
+  const page = await browser.newPage({ viewport: { width: 1280, height: 480 } })
+  const errors = []
+  page.on('pageerror', error => errors.push(String(error)))
+  page.on('console', message => {
+    if (message.type() === 'error') errors.push(message.text())
+  })
+  try {
+    await page.goto('https://www.thuelang.org/problems/factorial#solutions', { waitUntil: 'networkidle', timeout: 60_000 })
+    await page.waitForFunction(() => {
+      const header = document.querySelector('[data-test="site-header"]')
+      const node = document.getElementById('solutions')
+      if (!(header instanceof HTMLElement) || !(node instanceof HTMLElement)) return false
+      const el = node.closest('.hash-target') ?? node
+      const top = el.getBoundingClientRect().top
+      const bottom = header.getBoundingClientRect().bottom
+      return top > bottom && top <= window.innerHeight * 0.3
+    }, null, { timeout: 20_000 })
+    const accent = await page.locator('#solutions').evaluate(el => {
+      const target = el.closest('.hash-target')
+      return target?.tagName === 'SECTION' && parseFloat(getComputedStyle(target).borderLeftWidth) >= 2
+    })
+    if (!accent) fail('solutions is not highlighted')
+    if (errors.length) fail(errors.join('\n'))
+    console.log('live-hash')
+  } finally {
+    await browser.close()
+  }
 }
 
 function prBody() {

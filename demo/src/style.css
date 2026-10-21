@@ -287,7 +287,32 @@ html:not(.dark) {
 }
 
 .doc-page :is(h1, h2, h3, [id]) {
-  scroll-margin-top: 5rem;
+  scroll-margin-top: max(25vh, 4.75rem);
+}
+
+.doc-page .hash-target {
+  border-left: 3px solid var(--bone);
+  background-image: linear-gradient(var(--bone), var(--bone));
+  background-size: 3px 100%;
+  background-repeat: no-repeat;
+  background-position: left center;
+  animation: hash-flash 700ms ease;
+}
+
+.doc-page tr.hash-target > :first-child {
+  border-left: 3px solid var(--bone);
+  background-color: var(--signal-wash);
+}
+
+@keyframes hash-flash {
+  from { background-color: var(--signal-wash); }
+  to { background-color: transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-page .hash-target {
+    animation: none;
+  }
 }
 
 .page-toc {
