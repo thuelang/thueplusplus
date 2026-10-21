@@ -576,6 +576,76 @@
       "rule_count": 992,
       "rule_chars": 165816,
       "current": true
+    },
+    "fizzbuzz/lisp/2026-10-20_12-16-45": {
+      "problem": "fizzbuzz",
+      "ruleset": "lisp",
+      "timestamp": "2026-10-20_12-16-45",
+      "pass": true,
+      "cost": 34817415,
+      "commit": "4aad72cc4eb0669fb26da5696881d633bb38d342",
+      "applied_steps": 3215,
+      "regex_evals": 15486,
+      "regex_matches": 3415,
+      "state_bytes": 9103309,
+      "state_peak": 5657,
+      "rule_count": 434,
+      "rule_chars": 100443,
+      "current": false
+    },
+    "factorial/basic/2026-10-16_15-37-17": {
+      "problem": "factorial",
+      "ruleset": "basic",
+      "timestamp": "2026-10-16_15-37-17",
+      "pass": false,
+      "reason": "zero: exit 0; writes mismatch",
+      "commit": "4aad72cc4eb0669fb26da5696881d633bb38d342",
+      "current": false
+    },
+    "factorial/forth/2026-10-16_13-47-12": {
+      "problem": "factorial",
+      "ruleset": "forth",
+      "timestamp": "2026-10-16_13-47-12",
+      "pass": false,
+      "reason": "zero: exit 0; writes mismatch",
+      "commit": "4aad72cc4eb0669fb26da5696881d633bb38d342",
+      "current": false
+    },
+    "factorial/lisp/2026-10-16_13-47-12": {
+      "problem": "factorial",
+      "ruleset": "lisp",
+      "timestamp": "2026-10-16_13-47-12",
+      "pass": false,
+      "reason": "zero: exit 0; writes mismatch",
+      "commit": "4aad72cc4eb0669fb26da5696881d633bb38d342",
+      "current": false
+    },
+    "reverse-a-string/direct/2026-10-17_14-16-44": {
+      "problem": "reverse-a-string",
+      "ruleset": "direct",
+      "timestamp": "2026-10-17_14-16-44",
+      "pass": false,
+      "reason": "in: exit 1; Error: ERR:resource:stdin:EOF before newline; writes mismatch",
+      "commit": "4aad72cc4eb0669fb26da5696881d633bb38d342",
+      "current": false
+    },
+    "guess-the-number/direct/2026-10-17_14-16-44": {
+      "problem": "guess-the-number",
+      "ruleset": "direct",
+      "timestamp": "2026-10-17_14-16-44",
+      "pass": false,
+      "reason": "scripted: exit 1; Error: ERR:resource:stdin:EOF before newline; writes mismatch",
+      "commit": "4aad72cc4eb0669fb26da5696881d633bb38d342",
+      "current": false
+    },
+    "rot-13/direct/2026-10-17_14-16-44": {
+      "problem": "rot-13",
+      "ruleset": "direct",
+      "timestamp": "2026-10-17_14-16-44",
+      "pass": false,
+      "reason": "in: exit 1; Error: ERR:resource:stdin:EOF before newline; writes mismatch",
+      "commit": "4aad72cc4eb0669fb26da5696881d633bb38d342",
+      "current": false
     }
   }
 }
