@@ -320,9 +320,15 @@ html:not(.dark) {
 }
 
 .page-toc a:hover,
-.page-toc a.active {
+.page-toc a.active,
+.page-toc a[aria-current='page'],
+.page-toc a[aria-current='location'] {
   border-left-color: var(--bone);
   color: var(--bone);
+}
+
+[data-test='toc-slot']:not(:has(#on-this-page)) {
+  display: none;
 }
 
 *,
