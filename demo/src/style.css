@@ -290,29 +290,70 @@ html:not(.dark) {
   scroll-margin-top: max(25vh, 4.75rem);
 }
 
+@property --hash-ink {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
 .doc-page .hash-target {
-  border-left: 3px solid var(--bone);
-  background-image: linear-gradient(var(--bone), var(--bone));
-  background-size: 3px 100%;
-  background-repeat: no-repeat;
-  background-position: left center;
-  animation: hash-flash 700ms ease;
+  position: relative;
+  border-radius: 2px;
+  --hash-ink: 0;
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--signal) calc(var(--hash-ink) * 1%), transparent),
+    color-mix(in srgb, var(--signal) calc(var(--hash-ink) * 1%), transparent)
+  );
+  animation: hash-wash 4.8s ease forwards;
+}
+
+.doc-page .hash-target::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: -12px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--signal);
+  pointer-events: none;
+  animation: hash-bar 4.8s ease forwards;
+}
+
+.doc-page tr.hash-target::before {
+  content: none;
+  animation: none;
 }
 
 .doc-page tr.hash-target > :first-child {
-  border-left: 3px solid var(--bone);
-  background-color: var(--signal-wash);
+  position: relative;
 }
 
-@keyframes hash-flash {
-  from { background-color: var(--signal-wash); }
-  to { background-color: transparent; }
+.doc-page tr.hash-target > :first-child::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--signal);
+  pointer-events: none;
+  animation: hash-bar 4.8s ease forwards;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .doc-page .hash-target {
-    animation: none;
-  }
+@keyframes hash-wash {
+  0% { --hash-ink: 0; }
+  12% { --hash-ink: 12; }
+  58% { --hash-ink: 12; }
+  100% { --hash-ink: 4; }
+}
+
+@keyframes hash-bar {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  58% { opacity: 1; }
+  100% { opacity: 0.4; }
 }
 
 .page-toc {
@@ -348,7 +389,7 @@ html:not(.dark) {
 .page-toc a.active,
 .page-toc a[aria-current='page'],
 .page-toc a[aria-current='location'] {
-  border-left-color: var(--bone);
+  border-left-color: var(--signal);
   color: var(--bone);
 }
 
@@ -381,6 +422,21 @@ html {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .doc-page .hash-target,
+  .doc-page .hash-target::before,
+  .doc-page tr.hash-target > :first-child::before {
+    animation: none !important;
+  }
+
+  .doc-page .hash-target {
+    --hash-ink: 12;
+  }
+
+  .doc-page .hash-target::before,
+  .doc-page tr.hash-target > :first-child::before {
+    opacity: 1;
   }
 }
 
