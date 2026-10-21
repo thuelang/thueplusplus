@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import historylib  # noqa: E402
 from hosts import build_registered  # noqa: E402
-from layout import Case, Limits, Solution, discover, load_cases, load_limits  # noqa: E402
+from layout import Case, Limits, Solution, discover, discover_versions, load_cases, load_limits  # noqa: E402
 from run_limits import bounded_run  # noqa: E402
 
 RUN_FIELDS = (
@@ -85,7 +85,12 @@ def selected_hosts(host: str | None = None) -> tuple[str, ...] | None:
     return (host,)
 
 
+_kept_documents: list[dict] = []
+
+
 def measure(*, write_metrics: bool, commit: str, hosts: tuple[str, ...] | None = None) -> list[dict]:
+    global _kept_documents
+    _kept_documents = []
     limits = load_limits()
     solutions = discover()
     cases = {solution.problem: load_cases(solution.problem) for solution in solutions}
@@ -104,6 +109,12 @@ def measure(*, write_metrics: bool, commit: str, hosts: tuple[str, ...] | None =
         for interpreter in interpreters:
             runs.append(by_host[interpreter.name][index])
     _require_parity(runs)
+    go = next((interpreter for interpreter in interpreters if interpreter.name == "go"), None)
+    if go is not None:
+        pending = select_pending(discover_versions(), solutions, load_versions()["versions"])
+        pairs = [(solution, cases[solution.problem]) for solution in pending]
+        _kept_documents = measure_kept(go, pairs, limits, commit)
+        print(f"metrics: measured {len(_kept_documents)} kept versions")
     if write_metrics:
         if hosts is not None and "go" not in hosts:
             raise RunError("writing metrics requires the go host")
@@ -126,7 +137,7 @@ def _run_measured(interpreter, solution: Solution, case: Case, limits: Limits) -
     return row
 
 
-def _run_one(interpreter, solution: Solution, case: Case, limits: Limits) -> dict:
+def _run_one(interpreter, solution: Solution, case: Case, limits: Limits, *, fatal: bool = True) -> dict:
     environment = historylib.environment_for(interpreter.name)
     base = {
         "program": solution.program,
@@ -185,9 +196,12 @@ def _run_one(interpreter, solution: Solution, case: Case, limits: Limits) -> dic
             )
         except RuntimeError as exc:
             duration = int((time.perf_counter() - started) * 1000)
-            if interpreter.name == "go":
+            if fatal and interpreter.name == "go":
                 raise RunError(f"{solution.problem}/{solution.ruleset}/{case.name} failed on go: {exc}") from exc
-            return _finish(base, passed=False, metrics=None, duration=duration, memory=None, exit_code=None, detail=str(exc))
+            row = _finish(base, passed=False, metrics=None, duration=duration, memory=None, exit_code=None, detail=str(exc))
+            if not fatal:
+                row["detail"] = _reason(str(exc))
+            return row
         duration = int((time.perf_counter() - started) * 1000)
         memory = getattr(completed, "peak_rss_bytes", None)
         metrics = None
@@ -195,9 +209,12 @@ def _run_one(interpreter, solution: Solution, case: Case, limits: Limits) -> dic
             try:
                 metrics = historylib.parse_metrics(metrics_path.read_text(encoding="utf-8"))
             except historylib.HistoryError as exc:
-                if interpreter.name == "go":
+                if fatal and interpreter.name == "go":
                     raise RunError(f"{solution.problem}/{solution.ruleset}/{case.name} failed on go: {exc}") from exc
-                return _finish(base, passed=False, metrics=None, duration=duration, memory=memory, exit_code=completed.returncode, detail=str(exc))
+                row = _finish(base, passed=False, metrics=None, duration=duration, memory=memory, exit_code=completed.returncode, detail=str(exc))
+                if not fatal:
+                    row["detail"] = _reason(str(exc))
+                return row
         recorded = None
         if resource_out.is_file():
             try:
@@ -212,7 +229,9 @@ def _run_one(interpreter, solution: Solution, case: Case, limits: Limits) -> dic
         )
         detail = "" if passed else _mismatch(case, completed, recorded, metrics)
         row = _finish(base, passed=passed, metrics=metrics if passed else None, duration=duration, memory=memory, exit_code=completed.returncode, detail=detail)
-        if interpreter.name == "go" and not passed:
+        if not passed and not fatal:
+            row["detail"] = _reason(detail)
+        if fatal and interpreter.name == "go" and not passed:
             raise RunError(f"{solution.problem}/{solution.ruleset}/{case.name} failed on go: {detail}")
         return row
 
@@ -268,6 +287,109 @@ def _require_parity(runs: list[dict]) -> None:
 VERSIONS_REL = "metrics/versions.json"
 
 
+def _reason(text: str) -> str:
+    collapsed = " ".join(text.split())
+    if collapsed == "":
+        return "failed"
+    if len(collapsed) <= 240:
+        return collapsed
+    return collapsed[:237] + "..."
+
+
+def entry_complete(entry: object) -> bool:
+    """A kept version is done when it passed with a cost, or failed with a reason."""
+    if not isinstance(entry, dict):
+        return False
+    if entry.get("pass") is True:
+        cost = entry.get("cost")
+        return isinstance(cost, int) and not isinstance(cost, bool) and cost >= 0
+    if entry.get("pass") is False:
+        reason = entry.get("reason")
+        return isinstance(reason, str) and reason.strip() != ""
+    return False
+
+
+def select_pending(versions: list[Solution], currents: list[Solution], recorded: dict) -> list[Solution]:
+    """Older versions that still need a Go run.
+
+    The current version of each sandbox is measured on every host. An older
+    version is skipped when its versions.json entry already passed with an
+    integer cost, or failed with a reason. Direct Thue is included.
+    """
+    current_keys = {(item.problem, item.ruleset, item.timestamp) for item in currents}
+    index: dict[tuple[str, str, str], dict] = {}
+    for entry in recorded.values():
+        if not isinstance(entry, dict):
+            continue
+        problem = entry.get("problem")
+        ruleset = entry.get("ruleset")
+        timestamp = entry.get("timestamp")
+        if isinstance(problem, str) and isinstance(ruleset, str) and isinstance(timestamp, str):
+            index[(problem, ruleset, timestamp)] = entry
+    pending: list[Solution] = []
+    for solution in versions:
+        key = (solution.problem, solution.ruleset, solution.timestamp)
+        if key in current_keys:
+            continue
+        existing = index.get(key)
+        if existing is not None and entry_complete(existing):
+            continue
+        pending.append(solution)
+    return pending
+
+
+def version_record(solution: Solution, rows: list[dict], commit: str) -> dict:
+    """One versions.json object for a kept version. A failure has a reason and no cost."""
+    if not rows:
+        raise RunError(f"{solution.problem}/{solution.ruleset}/{solution.timestamp} has no cases")
+    if any(row.get("pass") is not True for row in rows):
+        parts: list[str] = []
+        for row in rows:
+            if row.get("pass") is True:
+                continue
+            detail = row.get("detail")
+            if not isinstance(detail, str) or detail.strip() == "":
+                detail = "failed"
+            case = row.get("case")
+            label = case if isinstance(case, str) and case else "case"
+            parts.append(f"{label}: {detail}")
+        return {
+            "problem": solution.problem,
+            "ruleset": solution.ruleset,
+            "timestamp": solution.timestamp,
+            "pass": False,
+            "reason": _reason(" | ".join(parts)),
+            "commit": commit,
+            "current": False,
+        }
+    document = _metric_document(solution, rows, commit)
+    document["current"] = False
+    return document
+
+
+def measure_kept(
+    interpreter,
+    pending: list[tuple[Solution, list[Case]]],
+    limits: Limits,
+    commit: str,
+    *,
+    run_one=None,
+) -> list[dict]:
+    """Run each pending version on one host. A failed version is recorded, not raised."""
+    if run_one is None:
+        run_one = _run_one
+    documents: list[dict] = []
+    for solution, solution_cases in pending:
+        rows: list[dict] = []
+        for case in solution_cases:
+            row = run_one(interpreter, solution, case, limits, fatal=False)
+            rows.append(row)
+            if row.get("pass") is not True:
+                break
+        documents.append(version_record(solution, rows, commit))
+    return documents
+
+
 def _metric_document(solution: Solution, rows: list[dict], commit: str) -> dict:
     return {
         "problem": solution.problem,
@@ -320,11 +442,59 @@ def load_versions(root: Path = ROOT) -> dict:
     return data
 
 
-def _write_metrics(solutions: list[Solution], runs: list[dict], commit: str, *, root: Path = ROOT) -> list[str]:
-    """Write metrics/versions.json when a current version's pass, cost, or diagnostics changed.
+def _document_key(versions: dict, document: dict) -> str:
+    for key, other in versions.items():
+        if not isinstance(other, dict):
+            continue
+        if (
+            other.get("problem") == document["problem"]
+            and other.get("ruleset") == document["ruleset"]
+            and other.get("timestamp") == document["timestamp"]
+        ):
+            return str(key)
+    return f"{document['problem']}/{document['ruleset']}/{document['timestamp']}"
 
-    `commit` is recorded on an entry that is written. It is not a change by itself.
-    Returns repo-relative paths that were written. A failing Go run writes nothing.
+
+def _kept_same(existing: dict, document: dict) -> bool:
+    if existing.get("current") is True or existing.get("pass") != document["pass"]:
+        return False
+    if document["pass"] is False:
+        return existing.get("reason") == document["reason"]
+    return all(existing.get(key) == document[key] for key in METRIC_FIELDS if key != "commit")
+
+
+def _store_kept(versions: dict, documents: list[dict]) -> bool:
+    changed = False
+    for document in documents:
+        label = f"{document.get('problem')}/{document.get('ruleset')}/{document.get('timestamp')}"
+        if document.get("current") is not False:
+            raise RunError(f"{label} kept record must not be current")
+        key = _document_key(versions, document)
+        existing = versions.get(key)
+        if isinstance(existing, dict) and existing.get("current") is True:
+            raise RunError(f"{label} is the current version")
+        if isinstance(existing, dict) and _kept_same(existing, document):
+            continue
+        versions[key] = document
+        changed = True
+    return changed
+
+
+def _write_metrics(
+    solutions: list[Solution],
+    runs: list[dict],
+    commit: str,
+    *,
+    root: Path = ROOT,
+    kept: list[dict] | None = None,
+) -> list[str]:
+    """Write metrics/versions.json when a measured version's result changed.
+
+    Current versions come from `runs`. Older kept versions come from `kept`,
+    or from the versions `measure` just ran when `kept` is omitted. `commit`
+    is recorded on an entry that is written. It is not a change by itself.
+    Returns repo-relative paths that were written. A failing current Go run
+    writes nothing. A failing older version is stored with its reason.
     """
     grouped: dict[tuple[str, str], list[dict]] = {}
     for run in runs:
@@ -356,6 +526,9 @@ def _write_metrics(solutions: list[Solution], runs: list[dict], commit: str, *, 
             continue
         versions[key] = entry
         changed = True
+    documents = _kept_documents if kept is None else kept
+    if documents:
+        changed = _store_kept(versions, documents) or changed
     if not changed:
         return []
     path = root / VERSIONS_REL

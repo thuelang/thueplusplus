@@ -368,11 +368,18 @@ function costsAt(iso, rulesets, problems, index) {
   return costs
 }
 
+function passingCost(metric) {
+  if (!metric || metric.pass === false) return null
+  if (!Number.isInteger(metric.cost) || metric.cost < 0) return null
+  return metric.cost
+}
+
 function bestCostOf(solution) {
   let best = null
   for (const item of solution.versions) {
-    if (!item.metric || !Number.isInteger(item.metric.cost) || item.metric.cost < 0) continue
-    best = best == null ? item.metric.cost : Math.min(best, item.metric.cost)
+    const cost = passingCost(item.metric)
+    if (cost == null) continue
+    best = best == null ? cost : Math.min(best, cost)
   }
   if (best == null) throw new CatalogError(`${solution.problem}/${solution.ruleset} has no measured cost`)
   return best
@@ -619,8 +626,17 @@ function versionsByIdentity() {
   const versions = data.versions
   if (!versions || typeof versions !== 'object') throw new CatalogError('metrics/versions.json is not schema 1')
   for (const entry of Object.values(versions)) {
-    if (entry.pass === true && Number.isInteger(entry.cost) && entry.cost >= 0 && entry.problem && entry.ruleset && entry.timestamp) {
-      versionsDocument.set(`${entry.problem}\0${entry.ruleset}\0${entry.timestamp}`, entry)
+    if (!entry || !entry.problem || !entry.ruleset || !entry.timestamp) continue
+    const key = `${entry.problem}\0${entry.ruleset}\0${entry.timestamp}`
+    if (entry.pass === false) {
+      if (typeof entry.reason !== 'string' || !entry.reason.trim()) {
+        throw new CatalogError(`metrics/versions.json ${entry.problem}/${entry.ruleset}/${entry.timestamp} failed with no reason`)
+      }
+      versionsDocument.set(key, entry)
+      continue
+    }
+    if (entry.pass === true && Number.isInteger(entry.cost) && entry.cost >= 0) {
+      versionsDocument.set(key, entry)
     }
   }
   return versionsDocument
@@ -725,10 +741,13 @@ function build() {
           continue
         }
         if (!/^[0-9a-f]{40}$/.test(pricedVersion.gitCommit || '')) throw new CatalogError(`${file.rel} metrics history has no commit`)
+        if (pricedVersion.metric && pricedVersion.metric.pass === false) {
+          console.log(`site: omit ${file.rel} from the cost chart (failed)`)
+        }
         priced.push({ ...file, metric: pricedVersion.metric, gitCommit: pricedVersion.gitCommit })
       }
       if (shallow && priced.filter(item => item.metric).length < files.length) historyTruncated = true
-      const measured = priced.filter(item => item.metric)
+      const measured = priced.filter(item => passingCost(item.metric) != null)
       if (measured.length === 0) throw new CatalogError(`${folder} has no recorded cost`)
       const current = measured.at(-1)
       const solution = {
@@ -771,7 +790,7 @@ function build() {
   for (const solution of solutions) {
     versionIndex.set(
       `${solution.ruleset}\0${solution.problem}`,
-      solution.versions.filter(item => item.metric).map(item => ({ iso: item.iso, cost: item.metric.cost })),
+      solution.versions.filter(item => passingCost(item.metric) != null).map(item => ({ iso: item.iso, cost: item.metric.cost })),
     )
   }
   const passingNow = {}
@@ -827,22 +846,30 @@ function build() {
           notes: solution.notes,
           author: solution.author,
           measured: solution.history.at(-1).timestamp,
-          solutions: [...solution.versions].reverse().map(item => ({
-            id: item.name,
-            status: 'pass',
-            steps: item.metric ? item.metric.applied_steps : null,
-            cost: item.metric ? item.metric.cost : null,
-            regexEvals: item.metric ? item.metric.regex_evals : null,
-            regexMatches: item.metric ? item.metric.regex_matches : null,
-            stateBytes: item.metric ? item.metric.state_bytes : null,
-            statePeak: item.metric ? item.metric.state_peak : null,
-            ruleCount: item.metric ? item.metric.rule_count : null,
-            ruleChars: item.metric ? item.metric.rule_chars : null,
-            solution: item.text,
-            solutionPath: item.rel,
-            title: item.title,
-            author: item.author,
-          })),
+          solutions: [...solution.versions].reverse().map(item => {
+            const failed = Boolean(item.metric && item.metric.pass === false)
+            if (failed && (typeof item.metric.reason !== 'string' || !item.metric.reason.trim())) {
+              throw new CatalogError(`${item.rel} failed with no reason`)
+            }
+            const metric = failed ? null : item.metric
+            return {
+              id: item.name,
+              status: failed ? 'fail' : 'pass',
+              steps: metric ? metric.applied_steps : null,
+              cost: metric ? metric.cost : null,
+              regexEvals: metric ? metric.regex_evals : null,
+              regexMatches: metric ? metric.regex_matches : null,
+              stateBytes: metric ? metric.state_bytes : null,
+              statePeak: metric ? metric.state_peak : null,
+              ruleCount: metric ? metric.rule_count : null,
+              ruleChars: metric ? metric.rule_chars : null,
+              solution: item.text,
+              solutionPath: item.rel,
+              title: item.title,
+              author: item.author,
+              failureReason: failed ? item.metric.reason.trim() : null,
+            }
+          }),
           series: solution.points,
         }
       }),
@@ -865,7 +892,7 @@ function build() {
   }))
   const improvementEvents = []
   for (const solution of solutions) {
-    const points = solution.versions.filter(item => item.metric).map(item => ({
+    const points = solution.versions.filter(item => passingCost(item.metric) != null).map(item => ({
       commit: /^[0-9a-f]{40}$/.test(item.gitCommit) ? item.gitCommit : head.commit,
       timestamp: item.iso,
       author: solution.author,

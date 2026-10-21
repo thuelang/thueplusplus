@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from frontmatter import FrontmatterError, parse_frontmatter, require_fields
-from versions import VersionError, current_version, versions_in
+from versions import VersionError, versions_in
 
 ROOT = Path(__file__).resolve().parents[1]
 LIMITS_PATH = ROOT / "metrics" / "limits.toml"
@@ -110,7 +110,20 @@ def ruleset_order(present: set[str]) -> list[str]:
 
 
 def discover() -> list[Solution]:
+    """The current version of every solution. Newest timestamp wins."""
+    return [max(group, key=lambda item: item.timestamp) for group in _solution_groups()]
+
+
+def discover_versions() -> list[Solution]:
+    """Every kept version, including older timestamps and Direct Thue."""
     found: list[Solution] = []
+    for group in _solution_groups():
+        found.extend(group)
+    return found
+
+
+def _solution_groups() -> list[list[Solution]]:
+    groups: list[list[Solution]] = []
     for problem in problem_ids():
         directory = ROOT / "problems" / problem
         _read_problem(directory / "README.md", problem)
@@ -120,11 +133,11 @@ def discover() -> list[Solution]:
         if not solutions.is_dir():
             raise LayoutError(f"problems/{problem}/solutions is missing")
         for ruleset_dir in sorted(path for path in solutions.iterdir() if path.is_dir()):
-            found.append(_read_solution(problem, ruleset_dir))
+            groups.append(_read_versions(problem, ruleset_dir))
         extras = [path.name for path in solutions.iterdir() if not path.is_dir()]
         if extras:
             raise LayoutError(f"problems/{problem}/solutions: unexpected {', '.join(extras)}")
-    return found
+    return groups
 
 
 def _reads(value, path: Path) -> dict[str, tuple[str, ...]]:
@@ -197,7 +210,7 @@ def _read_problem(path: Path, problem: str) -> None:
         raise LayoutError(f"problems/{problem}: id must be a slug")
 
 
-def _read_solution(problem: str, directory: Path) -> Solution:
+def _read_versions(problem: str, directory: Path) -> list[Solution]:
     ruleset = directory.name
     if SLUG.fullmatch(ruleset) is None:
         raise LayoutError(f"{problem}/solutions/{ruleset}: ruleset must be a slug")
@@ -212,44 +225,50 @@ def _read_solution(problem: str, directory: Path) -> Solution:
         raise LayoutError(str(exc)) from exc
     if not versions:
         raise LayoutError(f"{_rel(directory)} has no solution versions")
-    current = current_version(versions)
-    entry = current.name
-    entry_file = ROOT / current.rel
     extra = sorted(path.name for path in directory.iterdir() if path.name != "README.md" and not path.is_dir())
     if extra:
         raise LayoutError(f"{_rel(directory)}: unexpected {', '.join(extra)}")
     direct = ruleset == "direct"
-    if direct:
-        if current.extension != "thue":
-            raise LayoutError(f"{current.rel}: a direct solution is a .thue file")
-        program = current.rel
-        state = _program_state(entry_file)
-    else:
+    extension = "thue"
+    program = ""
+    if not direct:
         lang_readme = ROOT / "langs" / ruleset / "README.md"
         lang_fields, _body = _frontmatter(lang_readme)
         require_fields(lang_fields, ("name", "description", "extension"), _rel(lang_readme))
-        if current.extension != lang_fields["extension"]:
-            raise LayoutError(f"{current.rel}: extension must be .{lang_fields['extension']}")
+        extension = lang_fields["extension"]
         interpreter = ROOT / "langs" / ruleset / f"{ruleset}.thue"
         if not interpreter.is_file():
             raise LayoutError(f"langs/{ruleset}/{ruleset}.thue is missing")
         program = f"langs/{ruleset}/{ruleset}.thue"
-        state = _script_state(entry_file)
     if not notes.strip():
         raise LayoutError(f"{_rel(readme)}: approach notes are empty")
-    return Solution(
-        problem=problem,
-        ruleset=ruleset,
-        entry=entry,
-        entry_path=current.rel,
-        author=fields["author"],
-        notes=notes.strip(),
-        program=program,
-        state=state,
-        direct=direct,
-        slug=current.slug,
-        timestamp=current.timestamp,
-    )
+    built: list[Solution] = []
+    for version in versions:
+        entry_file = ROOT / version.rel
+        if direct:
+            if version.extension != "thue":
+                raise LayoutError(f"{version.rel}: a direct solution is a .thue file")
+            version_program = version.rel
+            state = _program_state(entry_file)
+        else:
+            if version.extension != extension:
+                raise LayoutError(f"{version.rel}: extension must be .{extension}")
+            version_program = program
+            state = _script_state(entry_file)
+        built.append(Solution(
+            problem=problem,
+            ruleset=ruleset,
+            entry=version.name,
+            entry_path=version.rel,
+            author=fields["author"],
+            notes=notes.strip(),
+            program=version_program,
+            state=state,
+            direct=direct,
+            slug=version.slug,
+            timestamp=version.timestamp,
+        ))
+    return built
 
 
 def _program_state(path: Path) -> str:
