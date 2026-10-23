@@ -223,7 +223,7 @@
       "state_peak": 13,
       "rule_count": 5,
       "rule_chars": 187,
-      "current": true
+      "current": false
     },
     "96bd20e5a898": {
       "problem": "99-bottles-of-beer",
@@ -646,6 +646,22 @@
       "reason": "in: exit 1; Error: ERR:resource:stdin:EOF before newline; writes mismatch",
       "commit": "4aad72cc4eb0669fb26da5696881d633bb38d342",
       "current": false
+    },
+    "reverse-a-string/direct/2026-10-23_16-52-31": {
+      "problem": "reverse-a-string",
+      "ruleset": "direct",
+      "timestamp": "2026-10-23_16-52-31",
+      "pass": true,
+      "cost": 932,
+      "commit": "632adb4649176df1e3664122638d956e7700f539",
+      "applied_steps": 26,
+      "regex_evals": 62,
+      "regex_matches": 52,
+      "state_bytes": 147,
+      "state_peak": 10,
+      "rule_count": 6,
+      "rule_chars": 182,
+      "current": true
     }
   }
 }
