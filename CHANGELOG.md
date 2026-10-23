@@ -9,6 +9,7 @@ Versions are the Thue++ spec versions in `SPEC_VERSION`.
 
 ### Changed
 
+- Direct Thue reverse-a-string moves two letters on each step. The fixed-case Go cost is 932, down from 3128. The older version stays in its timestamp directory.
 - A hash target uses a soft signal wash and a thin accent bar in the gutter. The bar stays off the text, and applying the highlight does not move the content. The wash and the bar fade in, hold, then fade to a faint mark. Reduced motion keeps that mark still. On this page uses the same accent.
 - Metrics measures every kept solution version, including older timestamps and Direct Thue. A version that already has a passing cost, or a failure reason, is not run again. The solutions table shows that cost, or `fails` with the reason on the cell. Charts and totals still add the cheapest passing version of each sandbox on each problem. The metrics file keeps the exact integer cost.
 - A URL hash scrolls to its hash target and highlights that element, or the section, row, or list item that contains it. This happens on a click, a direct load, and Back or Forward, after the page and its chart have rendered, and the target's top sits about a quarter of the way down the viewport, below the sticky header. A target near the end of the page scrolls as far as it can. On this page marks that hash until the reader scrolls. Reduced motion skips the smooth scroll and keeps the highlight still. The section nav overview links read All problems, All sandboxes, and All docs.
