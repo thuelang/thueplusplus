@@ -10,9 +10,9 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-MANIFEST = Path(__file__).resolve().parent / "cases" / "slice0.toml"
+CASE_DIR = Path(__file__).resolve().parent / "cases"
 PROGRAM = Path(__file__).resolve().parent / "python.thue"
-REQUIRED = ("1+2", "(a+b)*c", '"hi"', "a", "def")
+REQUIRED = ("1+2", "(a+b)*c", '"hi"', "a", "def", "pass", "a = 1\nb = 2")
 
 
 def call_shape(node: ast.AST):
@@ -54,6 +54,27 @@ def real_shape(node):
                 ("comparators", tuple(real_shape(item) for item in node.comparators)),
             ),
         )
+    if isinstance(node, ast.Pass):
+        return ("Pass", (), ())
+    if isinstance(node, ast.Assign):
+        return (
+            "Assign",
+            (),
+            (
+                ("targets", tuple(real_shape(item) for item in node.targets)),
+                ("value", real_shape(node.value)),
+            ),
+        )
+    if isinstance(node, ast.If):
+        return (
+            "If",
+            (),
+            (
+                ("test", real_shape(node.test)),
+                ("body", tuple(real_shape(item) for item in node.body)),
+                ("orelse", tuple(real_shape(item) for item in node.orelse)),
+            ),
+        )
     if isinstance(node, ast.Expr):
         return ("Expr", (), (("value", real_shape(node.value)),))
     if isinstance(node, ast.Module):
@@ -70,7 +91,7 @@ def real_shape(node):
 
 def run(source: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["uv", "run", "thue", str(PROGRAM), f"--input={source}", "--max-evals", "400000", "--max-steps", "300000"],
+        ["uv", "run", "thue", str(PROGRAM), f"--input={source}", "--max-evals", "3000000", "--max-steps", "200000"],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -79,13 +100,16 @@ def run(source: str) -> subprocess.CompletedProcess[str]:
 
 
 def main() -> int:
-    manifest = tomllib.loads(MANIFEST.read_text(encoding="utf-8"))
-    inputs = [case["input"] for case in manifest["case"]]
+    manifests = sorted(CASE_DIR.glob("*.toml"))
+    cases = []
+    for path in manifests:
+        cases.extend(tomllib.loads(path.read_text(encoding="utf-8"))["case"])
+    inputs = [case["input"] for case in cases]
     missing = [item for item in REQUIRED if item not in inputs]
     if missing:
         print("missing required inputs: " + ", ".join(missing), file=sys.stderr)
         return 1
-    for case in manifest["case"]:
+    for case in cases:
         source = case["input"]
         result = run(source)
         expect = case["expect"]
