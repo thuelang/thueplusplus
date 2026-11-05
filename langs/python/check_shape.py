@@ -12,7 +12,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CASE_DIR = Path(__file__).resolve().parent / "cases"
 PROGRAM = Path(__file__).resolve().parent / "python.thue"
-REQUIRED = ("1+2", "(a+b)*c", '"hi"', "a", "def", "pass", "a = 1\nb = 2")
+REQUIRED = (
+    "1+2",
+    "(a+b)*c",
+    '"hi"',
+    "a",
+    "pass",
+    "a = 1\nb = 2",
+    "def f():\n    pass\n",
+    "f(1)",
+    "a and b",
+    "return",
+)
 
 
 def call_shape(node: ast.AST):
@@ -30,7 +41,7 @@ def call_shape(node: ast.AST):
 
 
 def real_shape(node):
-    if isinstance(node, (ast.operator, ast.unaryop, ast.cmpop, ast.expr_context)):
+    if isinstance(node, (ast.operator, ast.unaryop, ast.cmpop, ast.boolop, ast.expr_context)):
         return (type(node).__name__, (), ())
     if isinstance(node, ast.Constant):
         return ("Constant", (), (("value", node.value),))
@@ -44,6 +55,22 @@ def real_shape(node):
         )
     if isinstance(node, ast.UnaryOp):
         return ("UnaryOp", (), (("op", real_shape(node.op)), ("operand", real_shape(node.operand))))
+    if isinstance(node, ast.BoolOp):
+        return (
+            "BoolOp",
+            (),
+            (("op", real_shape(node.op)), ("values", tuple(real_shape(item) for item in node.values))),
+        )
+    if isinstance(node, ast.Call):
+        return (
+            "Call",
+            (),
+            (
+                ("func", real_shape(node.func)),
+                ("args", tuple(real_shape(item) for item in node.args)),
+                ("keywords", tuple(real_shape(item) for item in node.keywords)),
+            ),
+        )
     if isinstance(node, ast.Compare):
         return (
             "Compare",
@@ -56,6 +83,36 @@ def real_shape(node):
         )
     if isinstance(node, ast.Pass):
         return ("Pass", (), ())
+    if isinstance(node, ast.Return):
+        if node.value is None:
+            return ("Return", (), ())
+        return ("Return", (), (("value", real_shape(node.value)),))
+    if isinstance(node, ast.arg):
+        return ("arg", (), (("arg", node.arg),))
+    if isinstance(node, ast.arguments):
+        return (
+            "arguments",
+            (),
+            (
+                ("posonlyargs", tuple(real_shape(item) for item in node.posonlyargs)),
+                ("args", tuple(real_shape(item) for item in node.args)),
+                ("kwonlyargs", tuple(real_shape(item) for item in node.kwonlyargs)),
+                ("kw_defaults", tuple(real_shape(item) for item in node.kw_defaults if item is not None)),
+                ("defaults", tuple(real_shape(item) for item in node.defaults)),
+            ),
+        )
+    if isinstance(node, ast.FunctionDef):
+        return (
+            "FunctionDef",
+            (),
+            (
+                ("name", node.name),
+                ("args", real_shape(node.args)),
+                ("body", tuple(real_shape(item) for item in node.body)),
+                ("decorator_list", tuple(real_shape(item) for item in node.decorator_list)),
+                ("type_params", tuple(real_shape(item) for item in node.type_params)),
+            ),
+        )
     if isinstance(node, ast.Assign):
         return (
             "Assign",

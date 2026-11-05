@@ -299,8 +299,8 @@ stdout = ""
 stderr = "unsupported_form\n"
 
 [[case]]
-name = "def is unsupported"
-input = "def"
+name = "class is unsupported"
+input = "class"
 
 [case.expect]
 exit_code = 2
@@ -308,13 +308,13 @@ stdout = ""
 stderr = "unsupported_form\n"
 
 [[case]]
-name = "return is unsupported"
+name = "return"
 input = "return"
 
 [case.expect]
-exit_code = 2
-stdout = ""
-stderr = "unsupported_form\n"
+exit_code = 0
+stdout = "Module(body=[Return()], type_ignores=[])\n"
+stderr = ""
 
 [[case]]
 name = "same line suite"
