@@ -99,6 +99,7 @@
   --sandbox-lisp: #ff5a36;
   --sandbox-basic: #3dce7a;
   --sandbox-expr: #d56bff;
+  --sandbox-python: #14b8a6;
   --direct: #ffd000;
   --error-text: #ff9a80;
   --diff-removed-line: rgb(255 90 70 / 0.14);
@@ -135,6 +136,7 @@ html:not(.dark) {
   --sandbox-lisp: #e24e2d;
   --sandbox-basic: #0e8a3c;
   --sandbox-expr: #7a2fe0;
+  --sandbox-python: #0f766e;
   --direct: #6b4f00;
   --error-text: #b4331a;
   --diff-removed-line: rgb(180 40 30 / 0.1);
