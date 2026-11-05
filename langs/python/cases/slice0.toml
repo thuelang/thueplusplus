@@ -416,13 +416,13 @@ stdout = ""
 stderr = "unsupported_form\n"
 
 [[case]]
-name = "assignment is unsupported"
+name = "name assignment"
 input = "a=1"
 
 [case.expect]
-exit_code = 2
-stdout = ""
-stderr = "unsupported_form\n"
+exit_code = 0
+stdout = "Module(body=[Assign(targets=[Name(id='a', ctx=Store())], value=Constant(value=1))], type_ignores=[])\n"
+stderr = ""
 
 [[case]]
 name = "modulo is unsupported"
@@ -794,13 +794,13 @@ stdout = ""
 stderr = "unsupported_form\n"
 
 [[case]]
-name = "pass is unsupported"
+name = "pass"
 input = "pass"
 
 [case.expect]
-exit_code = 2
-stdout = ""
-stderr = "unsupported_form\n"
+exit_code = 0
+stdout = "Module(body=[Pass()], type_ignores=[])\n"
+stderr = ""
 
 [[case]]
 name = "backslash single quote is not an escape"

@@ -1,117 +1,219 @@
-Python expression reader
-This file is a Thue++ reader. It turns one Python expression into an AST dump.
-It does not evaluate the expression. Strings are protected, then the rest is lexed and parsed.
+Python reader
+This file is a Thue++ reader. It turns a small Python program into an AST dump.
+It does not evaluate the program. Strings are protected, then the rest is lexed and parsed.
 Numbers keep their source spelling. Unsupported forms and broken syntax exit with a named error.
+A newline ends a statement. The supported source is what ruff format emits: four spaces of indent, and no tabs. A tab is rejected.
+A newline inside parentheses, or after an operator that still needs a value, is whitespace.
 
 PCT <- (?:[A-Za-z0-9_.-]|%[0-9A-F]{2})*
 GOOD <- (?:%5C(?:%5C|%22|[ntrbf])|[A-Za-z0-9_.-]|%(?:[0-13-46-9A-F][0-9A-F]|5[0-9ABD-F]|2[0-9A-F]))*
 BADESC <- (?:[A-Zac-egh-mo-qsu-z0-9_.-]|%(?:[0-13-46-9A-F][0-9A-F]|5[0-9ABD-F]|2[0-13-9A-F]))
 DQRAW <- (?:%5C(?:%[0-9A-F]{2}|[A-Za-z0-9_.-])|[A-Za-z0-9_.-]|%(?:[0-13-46-9A-F][0-9A-F]|5[0-9ABD-F]|2[0-13-9A-F]))*
 SQRAW <- (?:%5C(?:%[0-9A-F]{2}|[A-Za-z0-9_.-])|[A-Za-z0-9_.-]|%(?:[0-13-46-9A-F][0-9A-F]|5[0-9ABD-F]|2[0-689A-F]))*
-BADKW <- and|as|assert|async|await|break|case|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|match|nonlocal|not|or|pass|raise|return|try|type|while|with|yield
+BADKW <- and|as|assert|async|await|break|case|class|continue|def|del|except|finally|for|from|global|import|in|is|lambda|match|nonlocal|not|or|raise|return|try|type|while|with|yield
 BOUND <- (?:(?:%[0-9A-F]{2}|[^A-Za-z0-9_])$PCT)?
 
 UNESC<(?<s>$PCT)> ::! unescape s
 ESC<(?<s>$PCT)> ::! escape s
 GE<(?<a>[0-9]),(?<b>[0-9])> ::! ge a b
+ADD<(?<a>[0-9]+),(?<b>[0-9]+)> ::! add a b
+SUB<(?<a>[0-9]+),(?<b>[0-9]+)> ::! sub a b
+EQQ<(?<a>[0-9]+),(?<b>[0-9]+)> ::! eq a b
+GTT<(?<a>[0-9]+),(?<b>[0-9]+)> ::! gt a b
 
 String bodies are checked before a token is emitted. A bad escape is not an unclosed quote.
-^@CHK<(?<pre>$GOOD)%5C(?<bad>$BADESC)(?<post>$PCT)\|(?<rest>$PCT)\|(?<tok>.*)>$ ::= @E<invalid_string_escape>
-^@CHK<(?<body>$GOOD)\|(?<rest>$PCT)\|(?<tok>.*)>$ ::= @Y<{{rest}}>|{{tok}} s:UNESC<{{body}}>
+^@CHK<(?<pre>$GOOD)%5C(?<bad>$BADESC)(?<post>$PCT)\|(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\>$ ::= @E<invalid_string_escape>
+^@CHK<(?<body>$GOOD)\|(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\>$ ::= @Y<{{rest}}|{{tok}} s:UNESC<{{body}}>|{{d}}|0|0>
 
-Whitespace is insignificant. A quote prefix, a triple quote, and a keyword are rejected before a name is taken.
-^@Y<(?:%20|%09|%0A|%0D|%0B|%0C)(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}}
-^@Y<(?:[Ff][Rr]|[Rr][Ff]|[Rr][Bb]|[Bb][Rr]|[Ff]|[Rr]|[Bb]|[Uu])(?:%22|%27)(?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<unsupported_form>
-^@Y<(?:%22%22%22|%27%27%27)(?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<unsupported_form>
-^@Y<%22(?<body>$DQRAW)%22(?<rest>$PCT)>\|(?<tok>.*)$ ::= @CHK<{{body}}|{{rest}}|{{tok}}>
-^@Y<%27(?<body>$SQRAW)%27(?<rest>$PCT)>\|(?<tok>.*)$ ::= @CHK<{{body}}|{{rest}}|{{tok}}>
-^@Y<%22(?<pre>$DQRAW)%5C%22>\|(?<tok>.*)$ ::= @E<invalid_string_escape>
-^@Y<%27(?<pre>$SQRAW)%5C%27>\|(?<tok>.*)$ ::= @E<invalid_string_escape>
-^@Y<%22(?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<syntax_error>
-^@Y<%27(?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<syntax_error>
-^@Y<(?<w>True|False|None)(?<rest>$BOUND)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} k:{{w}}
-^@Y<(?<w>$BADKW)(?<rest>$BOUND)>\|(?<tok>.*)$ ::= @E<unsupported_form>
-^@Y<(?<id>[A-Za-z_][A-Za-z0-9_]*)(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} i:{{id}}
-^@Y<(?<n>[0-9]+(?:\.[0-9]+)?)[eE](?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<unsupported_form>
-^@Y<[0-9]+\.(?:%|[^0-9>%])(?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<unsupported_form>
-^@Y<[0-9]+\.>\|(?<tok>.*)$ ::= @E<unsupported_form>
-^@Y<(?<n>[0-9]+(?:\.[0-9]+)?)(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} n:{{n}}
-^@Y<%3D%3D(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} eq
-^@Y<%21%3D(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} ne
-^@Y<%3C%3D(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} le
-^@Y<%3E%3D(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} ge
-^@Y<(?:%2F%2F|%2A%2A|%3C%3C|%3E%3E|%3D|%21|%25|%5B|%5D|%7B|%7D|%3A|%2C|%40|%26|%7C|%5E|%7E|%23|%3B|%5C|\.)(?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<unsupported_form>
-^@Y<%2B(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} add
-^@Y<-(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} sub
-^@Y<%2A(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} mul
-^@Y<%2F(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} div
-^@Y<%3C(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} lt
-^@Y<%3E(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} gt
-^@Y<%28(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} lp
-^@Y<%29(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} rp
-^@Y<(?<bad>%[0-9A-F]{2}|.)(?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<syntax_error>
-^@Y<>\|(?<tok>.*)$ ::= @GO<{{tok}}>
+A tab is rejected. Indent is a run of spaces. bol is 2 at the start of the file, 1 after a newline, and 0 mid-line.
+^@Y<%09(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|(?<b>[0-9])\|(?<sp>[0-9]+)>$ ::= @E<unsupported_form>
+^@Y<(?:%0D%0A|%0A|%0D)(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[1-9][0-9]*)\|(?<b>[0-9])\|(?<sp>[0-9]+)>$ ::= @Y<{{rest}}|{{tok}}|{{d}}|0|0>
+^@Y<(?:%0D%0A|%0A|%0D)(?<rest>$PCT)\|(?<tok>.*)\|0\|0\|0>$ ::= @Y<{{rest}}|{{tok}} nl|0|1|0>
+^@Y<(?:%0D%0A|%0A|%0D)(?<rest>$PCT)\|(?<tok>.*)\|0\|1\|(?<sp>[0-9]+)>$ ::= @Y<{{rest}}|{{tok}}|0|1|0>
+^@Y<(?:%0D%0A|%0A|%0D)(?<rest>$PCT)\|(?<tok>.*)\|0\|2\|0>$ ::= @Y<{{rest}}|{{tok}}|0|1|0>
+^@Y<(?:%20|%0B|%0C)(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|1\|(?<sp>[0-9]+)>$ ::= @Y<{{rest}}|{{tok}}|{{d}}|1|ADD<{{sp}},1>>
+^@Y<(?:%20|%0B|%0C)(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}}|{{d}}|0|0>
+^@Y<(?:%20|%0B|%0C)(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|2\|0>$ ::= @Y<{{rest}}|{{tok}}|{{d}}|2|0>
+^@Y<(?<c>%[0-9A-F]{2}|.)(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|1\|(?<sp>[0-9]+)>$ ::= @Y<{{c}}{{rest}}|{{tok}} ind:{{sp}}|{{d}}|0|0>
+^@Y<(?<c>%[0-9A-F]{2}|.)(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|2\|0>$ ::= @Y<{{c}}{{rest}}|{{tok}}|{{d}}|0|0>
+
+^@Y<(?:[Ff][Rr]|[Rr][Ff]|[Rr][Bb]|[Bb][Rr]|[Ff]|[Rr]|[Bb]|[Uu])(?:%22|%27)(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @E<unsupported_form>
+^@Y<(?:%22%22%22|%27%27%27)(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @E<unsupported_form>
+^@Y<%22(?<body>$DQRAW)%22(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @CHK<{{body}}|{{rest}}|{{tok}}|{{d}}>
+^@Y<%27(?<body>$SQRAW)%27(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @CHK<{{body}}|{{rest}}|{{tok}}|{{d}}>
+^@Y<%22(?<pre>$DQRAW)%5C%22\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @E<invalid_string_escape>
+^@Y<%27(?<pre>$SQRAW)%5C%27\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @E<invalid_string_escape>
+^@Y<%22(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @E<syntax_error>
+^@Y<%27(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @E<syntax_error>
+^@Y<(?<w>True|False|None)(?<rest>$BOUND)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} k:{{w}}|{{d}}|0|0>
+^@Y<elif(?<rest>$BOUND)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} elif|{{d}}|0|0>
+^@Y<else(?<rest>$BOUND)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} else|{{d}}|0|0>
+^@Y<pass(?<rest>$BOUND)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} pass|{{d}}|0|0>
+^@Y<if(?<rest>$BOUND)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} if|{{d}}|0|0>
+^@Y<(?<w>$BADKW)(?<rest>$BOUND)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @E<unsupported_form>
+^@Y<(?<id>[A-Za-z_][A-Za-z0-9_]*)(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} i:{{id}}|{{d}}|0|0>
+^@Y<(?<n>[0-9]+(?:\.[0-9]+)?)[eE](?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @E<unsupported_form>
+^@Y<[0-9]+\.(?:%|[^0-9>%])(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @E<unsupported_form>
+^@Y<[0-9]+\.\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @E<unsupported_form>
+^@Y<(?<n>[0-9]+(?:\.[0-9]+)?)(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} n:{{n}}|{{d}}|0|0>
+^@Y<%3D%3D(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} eq|{{d}}|0|0>
+^@Y<%21%3D(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} ne|{{d}}|0|0>
+^@Y<%3C%3D(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} le|{{d}}|0|0>
+^@Y<%3E%3D(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} ge|{{d}}|0|0>
+^@Y<%3A(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} colon|{{d}}|0|0>
+^@Y<%3D(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} assign|{{d}}|0|0>
+^@Y<(?:%2B%3D|%2D%3D|%2A%3D|%2F%3D|%25%3D|%2F%2F|%2A%2A|%3C%3C|%3E%3E|%21|%25|%5B|%5D|%7B|%7D|%2C|%40|%26|%7C|%5E|%7E|%23|%3B|%5C|\.)(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @E<unsupported_form>
+^@Y<%2B(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} add|{{d}}|0|0>
+^@Y<-(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} sub|{{d}}|0|0>
+^@Y<%2A(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} mul|{{d}}|0|0>
+^@Y<%2F(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} div|{{d}}|0|0>
+^@Y<%3C(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} lt|{{d}}|0|0>
+^@Y<%3E(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} gt|{{d}}|0|0>
+^@Y<%28(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} lp|ADD<{{d}},1>|0|0>
+^@Y<%29(?<rest>$PCT)\|(?<tok>.*)\|0\|0\|0>$ ::= @Y<{{rest}}|{{tok}} rp|0|0|0>
+^@Y<%29(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[1-9][0-9]*)\|0\|0>$ ::= @Y<{{rest}}|{{tok}} rp|SUB<{{d}},1>|0|0>
+^@Y<(?<bad>%[0-9A-F]{2}|.)(?<rest>$PCT)\|(?<tok>.*)\|(?<d>[0-9]+)\|0\|0>$ ::= @E<syntax_error>
+^@Y<\|(?<tok>.*)\|(?<d>[0-9]+)\|(?<b>[012])\|(?<sp>[0-9]+)>$ ::= @GO<{{tok}}>
+
 ^@GO<>$ ::= @E<syntax_error>
-^@GO< (?<tok>[^>]*)>$ ::= @P<{{tok}}|||V>
+^@GO< (?<tok>[^>]*)>$ ::= @S<{{tok}} eof~~>
 
 Values are pushed on the left. Plus and minus are unary only while a value is expected.
-^@P<n:(?<n>[0-9]+(?:\.[0-9]+)?)(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @P<{{rest}}|{{ops}}| Constant%28value%3D{{n}}%29{{out}}|O>
-^@P<i:(?<id>[A-Za-z_][A-Za-z0-9_]*)(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @P<{{rest}}|{{ops}}| Name%28id%3D%27{{id}}%27%2C%20ctx%3DLoad%28%29%29{{out}}|O>
-^@P<k:(?<k>True|False|None)(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @P<{{rest}}|{{ops}}| Constant%28value%3D{{k}}%29{{out}}|O>
-^@P<s:(?<s>$PCT)(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @P<{{rest}}|{{ops}}| Constant%28value%3D%22ESC<{{s}}>%22%29{{out}}|O>
-^@P<lp(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @P<{{rest}}| 0:LP{{ops}}|{{out}}|V>
-^@P<add(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @R<5|UADD|{{rest}}|{{ops}}|{{out}}>
-^@P<sub(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @R<5|USUB|{{rest}}|{{ops}}|{{out}}>
-^@P<(?:mul|div|eq|ne|le|ge|lt|gt)(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @E<syntax_error>
-^@P<rp(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @E<syntax_error>
-^@P<add(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<2|ADD|{{rest}}|{{ops}}|{{out}}>
-^@P<sub(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<2|SUB|{{rest}}|{{ops}}|{{out}}>
-^@P<mul(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<3|MUL|{{rest}}|{{ops}}|{{out}}>
-^@P<div(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<3|DIV|{{rest}}|{{ops}}|{{out}}>
-^@P<eq(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<1|EQ|{{rest}}|{{ops}}|{{out}}>
-^@P<ne(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<1|NE|{{rest}}|{{ops}}|{{out}}>
-^@P<le(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<1|LE|{{rest}}|{{ops}}|{{out}}>
-^@P<ge(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<1|GE|{{rest}}|{{ops}}|{{out}}>
-^@P<lt(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<1|LT|{{rest}}|{{ops}}|{{out}}>
-^@P<gt(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<1|GT|{{rest}}|{{ops}}|{{out}}>
-^@P<lp(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @E<unsupported_form>
-^@P<rp(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @C<{{rest}}|{{ops}}|{{out}}>
-^@P<(?:n:|i:|k:|s:)(?<rest>[^|]*)\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @E<syntax_error>
-^@P<\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @E<syntax_error>
-^@P<\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @Z<{{ops}}|{{out}}>
+A newline or an indent token is skipped only while an operator still needs a value.
+^@P<(?:nl|ind:[0-9]+)(?: (?<rest>[^|]*))?\| (?<ops>[^|]*)\|(?<out>[^|]*)\|V\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @P<{{rest}}| {{ops}}|{{out}}|V|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<(?<stop>eof|nl|ind:[0-9]+|colon|else|elif) (?<rest>[^|]*)\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @Z<{{ops}}|{{out}}|{{tag}}|{{x}}|{{stop}} {{rest}}>~{{stk}}~{{mod}}>
+^@P<(?<stop>eof|nl|ind:[0-9]+|colon|else|elif)\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @Z<{{ops}}|{{out}}|{{tag}}|{{x}}|{{stop}}>~{{stk}}~{{mod}}>
+^@P<assign(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @E<unsupported_form>
+^@P<n:(?<n>[0-9]+(?:\.[0-9]+)?)(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|V\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @P<{{rest}}|{{ops}}| Constant%28value%3D{{n}}%29{{out}}|O|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<i:(?<id>[A-Za-z_][A-Za-z0-9_]*)(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|V\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @P<{{rest}}|{{ops}}| Name%28id%3D%27{{id}}%27%2C%20ctx%3DLoad%28%29%29{{out}}|O|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<k:(?<k>True|False|None)(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|V\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @P<{{rest}}|{{ops}}| Constant%28value%3D{{k}}%29{{out}}|O|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<s:(?<s>$PCT)(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|V\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @P<{{rest}}|{{ops}}| Constant%28value%3D%22ESC<{{s}}>%22%29{{out}}|O|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<lp(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|V\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @P<{{rest}}| 0:LP{{ops}}|{{out}}|V|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<add(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|V\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @R<5|UADD|{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<sub(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|V\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @R<5|USUB|{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<(?:mul|div|eq|ne|le|ge|lt|gt)(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|V\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @E<syntax_error>
+^@P<rp(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|V\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @E<syntax_error>
+^@P<add(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @R<2|ADD|{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<sub(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @R<2|SUB|{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<mul(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @R<3|MUL|{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<div(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @R<3|DIV|{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<eq(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @R<1|EQ|{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<ne(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @R<1|NE|{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<le(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @R<1|LE|{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<ge(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @R<1|GE|{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<lt(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @R<1|LT|{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<gt(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @R<1|GT|{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<lp(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @E<unsupported_form>
+^@P<rp(?: (?<rest>[^|]*))?\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @C<{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@P<(?:n:|i:|k:|s:)(?<rest>[^|]*)\|(?<ops>[^|]*)\|(?<out>[^|]*)\|O\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @E<syntax_error>
 
-^@R<5\|(?<iop>UADD|USUB)\|(?<rest>[^|]*)\|(?<ops>.*)\|(?<out>.*)>$ ::= @P<{{rest}}| 5:{{iop}}{{ops}}|{{out}}|V>
-^@R<(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|\|(?<out>.*)>$ ::= @P<{{rest}}| {{th}}:{{iop}}|{{out}}|V>
-^@R<(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\| (?<tp>[0-9]):(?<top>\S+)(?<ops>.*)\|(?<out>.*)>$ ::= @RQ<GE<{{tp}},{{th}}>|{{th}}|{{iop}}|{{rest}}| {{tp}}:{{top}}{{ops}}|{{out}}>
-^@RQ<0\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|(?<ops>.*)\|(?<out>.*)>$ ::= @P<{{rest}}| {{th}}:{{iop}}{{ops}}|{{out}}|V>
-^@RQ<1\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\| (?<tp>[0-9]):(?<top>\S+)(?<ops>.*)\|(?<out>.*)>$ ::= @RD<{{top}}#R#{{th}}#{{iop}}#{{rest}}|{{ops}}|{{out}}>
+^@R<5\|(?<iop>UADD|USUB)\|(?<rest>[^|]*)\|(?<ops>[^|]*)\|(?<out>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @P<{{rest}}| 5:{{iop}}{{ops}}|{{out}}|V|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@R<(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|\|(?<out>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @P<{{rest}}| {{th}}:{{iop}}|{{out}}|V|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@R<(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\| (?<tp>[0-9]):(?<top>\S+)(?<ops>[^|]*)\|(?<out>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @RQ<GE<{{tp}},{{th}}>|{{th}}|{{iop}}|{{rest}}| {{tp}}:{{top}}{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@RQ<0\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|(?<ops>[^|]*)\|(?<out>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @P<{{rest}}| {{th}}:{{iop}}{{ops}}|{{out}}|V|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@RQ<1\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\| (?<tp>[0-9]):(?<top>\S+)(?<ops>[^|]*)\|(?<out>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @RD<{{top}}#R#{{th}}#{{iop}}#{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
 
-^@C<(?<rest>[^|]*)\| 0:LP(?<ops>.*)\|(?<out>.*)>$ ::= @P<{{rest}}|{{ops}}|{{out}}|O>
-^@C<(?<rest>[^|]*)\| (?<tp>[1-9]):(?<top>\S+)(?<ops>.*)\|(?<out>.*)>$ ::= @RD<{{top}}#C#0##{{rest}}|{{ops}}|{{out}}>
-^@C<(?<rest>[^|]*)\|\|(?<out>.*)>$ ::= @E<syntax_error>
+^@C<(?<rest>[^|]*)\| 0:LP(?<ops>[^|]*)\|(?<out>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @P<{{rest}}|{{ops}}|{{out}}|O|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@C<(?<rest>[^|]*)\| (?<tp>[1-9]):(?<top>\S+)(?<ops>[^|]*)\|(?<out>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @RD<{{top}}#C#0##{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@C<(?<rest>[^|]*)\|\|(?<out>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @E<syntax_error>
 
-^@Z< 0:LP(?<ops>.*)\|(?<out>.*)>$ ::= @E<syntax_error>
-^@Z< (?<tp>[1-9]):(?<top>\S+)(?<ops>.*)\|(?<out>.*)>$ ::= @RD<{{top}}#Z#0##|{{ops}}|{{out}}>
-^@Z<\|\ (?<frag>$PCT)>$ ::= @DONE<Module%28body%3D%5BExpr%28value%3D{{frag}}%29%5D%2C%20type_ignores%3D%5B%5D%29>
+^@Z< 0:LP(?<ops>[^|]*)\|(?<out>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @E<syntax_error>
+^@Z< (?<tp>[1-9]):(?<top>\S+)(?<ops>[^|]*)\|(?<out>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @RD<{{top}}#Z#0##|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@Z<\|\ (?<frag>$PCT)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @GOT<{{tag}}|{{x}}|{{left}}|{{frag}}>~{{stk}}~{{mod}}>
 
-A comparison whose left side is already a comparison is a chain, which this slice does not build.
-^@RD<(?<op>EQ|NE|LE|GE|LT|GT)#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) Compare%28(?<lrest>$PCT)(?<more>.*)>$ ::= @E<unsupported_form>
-^@RD<ADD#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| BinOp%28left%3D{{l}}%2C%20op%3DAdd%28%29%2C%20right%3D{{r}}%29{{more}}>
-^@RD<SUB#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| BinOp%28left%3D{{l}}%2C%20op%3DSub%28%29%2C%20right%3D{{r}}%29{{more}}>
-^@RD<MUL#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| BinOp%28left%3D{{l}}%2C%20op%3DMult%28%29%2C%20right%3D{{r}}%29{{more}}>
-^@RD<DIV#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| BinOp%28left%3D{{l}}%2C%20op%3DDiv%28%29%2C%20right%3D{{r}}%29{{more}}>
-^@RD<EQ#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BEq%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}>
-^@RD<NE#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BNotEq%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}>
-^@RD<LE#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BLtE%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}>
-^@RD<GE#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BGtE%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}>
-^@RD<LT#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BLt%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}>
-^@RD<GT#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BGt%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}>
-^@RD<UADD#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<a>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| UnaryOp%28op%3DUAdd%28%29%2C%20operand%3D{{a}}%29{{more}}>
-^@RD<USUB#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<a>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| UnaryOp%28op%3DUSub%28%29%2C%20operand%3D{{a}}%29{{more}}>
+A comparison whose left side is already a comparison is a chain, which this reader does not build.
+^@RD<(?<op>EQ|NE|LE|GE|LT|GT)#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>[^|]*)\| (?<r>$PCT) Compare%28(?<lrest>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @E<unsupported_form>
+^@RD<ADD#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>[^|]*)\| (?<r>$PCT) (?<l>$PCT)(?<more>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| BinOp%28left%3D{{l}}%2C%20op%3DAdd%28%29%2C%20right%3D{{r}}%29{{more}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@RD<SUB#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>[^|]*)\| (?<r>$PCT) (?<l>$PCT)(?<more>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| BinOp%28left%3D{{l}}%2C%20op%3DSub%28%29%2C%20right%3D{{r}}%29{{more}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@RD<MUL#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>[^|]*)\| (?<r>$PCT) (?<l>$PCT)(?<more>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| BinOp%28left%3D{{l}}%2C%20op%3DMult%28%29%2C%20right%3D{{r}}%29{{more}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@RD<DIV#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>[^|]*)\| (?<r>$PCT) (?<l>$PCT)(?<more>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| BinOp%28left%3D{{l}}%2C%20op%3DDiv%28%29%2C%20right%3D{{r}}%29{{more}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@RD<EQ#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>[^|]*)\| (?<r>$PCT) (?<l>$PCT)(?<more>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BEq%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@RD<NE#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>[^|]*)\| (?<r>$PCT) (?<l>$PCT)(?<more>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BNotEq%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@RD<LE#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>[^|]*)\| (?<r>$PCT) (?<l>$PCT)(?<more>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BLtE%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@RD<GE#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>[^|]*)\| (?<r>$PCT) (?<l>$PCT)(?<more>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BGtE%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@RD<LT#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>[^|]*)\| (?<r>$PCT) (?<l>$PCT)(?<more>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BLt%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@RD<GT#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>[^|]*)\| (?<r>$PCT) (?<l>$PCT)(?<more>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BGt%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@RD<UADD#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>[^|]*)\| (?<a>$PCT)(?<more>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| UnaryOp%28op%3DUAdd%28%29%2C%20operand%3D{{a}}%29{{more}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@RD<USUB#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>[^|]*)\| (?<a>$PCT)(?<more>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| UnaryOp%28op%3DUSub%28%29%2C%20operand%3D{{a}}%29{{more}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
 
-^@N<R\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|(?<ops>.*)\|(?<out>.*)>$ ::= @R<{{th}}|{{iop}}|{{rest}}|{{ops}}|{{out}}>
-^@N<C\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|(?<ops>.*)\|(?<out>.*)>$ ::= @C<{{rest}}|{{ops}}|{{out}}>
-^@N<Z\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|(?<ops>.*)\|(?<out>.*)>$ ::= @Z<{{ops}}|{{out}}>
+^@N<R\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|(?<ops>[^|]*)\|(?<out>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @R<{{th}}|{{iop}}|{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@N<C\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|(?<ops>[^|]*)\|(?<out>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @C<{{rest}}|{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+^@N<Z\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|(?<ops>[^|]*)\|(?<out>[^|]*)\|(?<tag>[AET])\|(?<x>[^~]*)\|(?<left>[^~]*)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @Z<{{ops}}|{{out}}|{{tag}}|{{x}}|{{left}}>~{{stk}}~{{mod}}>
+
+^@GOT<T\|\|colon nl (?<rest>[^~]*)\|(?<frag>$PCT)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @IFI<{{rest}}|{{frag}}>~{{stk}}~{{mod}}>
+^@GOT<A\|(?<id>[A-Za-z_][A-Za-z0-9_]*)\|(?<left>eof|nl(?: [^~]*)?|ind:[0-9]+(?: [^~]*)?)\|(?<frag>$PCT)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @ADD<Assign%28targets%3D%5BName%28id%3D%27{{id}}%27%2C%20ctx%3DStore%28%29%29%5D%2C%20value%3D{{frag}}%29|{{left}}>~{{stk}}~{{mod}}>
+^@GOT<E\|\|(?<left>eof|nl(?: [^~]*)?|ind:[0-9]+(?: [^~]*)?)\|(?<frag>$PCT)>~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @ADD<Expr%28value%3D{{frag}}%29|{{left}}>~{{stk}}~{{mod}}>
+
+^@IFI<ind:(?<n>[0-9]+) (?<rest>[^~]*)\|(?<test>[^~]+)>~~(?<mod>.*)>$ ::= @IFG<GTT<{{n}},0>|{{n}}|{{rest}}|{{test}}|0>~~{{mod}}>
+^@IFI<ind:(?<n>[0-9]+) (?<rest>[^~]*)\|(?<test>[^~]+)>~I:(?<base>[0-9]+):(?<suite>[0-9]+):w:(?<ot>[^:]*):(?<ob>[^:]*):(?<oe>[^;]*);(?<more>[^~]*)~(?<mod>.*)>$ ::= @IFG<GTT<{{n}},{{base}}>|{{n}}|{{rest}}|{{test}}|{{base}}>~I:{{base}}:{{suite}}:w:{{ot}}:{{ob}}:{{oe}};{{more}}~{{mod}}>
+^@IFI<ind:(?<n>[0-9]+) (?<rest>[^~]*)\|(?<test>[^~]+)>~I:(?<base>[0-9]+):(?<suite>[0-9]+):w:(?<ot>[^:]*):(?<ob>[^:]*):(?<oe>[^;~]*)~(?<mod>.*)>$ ::= @IFG<GTT<{{n}},{{base}}>|{{n}}|{{rest}}|{{test}}|{{base}}>~I:{{base}}:{{suite}}:w:{{ot}}:{{ob}}:{{oe}}~{{mod}}>
+^@IFI<ind:(?<n>[0-9]+) (?<rest>[^~]*)\|(?<test>[^~]+)>~I:(?<base>[0-9]+):(?<suite>[0-9]+):(?<ph>[be]):(?<ot>[^:]*):(?<ob>[^:]*):(?<oe>[^;]*);(?<more>[^~]*)~(?<mod>.*)>$ ::= @IFG<GTT<{{n}},{{suite}}>|{{n}}|{{rest}}|{{test}}|{{suite}}>~I:{{base}}:{{suite}}:{{ph}}:{{ot}}:{{ob}}:{{oe}};{{more}}~{{mod}}>
+^@IFI<ind:(?<n>[0-9]+) (?<rest>[^~]*)\|(?<test>[^~]+)>~I:(?<base>[0-9]+):(?<suite>[0-9]+):(?<ph>[be]):(?<ot>[^:]*):(?<ob>[^:]*):(?<oe>[^;~]*)~(?<mod>.*)>$ ::= @IFG<GTT<{{n}},{{suite}}>|{{n}}|{{rest}}|{{test}}|{{suite}}>~I:{{base}}:{{suite}}:{{ph}}:{{ot}}:{{ob}}:{{oe}}~{{mod}}>
+^@IFG<1\|(?<n>[0-9]+)\|(?<rest>[^|]*)\|(?<test>[^|]*)\|(?<base>[0-9]+)>~~(?<mod>.*)>$ ::= @S<{{rest}}~I:{{base}}:{{n}}:b:{{test}}::~{{mod}}>
+^@IFG<1\|(?<n>[0-9]+)\|(?<rest>[^|]*)\|(?<test>[^|]*)\|(?<base>[0-9]+)>~(?<stk>[^~]+)~(?<mod>.*)>$ ::= @S<{{rest}}~I:{{base}}:{{n}}:b:{{test}}::;{{stk}}~{{mod}}>
+
+^@S<nl (?<rest>[^~]*)~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @S<{{rest}}~{{stk}}~{{mod}}>
+^@S<ind:0 (?<rest>[^~]*)~~(?<mod>.*)>$ ::= @S<{{rest}}~~{{mod}}>
+^@S<ind:(?<n>[1-9][0-9]*) (?<rest>[^~]*)~~(?<mod>.*)>$ ::= @E<syntax_error>
+^@S<ind:(?<n>[0-9]+) (?<rest>[^~]*)~I:(?<base>[0-9]+):(?<suite>[0-9]+):(?<ph>[bew]):(?<test>[^:]*):(?<body>[^:]*):(?<orelse>[^;]*);(?<more>[^~]*)~(?<mod>.*)>$ ::= @LV<EQQ<{{n}},{{suite}}>|{{n}}|{{rest}}|{{base}}|{{suite}}|{{ph}}|{{test}}|{{body}}|{{orelse}}>~{{more}}~{{mod}}>
+^@S<ind:(?<n>[0-9]+) (?<rest>[^~]*)~I:(?<base>[0-9]+):(?<suite>[0-9]+):(?<ph>[bew]):(?<test>[^:]*):(?<body>[^:]*):(?<orelse>[^;~]*)~(?<mod>.*)>$ ::= @LV<EQQ<{{n}},{{suite}}>|{{n}}|{{rest}}|{{base}}|{{suite}}|{{ph}}|{{test}}|{{body}}|{{orelse}}>~~{{mod}}>
+^@LV<1\|(?<n>[0-9]+)\|(?<rest>[^|]*)\|(?<base>[0-9]+)\|(?<suite>[0-9]+)\|(?<ph>[be])\|(?<test>[^|]*)\|(?<body>[^|]*)\|(?<orelse>[^|]*)>~~(?<mod>.*)>$ ::= @S<{{rest}}~I:{{base}}:{{suite}}:{{ph}}:{{test}}:{{body}}:{{orelse}}~{{mod}}>
+^@LV<1\|(?<n>[0-9]+)\|(?<rest>[^|]*)\|(?<base>[0-9]+)\|(?<suite>[0-9]+)\|(?<ph>[be])\|(?<test>[^|]*)\|(?<body>[^|]*)\|(?<orelse>[^|]*)>~(?<more>[^~]+)~(?<mod>.*)>$ ::= @S<{{rest}}~I:{{base}}:{{suite}}:{{ph}}:{{test}}:{{body}}:{{orelse}};{{more}}~{{mod}}>
+^@LV<0\|(?<n>[0-9]+)\|(?<rest>[^|]*)\|(?<base>[0-9]+)\|(?<suite>[0-9]+)\|(?<ph>[bew])\|(?<test>[^|]*)\|(?<body>[^|]*)\|(?<orelse>[^|]*)>~(?<more>[^~]*)~(?<mod>.*)>$ ::= @LW<GTT<{{n}},{{suite}}>|{{n}}|{{rest}}|{{base}}|{{suite}}|{{ph}}|{{test}}|{{body}}|{{orelse}}>~{{more}}~{{mod}}>
+^@LW<0\|(?<n>[0-9]+)\|(?<rest>[^|]*)\|(?<base>[0-9]+)\|(?<suite>[0-9]+)\|(?<ph>[bew])\|(?<test>[^|]*)\|(?<body>[^|]*)\|(?<orelse>[^|]*)>~(?<more>[^~]*)~(?<mod>.*)>$ ::= @LX<EQQ<{{n}},{{base}}>|{{n}}|{{rest}}|{{base}}|{{suite}}|{{ph}}|{{test}}|{{body}}|{{orelse}}>~{{more}}~{{mod}}>
+^@LX<(?<bit>[01])\|(?<n>[0-9]+)\|(?<rest>[^|]*)\|(?<base>[0-9]+)\|(?<suite>[0-9]+)\|e\|(?<test>[^|]*)\|(?<body>[^|]*)\|(?<orelse>[^|]*)>~(?<more>[^~]*)~(?<mod>.*)>$ ::= @CL<ind:{{n}} {{rest}}|e|{{test}}|{{body}}|{{orelse}}>~{{more}}~{{mod}}>
+^@LX<1\|(?<n>[0-9]+)\|else (?<rest>[^|]*)\|(?<base>[0-9]+)\|(?<suite>[0-9]+)\|b\|(?<test>[^|]*)\|(?<body>[^|]*)\|(?<orelse>[^|]*)>~(?<more>[^~]*)~(?<mod>.*)>$ ::= @ES<{{rest}}|{{base}}|{{test}}|{{body}}>~{{more}}~{{mod}}>
+^@LX<1\|(?<n>[0-9]+)\|elif (?<rest>[^|]*)\|(?<base>[0-9]+)\|(?<suite>[0-9]+)\|b\|(?<test>[^|]*)\|(?<body>[^|]*)\|(?<orelse>[^|]*)>~~(?<mod>.*)>$ ::= @P<{{rest}}|||V|T||>~I:{{base}}:{{suite}}:w:{{test}}:{{body}}:~{{mod}}>
+^@LX<1\|(?<n>[0-9]+)\|elif (?<rest>[^|]*)\|(?<base>[0-9]+)\|(?<suite>[0-9]+)\|b\|(?<test>[^|]*)\|(?<body>[^|]*)\|(?<orelse>[^|]*)>~(?<more>[^~]+)~(?<mod>.*)>$ ::= @P<{{rest}}|||V|T||>~I:{{base}}:{{suite}}:w:{{test}}:{{body}}:;{{more}}~{{mod}}>
+^@LX<0\|(?<n>[0-9]+)\|(?<rest>[^|]*)\|(?<base>[0-9]+)\|(?<suite>[0-9]+)\|b\|(?<test>[^|]*)\|(?<body>[^|]*)\|(?<orelse>[^|]*)>~(?<more>[^~]*)~(?<mod>.*)>$ ::= @CL<ind:{{n}} {{rest}}|b|{{test}}|{{body}}|{{orelse}}>~{{more}}~{{mod}}>
+^@LX<1\|(?<n>[0-9]+)\|(?<rest>[^|]*)\|(?<base>[0-9]+)\|(?<suite>[0-9]+)\|b\|(?<test>[^|]*)\|(?<body>[^|]*)\|(?<orelse>[^|]*)>~(?<more>[^~]*)~(?<mod>.*)>$ ::= @CL<ind:{{n}} {{rest}}|b|{{test}}|{{body}}|{{orelse}}>~{{more}}~{{mod}}>
+
+^@ES<colon nl ind:(?<m>[0-9]+) (?<rest>[^~]*)\|(?<base>[0-9]+)\|(?<test>[^|]+)\|(?<body>[^|]+)>~~(?<mod>.*)>$ ::= @ET<GTT<{{m}},{{base}}>|{{m}}|{{rest}}|{{base}}|{{test}}|{{body}}>~~{{mod}}>
+^@ES<colon nl ind:(?<m>[0-9]+) (?<rest>[^~]*)\|(?<base>[0-9]+)\|(?<test>[^|]+)\|(?<body>[^|]+)>~(?<more>[^~]+)~(?<mod>.*)>$ ::= @ET<GTT<{{m}},{{base}}>|{{m}}|{{rest}}|{{base}}|{{test}}|{{body}}>~{{more}}~{{mod}}>
+^@ET<1\|(?<m>[0-9]+)\|(?<rest>[^|]*)\|(?<base>[0-9]+)\|(?<test>[^|]*)\|(?<body>[^|]*)>~~(?<mod>.*)>$ ::= @S<{{rest}}~I:{{base}}:{{m}}:e:{{test}}:{{body}}:~{{mod}}>
+^@ET<1\|(?<m>[0-9]+)\|(?<rest>[^|]*)\|(?<base>[0-9]+)\|(?<test>[^|]*)\|(?<body>[^|]*)>~(?<more>[^~]+)~(?<mod>.*)>$ ::= @S<{{rest}}~I:{{base}}:{{m}}:e:{{test}}:{{body}}:;{{more}}~{{mod}}>
+
+^@S<eof~I:(?<base>[0-9]+):(?<suite>[0-9]+):(?<ph>[be]):(?<test>[^:]*):(?<body>[^:]*):(?<orelse>[^;]*);(?<more>[^~]*)~(?<mod>.*)>$ ::= @CL<eof|{{ph}}|{{test}}|{{body}}|{{orelse}}>~{{more}}~{{mod}}>
+^@S<eof~I:(?<base>[0-9]+):(?<suite>[0-9]+):(?<ph>[be]):(?<test>[^:]*):(?<body>[^:]*):(?<orelse>[^;~]*)~(?<mod>.*)>$ ::= @CL<eof|{{ph}}|{{test}}|{{body}}|{{orelse}}>~~{{mod}}>
+^@S<eof~~(?<mod>![^~]*)>$ ::= @REV<{{mod}}|>~MOD<>~~>
+
+^@S<pass (?<rest>[^~]*)~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @ADD<Pass%28%29|{{rest}}>~{{stk}}~{{mod}}>
+^@S<if (?<rest>[^~]*)~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @P<{{rest}}|||V|T||>~{{stk}}~{{mod}}>
+^@S<i:(?<id>[A-Za-z_][A-Za-z0-9_]*) assign (?<rest>[^~]*)~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @P<{{rest}}|||V|A|{{id}}|>~{{stk}}~{{mod}}>
+^@S<(?<rest>(?:n:[0-9]+(?:\.[0-9]+)?|i:[A-Za-z_][A-Za-z0-9_]*|k:(?:True|False|None)|s:$PCT|lp|add|sub|mul|div|eq|ne|le|ge|lt|gt)(?: [^~]*)?)~(?<stk>[^~]*)~(?<mod>.*)>$ ::= @P<{{rest}}|||V|E||>~{{stk}}~{{mod}}>
+
+^@ADD<(?<stmt>$PCT)\|(?<left>[^~]*)>~I:(?<base>[0-9]+):(?<suite>[0-9]+):b:(?<test>[^:]*):(?<body>[^:]*):(?<orelse>[^;]*);(?<more>[^~]*)~(?<mod>.*)>$ ::= @S<{{left}}~I:{{base}}:{{suite}}:b:{{test}}:!{{stmt}}{{body}}:{{orelse}};{{more}}~{{mod}}>
+^@ADD<(?<stmt>$PCT)\|(?<left>[^~]*)>~I:(?<base>[0-9]+):(?<suite>[0-9]+):b:(?<test>[^:]*):(?<body>[^:]*):(?<orelse>[^;~]*)~(?<mod>.*)>$ ::= @S<{{left}}~I:{{base}}:{{suite}}:b:{{test}}:!{{stmt}}{{body}}:{{orelse}}~{{mod}}>
+^@ADD<(?<stmt>$PCT)\|(?<left>[^~]*)>~I:(?<base>[0-9]+):(?<suite>[0-9]+):e:(?<test>[^:]*):(?<body>[^:]*):(?<orelse>[^;]*);(?<more>[^~]*)~(?<mod>.*)>$ ::= @S<{{left}}~I:{{base}}:{{suite}}:e:{{test}}:{{body}}:!{{stmt}}{{orelse}};{{more}}~{{mod}}>
+^@ADD<(?<stmt>$PCT)\|(?<left>[^~]*)>~I:(?<base>[0-9]+):(?<suite>[0-9]+):e:(?<test>[^:]*):(?<body>[^:]*):(?<orelse>[^;~]*)~(?<mod>.*)>$ ::= @S<{{left}}~I:{{base}}:{{suite}}:e:{{test}}:{{body}}:!{{stmt}}{{orelse}}~{{mod}}>
+^@ADD<(?<stmt>$PCT)\|(?<left>[^~]*)>~~(?<mod>.*)>$ ::= @S<{{left}}~~!{{stmt}}{{mod}}>
+
+^@CL<(?<tok>[^|]+)\|b\|(?<test>[^|]+)\|(?<body>![^|]+)\|>~(?<more>[^~]*)~(?<mod>.*)>$ ::= @REV<{{body}}|>~B<{{tok}}|{{test}}>~{{more}}~{{mod}}>
+^@CL<(?<tok>[^|]+)\|(?<ph>[be])\|(?<test>[^|]+)\|(?<body>![^|]+)\|(?<orelse>![^|]+)>~(?<more>[^~]*)~(?<mod>.*)>$ ::= @REV<{{body}}|>~BE<{{tok}}|{{ph}}|{{test}}|{{orelse}}>~{{more}}~{{mod}}>
+^@REV<!(?<a>$PCT)!(?<rest>[^|]*)\|(?<acc>[^>]*)>~(?<ctx>.*)>$ ::= @REV<!{{rest}}|%2C%20{{a}}{{acc}}>~{{ctx}}>
+^@REV<!(?<a>$PCT)\|(?<acc>[^>]*)>~(?<ctx>.*)>$ ::= @REV<|{{a}}{{acc}}>~{{ctx}}>
+^@REV<\|(?<acc>[^~]*)>~B<(?<tok>[^|]+)\|(?<test>[^|]+)>~(?<more>[^~]*)~(?<mod>.*)>$ ::= @NODE<{{tok}}|If%28test%3D{{test}}%2C%20body%3D%5B{{acc}}%5D%2C%20orelse%3D%5B%5D%29>~{{more}}~{{mod}}>
+^@REV<\|(?<acc>[^~]*)>~BE<(?<tok>[^|]+)\|(?<ph>[be])\|(?<test>[^|]+)\|(?<orelse>![^~]*)>~(?<more>[^~]*)~(?<mod>.*)>$ ::= @REV<{{orelse}}|>~BO<{{tok}}|{{test}}|{{acc}}>~{{more}}~{{mod}}>
+^@REV<\|(?<oacc>[^~]*)>~BO<(?<tok>[^|]+)\|(?<test>[^|]+)\|(?<bacc>[^|]+)>~(?<more>[^~]*)~(?<mod>.*)>$ ::= @NODE<{{tok}}|If%28test%3D{{test}}%2C%20body%3D%5B{{bacc}}%5D%2C%20orelse%3D%5B{{oacc}}%5D%29>~{{more}}~{{mod}}>
+^@REV<\|(?<acc>[^~]*)>~MOD<>~~>$ ::= @DONE<Module%28body%3D%5B{{acc}}%5D%2C%20type_ignores%3D%5B%5D%29>
+^@REV<\|(?<acc>[^~]*)>~W<(?<tok>[^|]+)\|(?<test>[^|]+)\|(?<node>$PCT)>~(?<more>[^~]*)~(?<mod>.*)>$ ::= @NODE<{{tok}}|If%28test%3D{{test}}%2C%20body%3D%5B{{acc}}%5D%2C%20orelse%3D%5B{{node}}%5D%29>~{{more}}~{{mod}}>
+
+^@NODE<(?<tok>[^|]+)\|(?<node>$PCT)>~I:(?<base>[0-9]+):(?<suite>[0-9]+):w:(?<test>[^:]*):(?<body>![^:]*):(?<orelse>[^;]*);(?<more>[^~]*)~(?<mod>.*)>$ ::= @REV<{{body}}|>~W<{{tok}}|{{test}}|{{node}}>~{{more}}~{{mod}}>
+^@NODE<(?<tok>[^|]+)\|(?<node>$PCT)>~I:(?<base>[0-9]+):(?<suite>[0-9]+):w:(?<test>[^:]*):(?<body>![^:]*):(?<orelse>[^;~]*)~(?<mod>.*)>$ ::= @REV<{{body}}|>~W<{{tok}}|{{test}}|{{node}}>~~{{mod}}>
+^@NODE<(?<tok>[^|]+)\|(?<node>$PCT)>~I:(?<base>[0-9]+):(?<suite>[0-9]+):b:(?<test>[^:]*):(?<body>[^:]*):(?<orelse>[^;]*);(?<more>[^~]*)~(?<mod>.*)>$ ::= @S<{{tok}}~I:{{base}}:{{suite}}:b:{{test}}:!{{node}}{{body}}:{{orelse}};{{more}}~{{mod}}>
+^@NODE<(?<tok>[^|]+)\|(?<node>$PCT)>~I:(?<base>[0-9]+):(?<suite>[0-9]+):b:(?<test>[^:]*):(?<body>[^:]*):(?<orelse>[^;~]*)~(?<mod>.*)>$ ::= @S<{{tok}}~I:{{base}}:{{suite}}:b:{{test}}:!{{node}}{{body}}:{{orelse}}~{{mod}}>
+^@NODE<(?<tok>[^|]+)\|(?<node>$PCT)>~I:(?<base>[0-9]+):(?<suite>[0-9]+):e:(?<test>[^:]*):(?<body>[^:]*):(?<orelse>[^;]*);(?<more>[^~]*)~(?<mod>.*)>$ ::= @S<{{tok}}~I:{{base}}:{{suite}}:e:{{test}}:{{body}}:!{{node}}{{orelse}};{{more}}~{{mod}}>
+^@NODE<(?<tok>[^|]+)\|(?<node>$PCT)>~I:(?<base>[0-9]+):(?<suite>[0-9]+):e:(?<test>[^:]*):(?<body>[^:]*):(?<orelse>[^;~]*)~(?<mod>.*)>$ ::= @S<{{tok}}~I:{{base}}:{{suite}}:e:{{test}}:{{body}}:!{{node}}{{orelse}}~{{mod}}>
+^@NODE<(?<tok>[^|]+)\|(?<node>$PCT)>~~(?<mod>.*)>$ ::= @S<{{tok}}~~!{{node}}{{mod}}>
+
+^@IFG<0\|(?<rest>.*)>$ ::= @E<syntax_error>
+^@ET<0\|(?<rest>.*)>$ ::= @E<syntax_error>
+^@LW<1\|(?<rest>.*)>$ ::= @E<syntax_error>
+^@ES<(?<rest>.*)>$ ::= @E<syntax_error>
+^@IFI<(?<rest>.*)>$ ::= @E<syntax_error>
+^@GOT<(?<rest>.*)>$ ::= @E<syntax_error>
+^@P<(?<rest>.*)>$ ::= @E<syntax_error>
+^@S<(?<rest>.*)>$ ::= @E<syntax_error>
 
 ^@DONE<(?<p>$PCT)>$ ::= @OUT<{{p}}>@@EXIT0@
 ^@OUT<(?<p>$PCT)>@ ::> stdout {{p|pctdec}}\n
@@ -120,7 +222,7 @@ A comparison whose left side is already a comparison is a chain, which this slic
 ^@ERR<(?<e>[A-Za-z0-9_]+)>@ ::> stderr {{e}}\n
 ^@EXIT2@$ ::- 2
 
-\A(?<src>[\s\S]+)\z ::= @Y<{{src|pctenc}}>|
+\A(?<src>[\s\S]+)\z ::= @Y<{{src|pctenc}}||0|2|0>
 \A\z ::= @E<syntax_error>
 
 ::=

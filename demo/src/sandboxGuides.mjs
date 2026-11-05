@@ -154,14 +154,15 @@ export const sandboxGuides = [
   },
   {
     id: 'python',
-    purpose: 'A reader that turns one Python expression into an AST dump. The program is --input. It does not run the expression.',
+    purpose: 'A reader that turns a small Python program into an AST dump. The program is --input. It does not run the program.',
     useCases: [
       'Numbers, names, strings, arithmetic, and comparisons',
+      'pass, name assignment, and if / else / elif',
       'An AST dump shaped like ast.parse, with no evaluation',
     ],
     strengths: [
       '1/0 is a division node',
-      'A statement or a call fails with unsupported_form',
+      'A call or def fails with unsupported_form',
     ],
     command: "uv run thue langs/python/python.thue --input '1+2'",
     readmeSections: [],

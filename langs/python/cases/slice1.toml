@@ -1,0 +1,452 @@
+program = "../python.thue"
+timeout = 30
+
+[[case]]
+name = "pass"
+input = "pass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Pass()], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "name assignment"
+input = "a = 1"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Assign(targets=[Name(id='a', ctx=Store())], value=Constant(value=1))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "assignment expression"
+input = "a = 1 + 2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Assign(targets=[Name(id='a', ctx=Store())], value=BinOp(left=Constant(value=1), op=Add(), right=Constant(value=2)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "if else"
+input = "if a:\n  pass\nelse:\n  pass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[Pass()], orelse=[Pass()])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "if no else"
+input = "if a:\n  pass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[Pass()], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "two statements"
+input = "a = 1\nb = 2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Assign(targets=[Name(id='a', ctx=Store())], value=Constant(value=1)), Assign(targets=[Name(id='b', ctx=Store())], value=Constant(value=2))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "nested if"
+input = "if a:\n  if b:\n    pass\n  else:\n    c = 1\nelse:\n  pass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[If(test=Name(id='b', ctx=Load()), body=[Pass()], orelse=[Assign(targets=[Name(id='c', ctx=Store())], value=Constant(value=1))])], orelse=[Pass()])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "elif"
+input = "if a:\n  pass\nelif b:\n  c = 1\nelse:\n  d = 2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[Pass()], orelse=[If(test=Name(id='b', ctx=Load()), body=[Assign(targets=[Name(id='c', ctx=Store())], value=Constant(value=1))], orelse=[Assign(targets=[Name(id='d', ctx=Store())], value=Constant(value=2))])])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "suite two statements"
+input = "if a:\n  b = 1\n  c = 2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[Assign(targets=[Name(id='b', ctx=Store())], value=Constant(value=1)), Assign(targets=[Name(id='c', ctx=Store())], value=Constant(value=2))], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "comparison test"
+input = "if 1<2:\n  pass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Compare(left=Constant(value=1), ops=[Lt()], comparators=[Constant(value=2)]), body=[Pass()], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "parentheses around the test"
+input = "if(a):\n  pass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[Pass()], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "newline inside parentheses"
+input = "(1+\n2)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=Constant(value=1), op=Add(), right=Constant(value=2)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "assignment across parentheses"
+input = "a = (\n1\n)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Assign(targets=[Name(id='a', ctx=Store())], value=Constant(value=1))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "division is not evaluated"
+input = "a = 1/0"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Assign(targets=[Name(id='a', ctx=Store())], value=BinOp(left=Constant(value=1), op=Div(), right=Constant(value=0)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "string assignment"
+input = "x = \"hi\""
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Constant(value=\"hi\"))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "leading newline"
+input = "\npass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Pass()], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "trailing newline"
+input = "pass\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Pass()], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "blank line between statements"
+input = "pass\n\npass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Pass(), Pass()], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "blank line inside a suite"
+input = "if a:\n\n  pass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[Pass()], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "one space indent"
+input = "if a:\n pass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[Pass()], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "four space indent"
+input = "if a:\n    pass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[Pass()], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "crlf"
+input = "pass\r\npass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Pass(), Pass()], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "carriage return"
+input = "pass\rpass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Pass(), Pass()], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "three statements"
+input = "pass\npass\npass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Pass(), Pass(), Pass()], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "else holds a nested if"
+input = "if a:\n  pass\nelse:\n  if b:\n    pass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[Pass()], orelse=[If(test=Name(id='b', ctx=Load()), body=[Pass()], orelse=[])])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "statement after an if"
+input = "if a:\n  pass\nb = 1"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[Pass()], orelse=[]), Assign(targets=[Name(id='b', ctx=Store())], value=Constant(value=1))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "two statements in a nested suite"
+input = "if a:\n  if b:\n    pass\n    c = 1"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[If(test=Name(id='b', ctx=Load()), body=[Pass(), Assign(targets=[Name(id='c', ctx=Store())], value=Constant(value=1))], orelse=[])], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "form feed is a space"
+input = "1+\u000c2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=Constant(value=1), op=Add(), right=Constant(value=2)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "vertical tab is a space"
+input = "1+\u000b2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=Constant(value=1), op=Add(), right=Constant(value=2)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "tab is rejected"
+input = "if a:\n\tpass"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "tab between tokens is rejected"
+input = "1+\t2"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "chained assignment is unsupported"
+input = "a = b = 1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "augmented assignment is unsupported"
+input = "a += 1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "def is unsupported"
+input = "def"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "return is unsupported"
+input = "return"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "same line suite"
+input = "if a: pass"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "else without if"
+input = "else:\n  pass"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "missing test"
+input = "if a"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "missing indented body"
+input = "if a:\npass"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "else body is not indented"
+input = "if a:\n  pass\nelse:\npass"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "else needs a colon"
+input = "if a:\n  pass\nelse pass"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "unexpected indent"
+input = "pass\n  pass"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "deeper indent inside a suite"
+input = "if a:\n  pass\n   b = 1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "dedent does not match"
+input = "if a:\n  pass\n else:\n  pass"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "two values on one line"
+input = "1 pass"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "colon after an assignment"
+input = "a = 1:"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "three nested ifs"
+input = "if a:\n  if b:\n    if c:\n      pass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[If(test=Name(id='b', ctx=Load()), body=[If(test=Name(id='c', ctx=Load()), body=[Pass()], orelse=[])], orelse=[])], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "elif inside a nested if"
+input = "if a:\n  if b:\n    pass\n  elif c:\n    pass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[If(test=Name(id='b', ctx=Load()), body=[Pass()], orelse=[If(test=Name(id='c', ctx=Load()), body=[Pass()], orelse=[])])], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "else holds an if inside a nested if"
+input = "if a:\n  if b:\n    pass\n  else:\n    if c:\n      pass"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[If(test=Name(id='b', ctx=Load()), body=[Pass()], orelse=[If(test=Name(id='c', ctx=Load()), body=[Pass()], orelse=[])])], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "header without a newline"
+input = "if a:\n"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
