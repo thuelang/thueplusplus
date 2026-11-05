@@ -1,0 +1,686 @@
+program = "../python.thue"
+timeout = 30
+
+[[case]]
+name = "function with a body"
+input = "def f():\n    pass\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Pass()], decorator_list=[], type_params=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "function parameters"
+input = "def f(a, b):\n    return\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[arg(arg='a'), arg(arg='b')], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Return()], decorator_list=[], type_params=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "trailing comma parameter"
+input = "def f(a,):\n    pass\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[arg(arg='a')], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Pass()], decorator_list=[], type_params=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "return a value"
+input = "def f():\n    return 1\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Return(value=Constant(value=1))], decorator_list=[], type_params=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "return an expression"
+input = "def f():\n    return 1 + 2\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Return(value=BinOp(left=Constant(value=1), op=Add(), right=Constant(value=2)))], decorator_list=[], type_params=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "bare return"
+input = "return"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Return()], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "return a value at module level"
+input = "return 1"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Return(value=Constant(value=1))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "empty call"
+input = "f()"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load()), args=[], keywords=[]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "call with one argument"
+input = "f(1)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load()), args=[Constant(value=1)], keywords=[]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "call with two arguments"
+input = "f(1, 2)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load()), args=[Constant(value=1), Constant(value=2)], keywords=[]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "nested call"
+input = "f(g(1))"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load()), args=[Call(func=Name(id='g', ctx=Load()), args=[Constant(value=1)], keywords=[])], keywords=[]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "trailing comma in a call"
+input = "f(1,)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load()), args=[Constant(value=1)], keywords=[]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "call of a call"
+input = "f(1)(2)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Call(func=Call(func=Name(id='f', ctx=Load()), args=[Constant(value=1)], keywords=[]), args=[Constant(value=2)], keywords=[]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "call of a grouped name"
+input = "(f)(1)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load()), args=[Constant(value=1)], keywords=[]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "and"
+input = "a and b"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BoolOp(op=And(), values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "or"
+input = "a or b"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BoolOp(op=Or(), values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "not"
+input = "not a"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=UnaryOp(op=Not(), operand=Name(id='a', ctx=Load())))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "and chain"
+input = "a and b and c"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BoolOp(op=And(), values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load()), Name(id='c', ctx=Load())]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "or chain"
+input = "a or b or c"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BoolOp(op=Or(), values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load()), Name(id='c', ctx=Load())]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "parentheses keep a nested and"
+input = "(a and b) and c"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BoolOp(op=And(), values=[BoolOp(op=And(), values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())]), Name(id='c', ctx=Load())]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "and inside or"
+input = "a and b or c"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BoolOp(op=Or(), values=[BoolOp(op=And(), values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())]), Name(id='c', ctx=Load())]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "or then and"
+input = "a or b and c"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BoolOp(op=Or(), values=[Name(id='a', ctx=Load()), BoolOp(op=And(), values=[Name(id='b', ctx=Load()), Name(id='c', ctx=Load())])]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "not binds tighter than and"
+input = "not a and b"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BoolOp(op=And(), values=[UnaryOp(op=Not(), operand=Name(id='a', ctx=Load())), Name(id='b', ctx=Load())]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "not binds looser than a comparison"
+input = "not a == b"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=UnaryOp(op=Not(), operand=Compare(left=Name(id='a', ctx=Load()), ops=[Eq()], comparators=[Name(id='b', ctx=Load())])))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "not after and"
+input = "a and not b"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BoolOp(op=And(), values=[Name(id='a', ctx=Load()), UnaryOp(op=Not(), operand=Name(id='b', ctx=Load()))]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "double not"
+input = "not not a"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=UnaryOp(op=Not(), operand=UnaryOp(op=Not(), operand=Name(id='a', ctx=Load()))))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "not of a negation"
+input = "not -1"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=UnaryOp(op=Not(), operand=UnaryOp(op=USub(), operand=Constant(value=1))))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "comparison and a value"
+input = "1 < 2 and 3"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BoolOp(op=And(), values=[Compare(left=Constant(value=1), ops=[Lt()], comparators=[Constant(value=2)]), Constant(value=3)]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "call inside and"
+input = "a and f(1)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BoolOp(op=And(), values=[Name(id='a', ctx=Load()), Call(func=Name(id='f', ctx=Load()), args=[Constant(value=1)], keywords=[])]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "not as a call argument"
+input = "f(not a)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load()), args=[UnaryOp(op=Not(), operand=Name(id='a', ctx=Load()))], keywords=[]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "grouped not"
+input = "1+(not a)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=Constant(value=1), op=Add(), right=UnaryOp(op=Not(), operand=Name(id='a', ctx=Load()))))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "assignment of a call"
+input = "a = f(1)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Assign(targets=[Name(id='a', ctx=Store())], value=Call(func=Name(id='f', ctx=Load()), args=[Constant(value=1)], keywords=[]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "if test is a boolean"
+input = "if a and b:\n    pass\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=BoolOp(op=And(), values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())]), body=[Pass()], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "if test is not"
+input = "if not a:\n    pass\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=UnaryOp(op=Not(), operand=Name(id='a', ctx=Load())), body=[Pass()], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "function then a statement"
+input = "def f():\n    pass\n\na = 1\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Pass()], decorator_list=[], type_params=[]), Assign(targets=[Name(id='a', ctx=Store())], value=Constant(value=1))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "blank line in a function"
+input = "def f():\n\n    pass\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Pass()], decorator_list=[], type_params=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "nested function"
+input = "def f():\n    def g(a):\n        return a\n    return g(1)\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[FunctionDef(name='g', args=arguments(posonlyargs=[], args=[arg(arg='a')], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Return(value=Name(id='a', ctx=Load()))], decorator_list=[], type_params=[]), Return(value=Call(func=Name(id='g', ctx=Load()), args=[Constant(value=1)], keywords=[]))], decorator_list=[], type_params=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "function inside an if"
+input = "if a:\n    def f():\n        return 1\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Return(value=Constant(value=1))], decorator_list=[], type_params=[])], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "if and return inside a function"
+input = "def f():\n    if a and b:\n        return f(1)\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[If(test=BoolOp(op=And(), values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())]), body=[Return(value=Call(func=Name(id='f', ctx=Load()), args=[Constant(value=1)], keywords=[]))], orelse=[])], decorator_list=[], type_params=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "two statements in a function"
+input = "def f():\n    a = 1\n    return a\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Assign(targets=[Name(id='a', ctx=Store())], value=Constant(value=1)), Return(value=Name(id='a', ctx=Load()))], decorator_list=[], type_params=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "multiline parameters"
+input = "def f(\n    a,\n    b,\n):\n    pass\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[arg(arg='a'), arg(arg='b')], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Pass()], decorator_list=[], type_params=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "expression statement in a function"
+input = "def f():\n    \"hi\"\n    return\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Expr(value=Constant(value=\"hi\")), Return()], decorator_list=[], type_params=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "default parameter is unsupported"
+input = "def f(a=1):\n    pass\n"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "annotation is unsupported"
+input = "def f(a: int):\n    pass\n"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "star parameter is unsupported"
+input = "def f(*a):\n    pass\n"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "keyword argument is unsupported"
+input = "f(a=1)"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "same line function suite"
+input = "def f(): pass"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "function body is not indented"
+input = "def f():\npass"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "bare def"
+input = "def"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "not after a plus"
+input = "1 + not a"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "not after a comparison"
+input = "a == not b"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "not after unary minus"
+input = "- not a"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "class is unsupported"
+input = "class A:\n    pass\n"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "import is unsupported"
+input = "import a"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "async def is unsupported"
+input = "async def f():\n    pass\n"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "lambda is unsupported"
+input = "lambda a: a"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "decorator is unsupported"
+input = "@a\ndef f():\n    pass\n"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "comprehension is unsupported"
+input = "[a for a in b]"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "else inside a function"
+input = "def f():\n    if a:\n        pass\n    else:\n        return 1\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[If(test=Name(id='a', ctx=Load()), body=[Pass()], orelse=[Return(value=Constant(value=1))])], decorator_list=[], type_params=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "elif inside a function"
+input = "def f():\n    if a:\n        pass\n    elif b:\n        return 1\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[If(test=Name(id='a', ctx=Load()), body=[Pass()], orelse=[If(test=Name(id='b', ctx=Load()), body=[Return(value=Constant(value=1))], orelse=[])])], decorator_list=[], type_params=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "function in a body and return in the else"
+input = "if a:\n    def f():\n        pass\nelse:\n    return f\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Pass()], decorator_list=[], type_params=[])], orelse=[Return(value=Name(id='f', ctx=Load()))])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "boolean arguments"
+input = "f(a and b, c)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load()), args=[BoolOp(op=And(), values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())]), Name(id='c', ctx=Load())], keywords=[]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "call of a boolean"
+input = "(a and b)(1)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Call(func=BoolOp(op=And(), values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())]), args=[Constant(value=1)], keywords=[]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "positional-only marker is unsupported"
+input = "def f(a, /, b):\n    pass\n"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "keyword parameter is unsupported"
+input = "def f(**a):\n    pass\n"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "grouped or"
+input = "(a or b)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BoolOp(op=Or(), values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "comma after or"
+input = "f(a or b, c)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load()), args=[BoolOp(op=Or(), values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())]), Name(id='c', ctx=Load())], keywords=[]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "comma after addition"
+input = "f(1+2, 3)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load()), args=[BinOp(left=Constant(value=1), op=Add(), right=Constant(value=2)), Constant(value=3)], keywords=[]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "if inside a nested function"
+input = "if a:\n    def f():\n        if b:\n            pass\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[If(test=Name(id='b', ctx=Load()), body=[Pass()], orelse=[])], decorator_list=[], type_params=[])], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "function inside an if inside a function"
+input = "def f():\n    if a:\n        def g():\n            pass\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[If(test=Name(id='a', ctx=Load()), body=[FunctionDef(name='g', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Pass()], decorator_list=[], type_params=[])], orelse=[])], decorator_list=[], type_params=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "function inside a nested function"
+input = "if a:\n    def f():\n        def g():\n            pass\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[FunctionDef(name='g', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Pass()], decorator_list=[], type_params=[])], decorator_list=[], type_params=[])], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "two statements in a nested function"
+input = "if a:\n    def f():\n        pass\n        return 1\n"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[If(test=Name(id='a', ctx=Load()), body=[FunctionDef(name='f', args=arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]), body=[Pass(), Return(value=Constant(value=1))], decorator_list=[], type_params=[])], orelse=[])], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "star argument is unsupported"
+input = "f(*a)"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "unclosed call"
+input = "f(1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "top level comma is unsupported"
+input = "1,2"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "deeper indent in a function"
+input = "def f():\n    pass\n     a = 1\n"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
