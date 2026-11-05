@@ -2,7 +2,7 @@ Python reader
 This file is a Thue++ reader. It turns a small Python program into an AST dump.
 It does not evaluate the program. Strings are protected, then the rest is lexed and parsed.
 Numbers keep their source spelling. Unsupported forms and broken syntax exit with a named error.
-A newline ends a statement. Spaces after that newline are the indent. A tab is rejected.
+A newline ends a statement. The supported source is what ruff format emits: four spaces of indent, and no tabs. A tab is rejected.
 A newline inside parentheses, or after an operator that still needs a value, is whitespace.
 
 PCT <- (?:[A-Za-z0-9_.-]|%[0-9A-F]{2})*

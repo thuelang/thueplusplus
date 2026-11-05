@@ -12,7 +12,7 @@ extension: py
 uv run thue langs/python/python.thue --input '1+2'
 ```
 
-The input is the whole program.
+The input is the whole program. The supported surface is source that `ruff format` would emit for this slice: 4-space indents, a suite on the next line, and no tabs. A layout ruff would rewrite is outside the contract.
 
 ## Dump
 
@@ -45,13 +45,20 @@ String constants are always double quoted. The escape spelling is `\\`, `\"`, `\
 
 ## Lines and indent
 
-A newline ends a statement. Blank lines are skipped. A newline inside `()` is whitespace. A newline that appears while an operator still needs a value is also whitespace, so `1+\n2` stays one sum. CPython rejects that spelling.
+Ruff format is the supported surface. For the forms this slice reads, that is a newline between statements and a suite indented by four spaces:
 
-Indent is the spaces after a newline. The first line's leading spaces are not indent, so ` -(1+2)` is still a negation. A later line must land on an indent the stack already holds, or one step deeper for a suite.
+```text
+if a:
+    pass
+else:
+    pass
+```
 
-A tab is rejected, including a tab used as indent and a tab between tokens. A tab inside a quoted string is a character of that string. This slice does not expand tabs.
+`ruff format` turns a tab into spaces. This reader does not. A tab in the source, including a tab used as indent or between tokens, is `unsupported_form`. A tab inside a quoted string is a character of that string.
 
-A suite is a newline and a deeper indent. `if a:\n  pass` is a suite. `if a: pass` on one line is a syntax error.
+A suite is the newline and the four-space indent above. `if a: pass` on one line is a syntax error. An indent that does not match an outer level is a syntax error.
+
+A newline inside `()` is whitespace. A newline that appears while an operator still needs a value is also whitespace, so `1+\n2` stays one sum. CPython rejects that spelling. Spaces before the first token of the file are not indent, so ` -(1+2)` is still a negation. Those two spellings are not what ruff emits.
 
 ## What this slice reads
 
