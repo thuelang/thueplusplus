@@ -1,0 +1,127 @@
+Python expression reader
+This file is a Thue++ reader. It turns one Python expression into an AST dump.
+It does not evaluate the expression. Strings are protected, then the rest is lexed and parsed.
+Numbers keep their source spelling. Unsupported forms and broken syntax exit with a named error.
+
+PCT <- (?:[A-Za-z0-9_.-]|%[0-9A-F]{2})*
+GOOD <- (?:%5C(?:%5C|%22|[ntrbf])|[A-Za-z0-9_.-]|%(?:[0-13-46-9A-F][0-9A-F]|5[0-9ABD-F]|2[0-9A-F]))*
+BADESC <- (?:[A-Zac-egh-mo-qsu-z0-9_.-]|%(?:[0-13-46-9A-F][0-9A-F]|5[0-9ABD-F]|2[0-13-9A-F]))
+DQRAW <- (?:%5C(?:%[0-9A-F]{2}|[A-Za-z0-9_.-])|[A-Za-z0-9_.-]|%(?:[0-13-46-9A-F][0-9A-F]|5[0-9ABD-F]|2[0-13-9A-F]))*
+SQRAW <- (?:%5C(?:%[0-9A-F]{2}|[A-Za-z0-9_.-])|[A-Za-z0-9_.-]|%(?:[0-13-46-9A-F][0-9A-F]|5[0-9ABD-F]|2[0-689A-F]))*
+BADKW <- and|as|assert|async|await|break|case|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|match|nonlocal|not|or|pass|raise|return|try|type|while|with|yield
+BOUND <- (?:(?:%[0-9A-F]{2}|[^A-Za-z0-9_])$PCT)?
+
+UNESC<(?<s>$PCT)> ::! unescape s
+ESC<(?<s>$PCT)> ::! escape s
+GE<(?<a>[0-9]),(?<b>[0-9])> ::! ge a b
+
+String bodies are checked before a token is emitted. A bad escape is not an unclosed quote.
+^@CHK<(?<pre>$GOOD)%5C(?<bad>$BADESC)(?<post>$PCT)\|(?<rest>$PCT)\|(?<tok>.*)>$ ::= @E<invalid_string_escape>
+^@CHK<(?<body>$GOOD)\|(?<rest>$PCT)\|(?<tok>.*)>$ ::= @Y<{{rest}}>|{{tok}} s:UNESC<{{body}}>
+
+Whitespace is insignificant. A quote prefix, a triple quote, and a keyword are rejected before a name is taken.
+^@Y<(?:%20|%09|%0A|%0D|%0B|%0C)(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}}
+^@Y<(?:[Ff][Rr]|[Rr][Ff]|[Rr][Bb]|[Bb][Rr]|[Ff]|[Rr]|[Bb]|[Uu])(?:%22|%27)(?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<unsupported_form>
+^@Y<(?:%22%22%22|%27%27%27)(?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<unsupported_form>
+^@Y<%22(?<body>$DQRAW)%22(?<rest>$PCT)>\|(?<tok>.*)$ ::= @CHK<{{body}}|{{rest}}|{{tok}}>
+^@Y<%27(?<body>$SQRAW)%27(?<rest>$PCT)>\|(?<tok>.*)$ ::= @CHK<{{body}}|{{rest}}|{{tok}}>
+^@Y<%22(?<pre>$DQRAW)%5C%22>\|(?<tok>.*)$ ::= @E<invalid_string_escape>
+^@Y<%27(?<pre>$SQRAW)%5C%27>\|(?<tok>.*)$ ::= @E<invalid_string_escape>
+^@Y<%22(?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<syntax_error>
+^@Y<%27(?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<syntax_error>
+^@Y<(?<w>True|False|None)(?<rest>$BOUND)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} k:{{w}}
+^@Y<(?<w>$BADKW)(?<rest>$BOUND)>\|(?<tok>.*)$ ::= @E<unsupported_form>
+^@Y<(?<id>[A-Za-z_][A-Za-z0-9_]*)(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} i:{{id}}
+^@Y<(?<n>[0-9]+(?:\.[0-9]+)?)[eE](?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<unsupported_form>
+^@Y<[0-9]+\.(?:%|[^0-9>%])(?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<unsupported_form>
+^@Y<[0-9]+\.>\|(?<tok>.*)$ ::= @E<unsupported_form>
+^@Y<(?<n>[0-9]+(?:\.[0-9]+)?)(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} n:{{n}}
+^@Y<%3D%3D(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} eq
+^@Y<%21%3D(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} ne
+^@Y<%3C%3D(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} le
+^@Y<%3E%3D(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} ge
+^@Y<(?:%2F%2F|%2A%2A|%3C%3C|%3E%3E|%3D|%21|%25|%5B|%5D|%7B|%7D|%3A|%2C|%40|%26|%7C|%5E|%7E|%23|%3B|%5C|\.)(?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<unsupported_form>
+^@Y<%2B(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} add
+^@Y<-(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} sub
+^@Y<%2A(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} mul
+^@Y<%2F(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} div
+^@Y<%3C(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} lt
+^@Y<%3E(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} gt
+^@Y<%28(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} lp
+^@Y<%29(?<rest>$PCT)>\|(?<tok>.*)$ ::= @Y<{{rest}}>|{{tok}} rp
+^@Y<(?<bad>%[0-9A-F]{2}|.)(?<rest>$PCT)>\|(?<tok>.*)$ ::= @E<syntax_error>
+^@Y<>\|(?<tok>.*)$ ::= @GO<{{tok}}>
+^@GO<>$ ::= @E<syntax_error>
+^@GO< (?<tok>[^>]*)>$ ::= @P<{{tok}}|||V>
+
+Values are pushed on the left. Plus and minus are unary only while a value is expected.
+^@P<n:(?<n>[0-9]+(?:\.[0-9]+)?)(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @P<{{rest}}|{{ops}}| Constant%28value%3D{{n}}%29{{out}}|O>
+^@P<i:(?<id>[A-Za-z_][A-Za-z0-9_]*)(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @P<{{rest}}|{{ops}}| Name%28id%3D%27{{id}}%27%2C%20ctx%3DLoad%28%29%29{{out}}|O>
+^@P<k:(?<k>True|False|None)(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @P<{{rest}}|{{ops}}| Constant%28value%3D{{k}}%29{{out}}|O>
+^@P<s:(?<s>$PCT)(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @P<{{rest}}|{{ops}}| Constant%28value%3D%22ESC<{{s}}>%22%29{{out}}|O>
+^@P<lp(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @P<{{rest}}| 0:LP{{ops}}|{{out}}|V>
+^@P<add(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @R<5|UADD|{{rest}}|{{ops}}|{{out}}>
+^@P<sub(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @R<5|USUB|{{rest}}|{{ops}}|{{out}}>
+^@P<(?:mul|div|eq|ne|le|ge|lt|gt)(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @E<syntax_error>
+^@P<rp(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @E<syntax_error>
+^@P<add(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<2|ADD|{{rest}}|{{ops}}|{{out}}>
+^@P<sub(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<2|SUB|{{rest}}|{{ops}}|{{out}}>
+^@P<mul(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<3|MUL|{{rest}}|{{ops}}|{{out}}>
+^@P<div(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<3|DIV|{{rest}}|{{ops}}|{{out}}>
+^@P<eq(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<1|EQ|{{rest}}|{{ops}}|{{out}}>
+^@P<ne(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<1|NE|{{rest}}|{{ops}}|{{out}}>
+^@P<le(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<1|LE|{{rest}}|{{ops}}|{{out}}>
+^@P<ge(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<1|GE|{{rest}}|{{ops}}|{{out}}>
+^@P<lt(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<1|LT|{{rest}}|{{ops}}|{{out}}>
+^@P<gt(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @R<1|GT|{{rest}}|{{ops}}|{{out}}>
+^@P<lp(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @E<unsupported_form>
+^@P<rp(?: (?<rest>[^|]*))?\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @C<{{rest}}|{{ops}}|{{out}}>
+^@P<(?:n:|i:|k:|s:)(?<rest>[^|]*)\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @E<syntax_error>
+^@P<\|(?<ops>.*)\|(?<out>.*)\|V>$ ::= @E<syntax_error>
+^@P<\|(?<ops>.*)\|(?<out>.*)\|O>$ ::= @Z<{{ops}}|{{out}}>
+
+^@R<5\|(?<iop>UADD|USUB)\|(?<rest>[^|]*)\|(?<ops>.*)\|(?<out>.*)>$ ::= @P<{{rest}}| 5:{{iop}}{{ops}}|{{out}}|V>
+^@R<(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|\|(?<out>.*)>$ ::= @P<{{rest}}| {{th}}:{{iop}}|{{out}}|V>
+^@R<(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\| (?<tp>[0-9]):(?<top>\S+)(?<ops>.*)\|(?<out>.*)>$ ::= @RQ<GE<{{tp}},{{th}}>|{{th}}|{{iop}}|{{rest}}| {{tp}}:{{top}}{{ops}}|{{out}}>
+^@RQ<0\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|(?<ops>.*)\|(?<out>.*)>$ ::= @P<{{rest}}| {{th}}:{{iop}}{{ops}}|{{out}}|V>
+^@RQ<1\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\| (?<tp>[0-9]):(?<top>\S+)(?<ops>.*)\|(?<out>.*)>$ ::= @RD<{{top}}#R#{{th}}#{{iop}}#{{rest}}|{{ops}}|{{out}}>
+
+^@C<(?<rest>[^|]*)\| 0:LP(?<ops>.*)\|(?<out>.*)>$ ::= @P<{{rest}}|{{ops}}|{{out}}|O>
+^@C<(?<rest>[^|]*)\| (?<tp>[1-9]):(?<top>\S+)(?<ops>.*)\|(?<out>.*)>$ ::= @RD<{{top}}#C#0##{{rest}}|{{ops}}|{{out}}>
+^@C<(?<rest>[^|]*)\|\|(?<out>.*)>$ ::= @E<syntax_error>
+
+^@Z< 0:LP(?<ops>.*)\|(?<out>.*)>$ ::= @E<syntax_error>
+^@Z< (?<tp>[1-9]):(?<top>\S+)(?<ops>.*)\|(?<out>.*)>$ ::= @RD<{{top}}#Z#0##|{{ops}}|{{out}}>
+^@Z<\|\ (?<frag>$PCT)>$ ::= @DONE<Module%28body%3D%5BExpr%28value%3D{{frag}}%29%5D%2C%20type_ignores%3D%5B%5D%29>
+
+A comparison whose left side is already a comparison is a chain, which this slice does not build.
+^@RD<(?<op>EQ|NE|LE|GE|LT|GT)#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) Compare%28(?<lrest>$PCT)(?<more>.*)>$ ::= @E<unsupported_form>
+^@RD<ADD#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| BinOp%28left%3D{{l}}%2C%20op%3DAdd%28%29%2C%20right%3D{{r}}%29{{more}}>
+^@RD<SUB#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| BinOp%28left%3D{{l}}%2C%20op%3DSub%28%29%2C%20right%3D{{r}}%29{{more}}>
+^@RD<MUL#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| BinOp%28left%3D{{l}}%2C%20op%3DMult%28%29%2C%20right%3D{{r}}%29{{more}}>
+^@RD<DIV#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| BinOp%28left%3D{{l}}%2C%20op%3DDiv%28%29%2C%20right%3D{{r}}%29{{more}}>
+^@RD<EQ#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BEq%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}>
+^@RD<NE#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BNotEq%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}>
+^@RD<LE#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BLtE%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}>
+^@RD<GE#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BGtE%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}>
+^@RD<LT#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BLt%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}>
+^@RD<GT#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<r>$PCT) (?<l>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| Compare%28left%3D{{l}}%2C%20ops%3D%5BGt%28%29%5D%2C%20comparators%3D%5B{{r}}%5D%29{{more}}>
+^@RD<UADD#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<a>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| UnaryOp%28op%3DUAdd%28%29%2C%20operand%3D{{a}}%29{{more}}>
+^@RD<USUB#(?<k>R|C|Z)#(?<th>[0-9])#(?<iop>[^#]*)#(?<rest>[^|]*)\|(?<ops>.*)\| (?<a>$PCT)(?<more>.*)>$ ::= @N<{{k}}|{{th}}|{{iop}}|{{rest}}|{{ops}}| UnaryOp%28op%3DUSub%28%29%2C%20operand%3D{{a}}%29{{more}}>
+
+^@N<R\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|(?<ops>.*)\|(?<out>.*)>$ ::= @R<{{th}}|{{iop}}|{{rest}}|{{ops}}|{{out}}>
+^@N<C\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|(?<ops>.*)\|(?<out>.*)>$ ::= @C<{{rest}}|{{ops}}|{{out}}>
+^@N<Z\|(?<th>[0-9])\|(?<iop>[^|]*)\|(?<rest>[^|]*)\|(?<ops>.*)\|(?<out>.*)>$ ::= @Z<{{ops}}|{{out}}>
+
+^@DONE<(?<p>$PCT)>$ ::= @OUT<{{p}}>@@EXIT0@
+^@OUT<(?<p>$PCT)>@ ::> stdout {{p|pctdec}}\n
+^@EXIT0@$ ::- 0
+^@E<(?<e>[A-Za-z0-9_]+)>$ ::= @ERR<{{e}}>@@EXIT2@
+^@ERR<(?<e>[A-Za-z0-9_]+)>@ ::> stderr {{e}}\n
+^@EXIT2@$ ::- 2
+
+\A(?<src>[\s\S]+)\z ::= @Y<{{src|pctenc}}>|
+\A\z ::= @E<syntax_error>
+
+::=
+1+2

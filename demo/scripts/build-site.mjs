@@ -13,6 +13,7 @@ const SANDBOX_COLORS = {
   lisp: 'var(--sandbox-lisp)',
   basic: 'var(--sandbox-basic)',
   expr: 'var(--sandbox-expr)',
+  python: 'var(--sandbox-python)',
 }
 
 function chartColor(id) {

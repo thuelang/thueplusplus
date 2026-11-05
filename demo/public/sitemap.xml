@@ -101,6 +101,10 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://thuelang.org/sandboxes/python</loc>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://thuelang.org/docs/python/install</loc>
     <priority>0.5</priority>
   </url>

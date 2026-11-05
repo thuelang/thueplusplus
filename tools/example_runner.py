@@ -560,7 +560,7 @@ def build_interpreters(build_root: Path, hosts: tuple[str, ...] | None = None) -
     return interpreters
 
 
-LANG_DIRS = frozenset({"forth", "lisp", "basic", "expr"})
+LANG_DIRS = frozenset({"forth", "lisp", "basic", "expr", "python"})
 # One case per core feature. Guest languages are not in this list.
 CORE_CASES: tuple[tuple[str, str | None], ...] = (
     ("examples/hello/tests/basic.toml", None),
@@ -616,7 +616,7 @@ def guest_work() -> list[tuple[Path, dict]]:
         for case in expand_cases(load_toml(config_path), config_path):
             work.append((config_path, case))
     if not work:
-        raise RuntimeError("guest tier found no Forth, Lisp, BASIC, Expr, or Brainfuck manifests")
+        raise RuntimeError("guest tier found no Forth, Lisp, BASIC, Expr, Python, or Brainfuck manifests")
     return work
 
 

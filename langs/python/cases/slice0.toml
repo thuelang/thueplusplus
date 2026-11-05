@@ -1,0 +1,813 @@
+program = "../python.thue"
+timeout = 30
+
+[[case]]
+name = "addition"
+input = "1+2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=Constant(value=1), op=Add(), right=Constant(value=2)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "grouped product"
+input = "(a+b)*c"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=BinOp(left=Name(id='a', ctx=Load()), op=Add(), right=Name(id='b', ctx=Load())), op=Mult(), right=Name(id='c', ctx=Load())))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "double quoted string"
+input = "\"hi\""
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Constant(value=\"hi\"))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "single quoted string"
+input = "'ab'"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Constant(value=\"ab\"))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "bare name"
+input = "a"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Name(id='a', ctx=Load()))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "keyword is unsupported"
+input = "def"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "division is not evaluated"
+input = "1/0"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=Constant(value=1), op=Div(), right=Constant(value=0)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "true constant"
+input = "True"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Constant(value=True))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "false constant"
+input = "False"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Constant(value=False))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "none constant"
+input = "None"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Constant(value=None))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "unary minus"
+input = "-1"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=UnaryOp(op=USub(), operand=Constant(value=1)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "unary plus"
+input = "+1"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=UnaryOp(op=UAdd(), operand=Constant(value=1)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "nested unary minus"
+input = "- -1"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=UnaryOp(op=USub(), operand=UnaryOp(op=USub(), operand=Constant(value=1))))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "less than"
+input = "1<2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Compare(left=Constant(value=1), ops=[Lt()], comparators=[Constant(value=2)]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "less than or equal"
+input = "1<=2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Compare(left=Constant(value=1), ops=[LtE()], comparators=[Constant(value=2)]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "equal"
+input = "1==2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Compare(left=Constant(value=1), ops=[Eq()], comparators=[Constant(value=2)]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "not equal"
+input = "1!=2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Compare(left=Constant(value=1), ops=[NotEq()], comparators=[Constant(value=2)]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "greater than"
+input = "1>2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Compare(left=Constant(value=1), ops=[Gt()], comparators=[Constant(value=2)]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "greater than or equal"
+input = "1>=2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Compare(left=Constant(value=1), ops=[GtE()], comparators=[Constant(value=2)]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "precedence"
+input = "1+2*3"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=Constant(value=1), op=Add(), right=BinOp(left=Constant(value=2), op=Mult(), right=Constant(value=3))))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "parentheses"
+input = "(1+2)*3"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=BinOp(left=Constant(value=1), op=Add(), right=Constant(value=2)), op=Mult(), right=Constant(value=3)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "decimal"
+input = "1.5"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Constant(value=1.5))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "zero decimal"
+input = "0.0"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Constant(value=0.0))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "leading zeros stay in the dump"
+input = "007"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Constant(value=007))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "binary plus unary"
+input = "1+-2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=Constant(value=1), op=Add(), right=UnaryOp(op=USub(), operand=Constant(value=2))))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "multiply by a negation"
+input = "1*-2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=Constant(value=1), op=Mult(), right=UnaryOp(op=USub(), operand=Constant(value=2))))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "comparison below addition"
+input = "1<2+3"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Compare(left=Constant(value=1), ops=[Lt()], comparators=[BinOp(left=Constant(value=2), op=Add(), right=Constant(value=3))]))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "left associative addition"
+input = "1+2+3"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=BinOp(left=Constant(value=1), op=Add(), right=Constant(value=2)), op=Add(), right=Constant(value=3)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "left associative subtraction"
+input = "1-2-3"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=BinOp(left=Constant(value=1), op=Sub(), right=Constant(value=2)), op=Sub(), right=Constant(value=3)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "left associative multiplication"
+input = "1*2*3"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=BinOp(left=Constant(value=1), op=Mult(), right=Constant(value=2)), op=Mult(), right=Constant(value=3)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "left associative division"
+input = "1/2/3"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=BinOp(left=Constant(value=1), op=Div(), right=Constant(value=2)), op=Div(), right=Constant(value=3)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "chained comparison is unsupported"
+input = "1<2<3"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "newline escape"
+input = "\"a\\nb\""
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Constant(value=\"a\\nb\"))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "backslash escape"
+input = "\"a\\\\b\""
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Constant(value=\"a\\\\b\"))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "escaped quote"
+input = "\"say \\\"hi\\\"\""
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Constant(value=\"say \\\"hi\\\"\"))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "single quote inside a double quoted string"
+input = "\"a'b\""
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Constant(value=\"a'b\"))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "empty single quoted string"
+input = "''"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Constant(value=\"\"))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "empty double quoted string"
+input = "\"\""
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Constant(value=\"\"))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "f string is unsupported"
+input = "f\"a\""
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "scientific notation is unsupported"
+input = "1e2"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "trailing dot is unsupported"
+input = "1."
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "leading dot is unsupported"
+input = ".5"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "attribute is unsupported"
+input = "a.b"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "floor division is unsupported"
+input = "1//2"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "power is unsupported"
+input = "2**3"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "call is unsupported"
+input = "a(1)"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "assignment is unsupported"
+input = "a=1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "modulo is unsupported"
+input = "1%2"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "tuple is unsupported"
+input = "(1,2)"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "subscript is unsupported"
+input = "a[0]"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "brace is unsupported"
+input = "{1}"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "semicolon is unsupported"
+input = "1;2"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "comment is unsupported"
+input = "# hi"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "unknown character"
+input = "?"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "empty input"
+input = ""
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "whitespace only"
+input = "   "
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "missing operand"
+input = "1+"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "unary without a value"
+input = "+"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "unexpected close"
+input = ")"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "unclosed parenthesis"
+input = "(1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "unexpected close after a value"
+input = "1)"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "empty parentheses"
+input = "()"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "two values"
+input = "1 2"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "binary operator without a left value"
+input = "*1"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "bad escape"
+input = "\"\\x\""
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_string_escape\n"
+
+[[case]]
+name = "unclosed double quote"
+input = "\"hi"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "unclosed single quote"
+input = "'hi"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "trailing backslash in a double quote"
+input = "\"\\\""
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_string_escape\n"
+
+[[case]]
+name = "trailing backslash in a single quote"
+input = "'\\'"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_string_escape\n"
+
+[[case]]
+name = "keyword prefix is a name"
+input = "iff"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=Name(id='iff', ctx=Load()))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "triple quote is unsupported"
+input = "\"\"\""
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "at sign is unsupported"
+input = "@"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "not is unsupported"
+input = "not"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "match is unsupported"
+input = "match"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "type is unsupported"
+input = "type"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "lambda is unsupported"
+input = "lambda"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "newline is whitespace"
+input = "1+\n2"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=Constant(value=1), op=Add(), right=Constant(value=2)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "spaces around operators"
+input = "( a + b ) * c"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=BinOp(left=Name(id='a', ctx=Load()), op=Add(), right=Name(id='b', ctx=Load())), op=Mult(), right=Name(id='c', ctx=Load())))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "negate a group"
+input = " -(1+2)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=UnaryOp(op=USub(), operand=BinOp(left=Constant(value=1), op=Add(), right=Constant(value=2))))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "parentheses around one sum"
+input = "(1+2)"
+
+[case.expect]
+exit_code = 0
+stdout = "Module(body=[Expr(value=BinOp(left=Constant(value=1), op=Add(), right=Constant(value=2)))], type_ignores=[])\n"
+stderr = ""
+
+[[case]]
+name = "uppercase string prefix"
+input = "F\"a\""
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "bytes prefix"
+input = "b\"x\""
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "raw f prefix"
+input = "fr\"x\""
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "raw prefix"
+input = "r\"z\""
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "shift is unsupported"
+input = "<<"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "bang is unsupported"
+input = "!"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "backtick"
+input = "`"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "syntax_error\n"
+
+[[case]]
+name = "dot exponent is unsupported"
+input = "1.e2"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "pass is unsupported"
+input = "pass"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "unsupported_form\n"
+
+[[case]]
+name = "backslash single quote is not an escape"
+input = "'a\\'b'"
+
+[case.expect]
+exit_code = 2
+stdout = ""
+stderr = "invalid_string_escape\n"
+

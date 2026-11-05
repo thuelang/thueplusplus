@@ -152,6 +152,42 @@ export const sandboxGuides = [
       },
     ],
   },
+  {
+    id: 'python',
+    purpose: 'A reader that turns one Python expression into an AST dump. The program is --input. It does not run the expression.',
+    useCases: [
+      'Numbers, names, strings, arithmetic, and comparisons',
+      'An AST dump shaped like ast.parse, with no evaluation',
+    ],
+    strengths: [
+      '1/0 is a division node',
+      'A statement or a call fails with unsupported_form',
+    ],
+    command: "uv run thue langs/python/python.thue --input '1+2'",
+    readmeSections: [],
+    examples: [
+      {
+        name: 'Addition',
+        input: '1+2',
+        output: 'Module(body=[Expr(value=BinOp(left=Constant(value=1), op=Add(), right=Constant(value=2)))], type_ignores=[])\n',
+        program: 'langs/python/python.thue',
+        args: ['--input', '1+2'],
+        stdout: 'Module(body=[Expr(value=BinOp(left=Constant(value=1), op=Add(), right=Constant(value=2)))], type_ignores=[])\n',
+        stderr: '',
+        exit: 0,
+      },
+      {
+        name: 'Statement',
+        input: 'def',
+        output: 'unsupported_form\n',
+        program: 'langs/python/python.thue',
+        args: ['--input', 'def'],
+        stdout: '',
+        stderr: 'unsupported_form\n',
+        exit: 2,
+      },
+    ],
+  },
 ]
 
 export function guideFor(id) {
